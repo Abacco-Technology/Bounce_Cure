@@ -1,3 +1,4 @@
+// Toolbox.jsx
 import React, { useState } from "react";
 import {
   Type,
@@ -194,146 +195,8 @@ const socialIcons = [
   }
 ];
 
-
-  const cardStyles = [
-    {
-      id: "card-basic",
-      name: "Basic Card",
-      description: "Simple card with border",
-      style: {
-        backgroundColor: "#FFFFFF",
-        borderColor: "#E2E8F0",
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 16,
-      },
-    },
-    {
-      id: "card-shadow",
-      name: "Shadow Card",
-      description: "Card with shadow effect",
-      style: {
-        backgroundColor: "#FFFFFF",
-        borderColor: "#E2E8F0",
-        borderWidth: 0,
-        borderRadius: 8,
-        padding: 16,
-        boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-      },
-    },
-    {
-      id: "card-colored",
-      name: "Colored Card",
-      description: "Card with colored background",
-      style: {
-        backgroundColor: "#EBF8FF",
-        borderColor: "#90CDF4",
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 16,
-      },
-    },
-    {
-      id: "card-gradient",
-      name: "Gradient Card",
-      description: "Card with gradient background",
-      style: {
-        backgroundColor: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)",
-        borderColor: "#90CDF4",
-        borderWidth: 0,
-        borderRadius: 8,
-        padding: 16,
-        color: "#0000",
-      },
-    },
-    {
-      id: "card-pattern",
-      name: "Pattern Card",
-      description: "Card with pattern background",
-      style: {
-        backgroundColor: "#F7FAFC",
-        borderColor: "#CBD5E0",
-        borderWidth: 1,
-        borderRadius: 8,
-        padding: 16,
-        backgroundImage:
-          "repeating-linear-gradient(45deg, #f0f0f0, #f0f0f0 10px, #e0e0e0 10px, #e0e0e0 20px)",
-      },
-    },
-  ];
-
-  const prebuiltLayouts = [
-    {
-      id: 1,
-      name: "Header + Content",
-      description: "Simple header with content section",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='200' height='40' fill='%234ECDC4'/%3E%3Crect y='50' width='200' height='100' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 2,
-      name: "Two Columns",
-      description: "Two column layout",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='95' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='105' width='95' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 3,
-      name: "Three Columns",
-      description: "Three column layout",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='65' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='68' width='64' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='135' width='65' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 4,
-      name: "Header + Two Columns",
-      description: "Header with two columns below",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='200' height='40' fill='%234ECDC4'/%3E%3Crect y='50' width='95' height='100' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='105' y='50' width='95' height='100' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 5,
-      name: "Sidebar + Content",
-      description: "Left sidebar with main content",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='60' height='150' fill='%23e9ecef' stroke='%23dee2e6'/%3E%3Crect x='65' width='135' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 6,
-      name: "Hero Section",
-      description: "Full width hero section",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='200' height='80' fill='%23FF6B6B'/%3E%3Crect y='90' width='200' height='60' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 7,
-      name: "Card Layout",
-      description: "Grid of cards",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='90' height='65' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='110' width='90' height='65' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect y='75' width='90' height='65' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='110' y='75' width='90' height='65' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 8,
-      name: "Newsletter",
-      description: "Newsletter signup layout",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='200' height='60' fill='%2345B7D1'/%3E%3Crect y='70' width='200' height='40' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect y='120' width='200' height='30' fill='%2328a745'/%3E%3C/svg%3E",
-    },
-    {
-      id: 9,
-      name: "Product Showcase",
-      description: "Product showcase with image and details",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Crect width='100' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3Crect x='110' width='90' height='150' fill='%23f8f9fa' stroke='%23dee2e6'/%3E%3C/svg%3E",
-    },
-    {
-      id: 10,
-      name: "Testimonial",
-      description: "Customer testimonial layout",
-      thumbnail:
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'%3E%3Ccircle cx='100' cy='40' r='20' fill='%23dee2e6'/%3E%3Crect x='50' y='70' width='100' height='10' fill='%23dee2e6'/%3E%3Crect x='30' y='90' width='140' height='10' fill='%23dee2e6'/%3E%3Crect x='40' y='110' width='120' height='10' fill='%23dee2e6'/%3E%3C/svg%3E",
-    },
-  ];
+ 
+ 
 
   const handleUpload = (e) => {
     const file = e.target.files[0];
@@ -488,7 +351,7 @@ const socialIcons = [
 
   const tabs = [
     { id: "elements", label: "Elements", icon: Shapes },
-    { id: "layouts", label: "Layouts", icon: Layers },
+    
     { id: "images", label: "Images", icon: FileImage },
     { id: "colors", label: "Colors", icon: Palette },
   ];
@@ -672,53 +535,7 @@ const socialIcons = [
               )}
             </div>
 
-            {/* Card Elements */}
-            <div className="bg-gray-700/50 rounded-lg p-3">
-              <div
-                className="flex items-center justify-between cursor-pointer"
-                onClick={() => toggleSection("cards")}
-              >
-                <h3 className="text-sm font-medium text-gray-300">
-                  Card Elements
-                </h3>
-                {expandedSections.cards ? (
-                  <ChevronUp size={16} />
-                ) : (
-                  <ChevronDown size={16} />
-                )}
-              </div>
-
-              {expandedSections.cards && (
-                <div className="grid grid-cols-1 gap-3 mt-3">
-                  {cardStyles.map((card) => (
-                    <button
-                      key={card.id}
-                      onClick={() => handleAddCard(card)}
-                      className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
-                    >
-                      <div
-                        className="flex items-center justify-center w-16 h-10 rounded-md"
-                        style={{
-                          backgroundColor: card.style.backgroundColor,
-                          border: `${card.style.borderWidth}px solid ${card.style.borderColor}`,
-                          borderRadius: `${card.style.borderRadius}px`,
-                        }}
-                      >
-                        <CreditCard size={16} className="text-gray-700" />
-                      </div>
-                      <div>
-                        <span className="text-xs text-gray-300 group-hover:text-white">
-                          {card.name}
-                        </span>
-                        <p className="text-xs text-gray-400">
-                          {card.description}
-                        </p>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+             
 
             {/* Shapes */}
             <div className="bg-gray-700/50 rounded-lg p-3">
@@ -1001,46 +818,8 @@ const socialIcons = [
           </div>
         )}
 
-        {/* Layouts Tab */}
-        {activeTab === "layouts" && (
-          <div className="space-y-4">
-            <div className="bg-gray-700/50 rounded-lg p-3">
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Prebuilt Layouts
-              </h3>
-              <p className="text-xs text-gray-400 mb-3">
-                Drag to add layouts to your email
-              </p>
-
-              <div className="grid grid-cols-2 gap-3">
-                {prebuiltLayouts.map((layout) => (
-                  <div
-                    key={layout.id}
-                    className="bg-gray-700 rounded-lg overflow-hidden cursor-pointer hover:bg-gray-600 transition-colors"
-                    onClick={() => onAddLayout(layout.id)}
-                    title={`Add ${layout.name} layout`}
-                  >
-                    <div className="p-2 bg-gray-800 flex items-center justify-center">
-                      <img
-                        src={layout.thumbnail}
-                        alt={layout.name}
-                        className="w-full h-20 object-contain"
-                      />
-                    </div>
-                    <div className="p-2">
-                      <h4 className="text-sm font-medium text-white">
-                        {layout.name}
-                      </h4>
-                      <p className="text-xs text-gray-400 mt-1">
-                        {layout.description}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
+         
+        
 
         {/* Images Tab */}
         {/* Images Tab */}
@@ -1142,81 +921,7 @@ const socialIcons = [
                 />
               </div>
             </div>
-
-            {/* Instructions */}
-            <div className="p-3 bg-gray-700 rounded-lg">
-              <p
-                className="text-xs text-gray-300"
-                title="Instructions for color selection"
-              >
-                {selectedElement
-                  ? `Applying colors to selected ${selectedElement.type}`
-                  : "Select an element or click a color to create a new card"}
-              </p>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Color Palette
-              </h3>
-              <div className="grid grid-cols-5 gap-3">
-                {colorPalette.map((color, index) => (
-                  <button
-                    key={index}
-                    className="w-10 h-10 rounded-lg border-2 border-gray-600 hover:border-white transition-colors hover:scale-110 transform"
-                    style={{ backgroundColor: color }}
-                    onClick={() => handleColorSelect(color)}
-                    title={`Apply color ${color}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Gradients
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {gradients.map((gradient, index) => (
-                  <button
-                    key={index}
-                    className="h-10 rounded-lg border-2 border-gray-600 hover:border-white transition-colors hover:scale-105 transform"
-                    style={{ background: gradient }}
-                    onClick={() => handleGradientSelect(gradient)}
-                    title={`Apply gradient ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Patterns
-              </h3>
-              <div className="grid grid-cols-2 gap-2">
-                {patterns.map((pattern, index) => (
-                  <button
-                    key={index}
-                    className="h-10 rounded-lg border-2 border-gray-600 hover:border-white transition-colors hover:scale-105 transform"
-                    style={{ background: pattern }}
-                    onClick={() => handlePatternSelect(pattern)}
-                    title={`Apply pattern ${index + 1}`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-medium text-gray-300 mb-3">
-                Custom Color
-              </h3>
-              <input
-                type="color"
-                className="w-full h-12 bg-gray-700 border border-gray-600 rounded-lg cursor-pointer"
-                onChange={handleCustomColor}
-                title="Choose custom color"
-              />
-            </div>
+ 
           </div>
         )}
 

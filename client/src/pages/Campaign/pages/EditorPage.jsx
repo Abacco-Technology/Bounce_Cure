@@ -1,3 +1,4 @@
+// EditorPage.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from 'react-router-dom';
 import CanvasArea from "../Components/Editor/CanvasArea";

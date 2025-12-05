@@ -197,7 +197,13 @@ function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
           />
         );
       
-      case "paragraph":
+      case "paragraph": {
+        const cleanContent = (el.content || "")
+          .replace(/<br><br>/g, "<br>")
+          .replace(/<div><br><\/div>/g, "<br>")
+          .replace(/&nbsp;/g, " ")
+          .trim();
+
         return (
           <div
             style={{
@@ -206,17 +212,18 @@ function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
               fontWeight: el.fontWeight || "normal",
               fontStyle: el.fontStyle || "normal",
               textDecoration: el.textDecoration || "none",
-              lineHeight: el.lineHeight || 1.6,
-              margin: "6px 0",
+              lineHeight: el.lineHeight || 1.4,
+              margin: "4px 0",
+              whiteSpace: "pre-line",
               backgroundColor: el.backgroundColor || "transparent",
               wordWrap: "break-word",
-              whiteSpace: "normal",
               overflowWrap: "break-word",
             }}
-            dangerouslySetInnerHTML={{ __html: (el.content || "").trim() || "Paragraph text" }}
+            dangerouslySetInnerHTML={{ __html: cleanContent }}
           />
         );
-      
+      }
+
       case "blockquote":
         return (
           <div
@@ -262,23 +269,36 @@ case "image":
       
       case "button":
       return (
-        <div style={{ textAlign: el.textAlign || "left", margin: "12px 0" }}>
-          <a href={el.link || "#"}
-            style={{
-              display: "inline-block",
-              padding: `${el.padding || "10px 18px"}`,
-              background: el.backgroundColor || "#c2831f",
-              color: el.color || "#fff",
-              borderRadius: `${el.borderRadius || 6}px`,
-              textDecoration: "none",
-              fontWeight: el.fontWeight || "700",
-              fontSize: `${el.fontSize || 16}px`,
-              fontFamily: el.fontFamily || "Arial, sans-serif",
-            }}
-            dangerouslySetInnerHTML={{ __html: el.content || "Click Me" }}
-          />
-        </div>
-      );
+  <div
+    style={{
+      textAlign: el.textAlign || "left",
+      margin: el.content.includes("<br") ? "4px 0" : "12px 0", // FIXED
+      lineHeight: el.content.includes("<br") ? "1.2" : "1.4", // FIXED
+    }}
+  >
+    <a
+      href={el.link || "#"}
+      style={{
+        display: "inline-block",
+        padding: el.content.includes("<br")
+          ? "6px 12px"   // tighter padding for multi-line button
+          : el.padding || "10px 18px",
+        background: el.backgroundColor || "#c2831f",
+        color: el.color || "#fff",
+        borderRadius: `${el.borderRadius || 6}px`,
+        textDecoration: "none",
+        fontWeight: el.fontWeight || "700",
+        fontSize: `${el.fontSize || 16}px`,
+        fontFamily: el.fontFamily || "Arial, sans-serif",
+        whiteSpace: "pre-line", // FIX MULTI-LINE BUTTON TEXT
+      }}
+      dangerouslySetInnerHTML={{
+        __html: el.content || "Click Me",
+      }}
+    />
+  </div>
+);
+
           
       case "line":
       return (
