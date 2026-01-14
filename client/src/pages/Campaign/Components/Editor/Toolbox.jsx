@@ -48,6 +48,8 @@ import {
   Linkedin,
   Youtube,
   CreditCard,
+  
+ 
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -80,10 +82,11 @@ const Toolbox = ({
     interactive: true,
     media: true,
     social: true,
+    icons: false,  // ✅ Add this
     advanced: false,
     cards: true,
   });
-
+const [iconSearch, setIconSearch] = useState("");
   const [showExitModal, setShowExitModal] = useState(false);
 
   const handleSaveAndExit = () => {
@@ -156,16 +159,28 @@ const Toolbox = ({
     { id: "pulse", name: "Pulse", icon: ChevronUp },
   ];
 
-  const icons = [
-    { name: "Star", icon: Star },
-    { name: "Heart", icon: Heart },
-    { name: "Check", icon: Check },
-    { name: "Arrow", icon: ArrowRight },
-    { name: "Home", icon: Home },
-    { name: "User", icon: User },
-    { name: "Settings", icon: Settings },
-    { name: "Mail", icon: Mail },
-  ];
+const icons = [
+  { name: "Star", icon: Star, symbol: "⭐" },
+  { name: "Heart", icon: Heart, symbol: "❤️" },
+  { name: "Check", icon: Check, symbol: "✓" },
+  { name: "Arrow", icon: ArrowRight, symbol: "→" },
+  { name: "Home", icon: Home, symbol: "🏠" },
+  { name: "User", icon: User, symbol: "👤" },
+  { name: "Settings", icon: Settings, symbol: "⚙️" },
+  { name: "Mail", icon: Mail, symbol: "📧" },
+  { name: "Phone", icon: CreditCard, symbol: "📞" },
+  { name: "Calendar", icon: CreditCard, symbol: "📅" },
+  { name: "Clock", icon: CreditCard, symbol: "🕐" },
+  { name: "Search", icon: CreditCard, symbol: "🔍" },
+  { name: "Shopping", icon: CreditCard, symbol: "🛒" },
+  { name: "Bell", icon: CreditCard, symbol: "🔔" },
+  { name: "Bookmark", icon: CreditCard, symbol: "🔖" },
+  { name: "Camera", icon: Camera, symbol: "📷" },
+  { name: "Video", icon: Video, symbol: "📹" },
+  { name: "Music", icon: Music, symbol: "🎵" },
+  { name: "File", icon: FileText, symbol: "📄" },
+  { name: "Folder", icon: FileText, symbol: "📁" },
+];
 
 const socialIcons = [
   { 
@@ -192,9 +207,23 @@ const socialIcons = [
     name: "YouTube", 
     src: "https://cdn-icons-png.flaticon.com/512/1384/1384060.png", 
     color: "#FF0000"
+  },
+  {
+    name: "TikTok",
+    src: "https://cdn-icons-png.flaticon.com/512/3046/3046126.png",
+    color: "#000000"
+  },
+  {
+    name: "Pinterest",
+    src: "https://cdn-icons-png.flaticon.com/512/145/145808.png",
+    color: "#E60023"
+  },
+  {
+    name: "WhatsApp",
+    src: "https://cdn-icons-png.flaticon.com/512/733/733585.png",
+    color: "#25D366"
   }
 ];
-
  
  
 
@@ -231,6 +260,16 @@ const socialIcons = [
           styleUpdates.backgroundColor = color;
           break;
         case "heading":
+          newElement = {
+            id: uuid(),
+            type: "heading",
+            content: "Heading",
+            x: mousePos.x,
+            y: mousePos.y,
+            width: 300,
+            height: 40,
+          };
+
         case "paragraph":
         case "button":
           styleUpdates.color = color;
@@ -270,6 +309,21 @@ const socialIcons = [
       });
     }
   };
+const handleAddVideo = () => {
+  const videoUrl = prompt("Enter YouTube video URL:");
+  if (!videoUrl) return;
+
+  const embedId = videoUrl.split("v=")[1]?.split("&")[0];
+
+  onAddElement("video", {
+    type: "video",
+    src: videoUrl,          // ✅ for preview & click
+    videoUrl: videoUrl,     // ✅ for email linking
+    embedId: embedId,       // ✅ for thumbnail
+    width: 400,
+    height: 250,
+  });
+};
 
   const handlePatternSelect = (pattern) => {
     if (selectedElement) {
@@ -296,25 +350,28 @@ const socialIcons = [
     handleColorSelect(e.target.value);
   };
 
-  const handleAddIcon = (iconName) => {
+  const handleAddIcon = (icon) => {
     onAddElement("icon", {
-      name: iconName,
+      name: icon.name, 
       color: "#000000",
       fontSize: 24,
       link: null,
     });
+
   };
 
-  const handleAddSocialIcon = (socialName, socialColor) => {
-    const link = prompt(`Enter link for ${socialName} (optional):`, "");
-
+const handleAddSocialIcon = (icon) => {
+  const link = prompt(`Enter link for ${icon.name} (optional):`, "");
+  
   onAddElement("social", {
     type: "social",
     platform: icon.name,
-    src: icon.src,   // ✅ proper image URL
-    link: "#"
+    src: icon.src,  // ✅ Real image URL
+    link: link || "#",
+    width: 40,
+    height: 40
   });
-
+ 
 
   };
 
@@ -650,26 +707,7 @@ const socialIcons = [
                       Button
                     </span>
                   </button>
-                  <button
-                    onClick={() => onAddElement("input")}
-                    className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
-                    title="Add input field"
-                  >
-                    <PenTool size={16} className="text-indigo-400" />
-                    <span className="text-xs text-gray-300 group-hover:text-white">
-                      Input
-                    </span>
-                  </button>
-                  <button
-                    onClick={() => onAddElement("checkbox")}
-                    className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
-                    title="Add checkbox"
-                  >
-                    <Hash size={16} className="text-teal-400" />
-                    <span className="text-xs text-gray-300 group-hover:text-white">
-                      Checkbox
-                    </span>
-                  </button>
+                 
                   <button
                     onClick={() => onAddElement("line")}
                     className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
@@ -685,7 +723,7 @@ const socialIcons = [
             </div>
 
             {/* Media Elements */}
-            <div className="bg-gray-700/50 rounded-lg p-3">
+            {/* <div className="bg-gray-700/50 rounded-lg p-3">
               <div
                 className="flex items-center justify-between cursor-pointer"
                 onClick={() => toggleSection("media")}
@@ -712,7 +750,33 @@ const socialIcons = [
                     </span>
                   </button>
                   <button
-                    onClick={() => onAddElement("video")}
+                    onClick={() => {
+                      const url = prompt("Enter video URL (YouTube, Vimeo, or MP4):", "");
+                      if (!url) return;
+                      
+                      let videoSrc = url;
+                      let embedType = "direct";
+                      
+                      // Convert YouTube links to embed
+                      if (url.includes("youtube.com/watch")) {
+                        const videoId = url.split("v=")[1]?.split("&")[0];
+                        videoSrc = `https://www.youtube.com/embed/${videoId}`;
+                        embedType = "youtube";
+                      } else if (url.includes("youtu.be/")) {
+                        const videoId = url.split("youtu.be/")[1]?.split("?")[0];
+                        videoSrc = `https://www.youtube.com/embed/${videoId}`;
+                        embedType = "youtube";
+                      }
+                      
+                      onAddElement("video", {  
+                      type: "video",  
+                      videoUrl,  
+                      embedUrl: convertYoutubeURL(videoUrl),  
+                      width: 400,  
+                      height: 250  
+                    });
+
+                    }}
                     className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
                     title="Add video element"
                   >
@@ -722,7 +786,12 @@ const socialIcons = [
                     </span>
                   </button>
                   <button
-                    onClick={() => onAddElement("audio")}
+                    onClick={() => {
+                      const url = prompt("Enter audio URL (MP3, WAV):", "");
+                      if (url) {
+                        onAddElement("audio", { src: url });
+                      }
+                    }}
                     className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
                     title="Add audio element"
                   >
@@ -731,19 +800,11 @@ const socialIcons = [
                       Audio
                     </span>
                   </button>
-                  <button
-                    onClick={() => onAddElement("frame")}
-                    className="flex flex-col items-center gap-2 p-3 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
-                    title="Add frame element"
-                  >
-                    <Frame size={20} className="text-purple-400" />
-                    <span className="text-xs text-gray-300 group-hover:text-white">
-                      Frame
-                    </span>
-                  </button>
+                 
+                  
                 </div>
               )}
-            </div>
+            </div> */}
 
             {/* Social Icons */}
             <div className="bg-gray-700/50 rounded-lg p-3">
@@ -772,7 +833,7 @@ const socialIcons = [
                         type: "social",
                         platform: item.name,
                         src: item.src,
-                        link: "#"
+                        link: ""
                       })}
                     >
                       <img
@@ -803,7 +864,7 @@ const socialIcons = [
                 {icons.map((icon, index) => (
                   <button
                     key={index}
-                    onClick={() => handleAddIcon(icon.name)}
+                    onClick={() => handleAddIcon(icon)}
                     className="flex flex-col items-center gap-1 p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors group"
                     title={`Add ${icon.name} icon`}
                   >

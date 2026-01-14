@@ -60,11 +60,34 @@ const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAd
   // =====================================================
   // 1️⃣ NORMALIZE Y VALUES (Fix broken Y placements)
   // =====================================================
-  const normalized = canvasData.map((e) => ({
+const CONTAINER_WIDTH = 600;
+
+const normalized = canvasData.map((e) => {
+  const x = Number(e.x) || 0;
+  const width = Number(e.width) || 300;
+
+  let computedAlign = e.textAlign;
+
+if (!computedAlign) {
+    const center = x + width / 2;
+    
+    // ✅ Updated thresholds to 200-400
+    if (center >= 200 && center <= 400) {
+      computedAlign = "center";
+    } else if (center > 400) {
+      computedAlign = "right";
+    } else {
+      computedAlign = "left";
+    }
+  }
+  return {
     ...e,
     y: Number(e.y) || 0,
-    x: Number(e.x) || 0
-  }));
+    x,
+    width,
+    textAlign: computedAlign
+  };
+});
 
 
   // =====================================================
@@ -226,43 +249,44 @@ case "image": {
 }
 
 
-    case "button":
-    return `
-      <table cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:12px 0;">
-        <tr>
-          <td align="${el.textAlign || "left"}">
-            <table cellpadding="0" cellspacing="0" border="0" style="display:inline-block;">
-              <tr>
-                <td style="
-                  background:${el.backgroundColor || "#c2831f"};
-                  padding:${el.padding || "12px 24px"};
-                  border-radius:${el.borderRadius || 6}px;
-                  text-align:center;
-                ">
-                  <a href="${
-                    el.email
-                      ? (el.email.startsWith("mailto:") ? el.email : "mailto:" + el.email)
-                      : (el.link || "#")
-                  }"
-                    style="
-                      color:${el.color || "#fff"};
-                      font-size:${el.fontSize || 16}px;
-                      font-family:${el.fontFamily || "Arial, sans-serif"};
-                      font-weight:${el.fontWeight || "700"};
-                      text-decoration:none;
-                      display:inline-block;
-                      line-height:1.2;
-                    "
-                  >
-                    ${el.content || "Click Me"}
-                  </a>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    `;
+case 'button': {
+  // ✅ Calculate alignment from element position
+  let buttonAlignment = el.textAlign;
+  if (!buttonAlignment && el.x !== undefined) {
+    const center = el.x + (el.width || 150) / 2;
+    
+    // ✅ Better thresholds for 600px canvas
+    if (center >= 200 && center <= 400) {
+      buttonAlignment = "center";
+    } else if (center > 400) {
+      buttonAlignment = "right";
+    } else {
+      buttonAlignment = "left";
+    }
+  }
+  buttonAlignment = buttonAlignment || 'left';
+  
+  return `
+    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin: 12px 0;">
+      <tr>
+        <td align="${buttonAlignment}">
+          <a href="${el.link || '#'}" 
+             style="display: inline-block;
+                    padding: ${el.padding || '10px 18px'};
+                    background-color: ${el.backgroundColor || '#c2831f'};
+                    color: ${el.color || '#ffffff'};
+                    text-decoration: none;
+                    border-radius: ${el.borderRadius || 6}px;
+                    font-weight: ${el.fontWeight || '700'};
+                    font-size: ${el.fontSize || 16}px;
+                    font-family: ${el.fontFamily || 'Arial, sans-serif'};">
+            ${el.content || 'Click Me'}
+          </a>
+        </td>
+      </tr>
+    </table>
+  `;
+}
     case "line":
     return `
       <hr style="

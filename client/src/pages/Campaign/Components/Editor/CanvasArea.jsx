@@ -8,7 +8,7 @@ import {
   ArrowRight, PenTool, Hash, ChevronDown, ChevronUp, Zap, Move, ZoomIn, RotateCcw, 
   Heart, Home, User, Settings, Mail, Check, Facebook, Twitter, Instagram, Linkedin, 
   Youtube, CreditCard, Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight, 
-  Palette 
+  Palette,Camera
 } from 'lucide-react';
 import { api } from "../../../../api";
 
@@ -181,6 +181,7 @@ export default function CanvasArea({
   const activePageRef = useRef(activePage);
   const isEditingTemplateRef = useRef(isEditingTemplate);
   const editingTemplateIdRef = useRef(editingTemplateId);
+  const [mousePos, setMousePos] = useState({ x: 100, y: 100 });
 
   useEffect(() => {
     pagesRef.current = pages;
@@ -217,6 +218,25 @@ export default function CanvasArea({
       height: Math.max(maxY, 600)
     });
   }, []);
+
+  // ✅ Calculate button alignment based on position
+  const calculateButtonAlignment = useCallback((element) => {
+      if (element.type !== 'button') return element;
+      
+      const center = element.x + element.width / 2;
+      let textAlign;
+      
+      // ✅ Updated thresholds to 200-400
+      if (center >= 200 && center <= 400) {
+        textAlign = "center";
+      } else if (center > 400) {
+        textAlign = "right";
+      } else {
+        textAlign = "left";
+      }
+      
+      return { ...element, textAlign };
+    }, []);
 
   useEffect(() => {
     updateCanvasDimensions();
@@ -573,25 +593,58 @@ const handleSaveAsNewTemplate = useCallback(async () => {
   }, [templateName, editingTemplateId, pages, activePage]);
 
   const renderIcon = (element) => {
-    const iconName = element.name || element.iconName || 'Star';
-    const color = element.color || element.style?.color || '#000000';
+    const iconName = element.iconName || element.name || 'Star';
+    const color = element.color || '#000000';
     const size = Math.min(element.width, element.height) * zoomLevel || 24 * zoomLevel;
     const iconMap = {
-      'star': Star, 'heart': Heart, 'check': Check, 'arrow': ArrowRight, 'home': Home,
-      'user': User, 'settings': Settings, 'mail': Mail, 'facebook': Facebook, 'twitter': Twitter,
-      'instagram': Instagram, 'linkedin': Linkedin, 'youtube': Youtube, 'Star': Star, 'Heart': Heart,
-      'Check': Check, 'Arrow': ArrowRight, 'Home': Home, 'User': User, 'Settings': Settings,
-      'Mail': Mail, 'Facebook': Facebook, 'Twitter': Twitter, 'Instagram': Instagram,
-      'LinkedIn': Linkedin, 'YouTube': Youtube
+      Star,
+      Heart,
+      Check,
+      Arrow: ArrowRight,
+      Home,
+      User,
+      Settings,
+      Mail,
+      Phone: CreditCard,
+      Calendar: CreditCard,
+      Clock: CreditCard,
+      Search: CreditCard,
+      Shopping: CreditCard,
+      Bell: CreditCard,
+      Bookmark: CreditCard,
+      Camera,
+      Video,
+      Music,
+      File: FileText,
+      Folder: FileText,
     };
-    const IconComponent = iconMap[iconName.toLowerCase()];
-    if (IconComponent) return <IconComponent color={color} size={size} />;
+
+
+    const IconComponent = iconMap[iconName];
+
+    if (IconComponent) {
+      return <IconComponent color={color} size={size} />;
+    }
+
+    // Fallback to showing the icon name
     return (
-      <div style={{ color, fontSize: size, display: 'flex', alignItems: 'center', justifyContent: 'center', width: size, height: size, fontWeight: 'bold' }}>
-        {iconName.charAt(0).toUpperCase()}
+      <div
+        style={{
+          color,
+          fontSize: `${size * 0.5}px`,
+          fontWeight: "bold",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: size,
+          height: size,
+        }}
+      >
+        {iconName || '?'}
       </div>
     );
   };
+
 
   const getAnimationStyle = (element) => {
     if (!element.animation || element.animation === 'none') return {};
@@ -661,79 +714,35 @@ const handleElementClickLink = (element) => {
         enableResizing={true}
         minHeight={isTextElement ? 30 * zoomLevel : undefined}
         onDragStop={(e, d) => {
-          const newX = d.x / zoomLevel;
-          const newY = d.y / zoomLevel;
-          handleElementUpdate(element.id, { x: newX, y: newY });
-          
-          // Use the element's height from the closure
-          const elementHeight = element.height || defaultHeight;
-          const elementBottom = newY + elementHeight;
-          const currentHeight = canvasDimensions.height;
-          
-          // Expand canvas if element is near or beyond the bottom
-          if (elementBottom > currentHeight - 100) {
-            const newHeight = Math.max(currentHeight + 200, elementBottom + 100);
-            setCanvasDimensions(prev => ({ ...prev, height: newHeight }));
-            console.log('Canvas expanded from', currentHeight, 'to', newHeight);
-          }
-          
-          // Scroll to the element after updating position
-          setTimeout(() => {
-            scrollToElement({ ...element, x: newX, y: newY, height: elementHeight });
-          }, 0);
-        }}
-        onResizeStop={(e, dir, ref, delta, pos) => {
-          if (isTextElement) {
-            const newWidth = parseInt(ref.style.width) / zoomLevel;
-            const newHeight = parseInt(ref.style.height) / zoomLevel;
-            handleElementUpdate(element.id, {
-              width: newWidth,
-              height: newHeight,
-              x: pos.x / zoomLevel,
-              y: pos.y / zoomLevel,
-            });
+            const updatedElement = {
+              ...element,
+              x: Math.max(0, d.x / zoomLevel),
+              y: Math.max(0, d.y / zoomLevel),
+            };
             
-            const newY = pos.y / zoomLevel;
-            const elementBottom = newY + newHeight;
-            const currentHeight = canvasDimensions.height;
+            // ✅ Calculate alignment for buttons
+            const finalElement = element.type === 'button' 
+              ? calculateButtonAlignment(updatedElement) 
+              : updatedElement;
             
-            // Expand canvas if element is near or beyond the bottom
-            if (elementBottom > currentHeight - 100) {
-              const expandedHeight = Math.max(currentHeight + 200, elementBottom + 100);
-              setCanvasDimensions(prev => ({ ...prev, height: expandedHeight }));
-              console.log('Canvas expanded from', currentHeight, 'to', expandedHeight);
-            }
+            handleElementUpdate(element.id, finalElement);
+          }}
+          onResizeStop={(e, direction, ref, delta, position) => {
+            const updatedElement = {
+              ...element,
+              width: Math.max(50, parseInt(ref.style.width) / zoomLevel),
+              height: Math.max(20, parseInt(ref.style.height) / zoomLevel),
+              x: Math.max(0, position.x / zoomLevel),
+              y: Math.max(0, position.y / zoomLevel),
+            };
             
-            // Scroll to the element after resizing
-            setTimeout(() => {
-              scrollToElement({ ...element, y: newY, height: newHeight });
-            }, 0);
-          } else {
-            handleElementUpdate(element.id, {
-              width: parseInt(ref.style.width) / zoomLevel,
-              height: parseInt(ref.style.height) / zoomLevel,
-              x: pos.x / zoomLevel,
-              y: pos.y / zoomLevel,
-            });
+            // ✅ Calculate alignment for buttons
+            const finalElement = element.type === 'button' 
+              ? calculateButtonAlignment(updatedElement) 
+              : updatedElement;
             
-            const newHeight = parseInt(ref.style.height) / zoomLevel;
-            const newY = pos.y / zoomLevel;
-            const elementBottom = newY + newHeight;
-            const currentHeight = canvasDimensions.height;
-            
-            // Expand canvas if element is near or beyond the bottom
-            if (elementBottom > currentHeight - 100) {
-              const expandedHeight = Math.max(currentHeight + 200, elementBottom + 100);
-              setCanvasDimensions(prev => ({ ...prev, height: expandedHeight }));
-              console.log('Canvas expanded from', currentHeight, 'to', expandedHeight);
-            }
-            
-            // Scroll to the element after resizing
-            setTimeout(() => {
-              scrollToElement({ ...element, y: newY, height: newHeight });
-            }, 0);
-          }
-        }}
+            handleElementUpdate(element.id, finalElement);
+          }}
         className={`${isSelected ? 'z-50' : 'z-10'}`}
       >
         <div className={`w-full h-full cursor-pointer border-2 transition-all ${isSelected ? 'border-blue-500 shadow-lg ring-2 ring-blue-500/20' : 'border-transparent hover:border-blue-300/50'}`}
@@ -906,10 +915,22 @@ const handleElementClickLink = (element) => {
             </div>
           )}
           {element.type === "social" && (
-            <div className="w-full h-full flex items-center justify-center" onClick={() =>handleElementClickLink(element)}>
-              {renderIcon(element)}
+            <div 
+              className="w-full h-full flex items-center justify-center cursor-pointer"
+              onClick={() => handleElementClickLink(element)}
+            >
+              <img
+                src={element.src}
+                alt={element.platform || "social"}
+                style={{
+                  width: `${(element.width || 40) * zoomLevel}px`,
+                  height: `${(element.height || 40) * zoomLevel}px`,
+                  objectFit: "contain"
+                }}
+              />
             </div>
           )}
+
           {isSelected && !preview && (
             <>
               {isTextElement ? (
@@ -1178,13 +1199,32 @@ const handleElementClickLink = (element) => {
         >
 
         <div className="flex justify-center items-start min-w-full min-h-full">
-          <div ref={canvasRef} className={`canvas-background relative shadow-2xl rounded-lg overflow-visible ${preview ? "" : "ring-1 ring-gray-400/20"}`} style={{
-            width: canvasDimensions.width * zoomLevel, height: canvasDimensions.height * zoomLevel,
-            backgroundColor: internalCanvasBackgroundColor,
-            backgroundImage: showGrid && !preview ? `linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)` : "none",
-            backgroundSize: showGrid && !preview ? `${20 * zoomLevel}px ${20 * zoomLevel}px` : "none",
-            boxSizing: "border-box",
-          }}>
+         <div 
+            ref={canvasRef} 
+            className={`canvas-background relative shadow-2xl rounded-lg overflow-visible ${preview ? "" : "ring-1 ring-gray-400/20"}`} 
+            onMouseMove={(e) => {
+              const rect = canvasRef.current.getBoundingClientRect();
+              setMousePos({
+                x: (e.clientX - rect.left) / zoomLevel,
+                y: (e.clientY - rect.top) / zoomLevel
+              });
+            }}
+            style={{
+              width: canvasDimensions.width * zoomLevel,
+              height: canvasDimensions.height * zoomLevel,
+              backgroundColor: internalCanvasBackgroundColor,
+              backgroundImage: showGrid && !preview 
+                ? `linear-gradient(rgba(0,0,0,0.05) 1px, transparent 1px),
+                  linear-gradient(90deg, rgba(0,0,0,0.05) 1px, transparent 1px)` 
+                : "none",
+              backgroundSize: showGrid && !preview 
+                ? `${20 * zoomLevel}px ${20 * zoomLevel}px` 
+                : "none",
+              boxSizing: "border-box",
+            }}
+          >
+
+            
             {!preview && pages[activePage].elements.map((element) => renderElement(element))}
             {preview && (
               <div className="relative w-full h-full">

@@ -29,12 +29,7 @@ const steps = [
     description: "Choose a template",
     icon: FileText,
   },
-  {
-    id: "design",
-    title: "Design",
-    description: "Design your email",
-    icon: Palette,
-  },
+  
   {
     id: "schedule",
     title: "Schedule",
@@ -78,14 +73,15 @@ class ErrorBoundary extends React.Component {
 
 // Replace the EmailPreview function in SendCampaign.jsx with this:
 
-function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
-  if (!pages || !pages.length || activePage === undefined || activePage >= pages.length) {
+// ✅ FIXED EmailPreview function in SendCampaign.jsx
+
+function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData, canvasBackgroundColor }) {
+    if (!pages || !pages.length || activePage === undefined || activePage >= pages.length) {
     return (
       <div className="flex items-center justify-center h-full bg-white rounded-lg p-8">
         <div className="text-center text-gray-400">
           <div className="text-5xl mb-3">📧</div>
           <p className="text-gray-600 font-medium">No content to preview</p>
-          <p className="text-sm mt-2 text-gray-500">Design your email in the editor to see it here</p>
         </div>
       </div>
     );
@@ -98,34 +94,56 @@ function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
         <div className="text-center text-gray-400">
           <div className="text-5xl mb-3">📧</div>
           <p className="text-gray-600 font-medium">Empty canvas</p>
-          <p className="text-sm mt-2 text-gray-500">Add elements to your email design</p>
         </div>
       </div>
     );
   }
 
-  // ✅ Normalize & ensure numbers
-  const normalizedElements = currentPage.elements.map(e => ({
-    ...e,
-    x: Number(e.x) || 0,
-    y: Number(e.y) || 0,
-    width: Number(e.width) || (e.type === 'image' ? 250 : 300),
-    height: Number(e.height) || (e.type === 'paragraph' ? 40 : 80),
-    fontSize: Number(e.fontSize) || 16,
-  }));
+  // ✅ Get background color from location state
+  const backgroundColor = canvasBackgroundColor || '#FFFFFF';
 
-  // ✅ Sort by Y position first
-  const sorted = [...normalizedElements].sort((a, b) => {
-    if (Math.abs(a.y - b.y) > 10) {
-      return a.y - b.y;
+  // Normalize elements
+const CONTAINER_WIDTH = 600;
+
+const normalized = currentPage.elements.map(e => {
+  const x = Number(e.x) || 0;
+  const width = Number(e.width) || 300;
+
+  let computedAlign = e.textAlign;
+
+if (!computedAlign) {
+    const center = x + width / 2;
+    
+    // ✅ Updated thresholds to 200-400
+    if (center >= 200 && center <= 400) {
+      computedAlign = "center";
+    } else if (center > 400) {
+      computedAlign = "right";
+    } else {
+      computedAlign = "left";
     }
+  }
+  return {
+    ...e,
+    x,
+    y: Number(e.y) || 0,
+    width,
+    height: Number(e.height) || 80,
+    fontSize: Number(e.fontSize) || 16,
+    textAlign: computedAlign,
+  };
+});
+
+
+  // Sort and group elements
+  const sorted = [...normalized].sort((a, b) => {
+    if (Math.abs(a.y - b.y) > 10) return a.y - b.y;
     return a.x - b.x;
   });
 
-  // ✅ Group into rows with strict vertical overlap detection
   const groupIntoRows = (elements) => {
     const rows = [];
-    const VERTICAL_THRESHOLD = 15;
+    const THRESHOLD = 15;
     
     elements.forEach(el => {
       const elMidpoint = el.y + ((el.height || 80) / 2);
@@ -133,28 +151,23 @@ function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
       
       for (const row of rows) {
         const rowMidpoint = (row[0].y + ((row[0].height || 80) / 2));
-        
-        if (Math.abs(elMidpoint - rowMidpoint) < VERTICAL_THRESHOLD) {
+        if (Math.abs(elMidpoint - rowMidpoint) < THRESHOLD) {
           row.push(el);
           placed = true;
           break;
         }
       }
       
-      if (!placed) {
-        rows.push([el]);
-      }
+      if (!placed) rows.push([el]);
     });
     
-    // Sort items within each row by X position
     rows.forEach(row => row.sort((a, b) => a.x - b.x));
-    
     return rows;
   };
 
   const rows = groupIntoRows(sorted);
 
-  // ✅ Render element function - FIXED for proper email display
+  // ✅ Render element with all types
   const renderElement = (el) => {
     const baseStyle = {
       fontFamily: el.fontFamily || "Arial, sans-serif",
@@ -164,235 +177,269 @@ function EmailPreview({ pages, activePage, zoomLevel = 1.0, formData }) {
 
     switch (el.type) {
       case "heading":
-        return (
-          <div
-            style={{
-              ...baseStyle,
-              fontSize: `${el.fontSize || 28}px`,
-              fontWeight: el.fontWeight || "700",
-              margin: "6px 0",
-              backgroundColor: el.backgroundColor || "transparent",
-              lineHeight: "1.3",
-              wordWrap: "break-word",
-              whiteSpace: "normal",
-            }}
-            dangerouslySetInnerHTML={{ __html: el.content || "Heading" }}
-          />
-        );
-      
       case "subheading":
-        return (
-          <div
-            style={{
-              ...baseStyle,
-              fontSize: `${el.fontSize || 22}px`,
-              fontWeight: el.fontWeight || "600",
-              margin: "6px 0",
-              backgroundColor: el.backgroundColor || "transparent",
-              lineHeight: "1.4",
-              wordWrap: "break-word",
-              whiteSpace: "normal",
-            }}
-            dangerouslySetInnerHTML={{ __html: el.content || "Subheading" }}
-          />
-        );
-      
-      case "paragraph": {
-        const cleanContent = (el.content || "")
-          .replace(/<br><br>/g, "<br>")
-          .replace(/<div><br><\/div>/g, "<br>")
-          .replace(/&nbsp;/g, " ")
-          .trim();
-
-        return (
-          <div
-            style={{
-              ...baseStyle,
-              fontSize: `${el.fontSize || 16}px`,
-              fontWeight: el.fontWeight || "normal",
-              fontStyle: el.fontStyle || "normal",
-              textDecoration: el.textDecoration || "none",
-              lineHeight: el.lineHeight || 1.4,
-              margin: "4px 0",
-              whiteSpace: "pre-line",
-              backgroundColor: el.backgroundColor || "transparent",
-              wordWrap: "break-word",
-              overflowWrap: "break-word",
-            }}
-            dangerouslySetInnerHTML={{ __html: cleanContent }}
-          />
-        );
-      }
-
+      case "paragraph":
       case "blockquote":
         return (
-          <div
-            style={{
-              ...baseStyle,
-              fontSize: `${el.fontSize || 16}px`,
-              fontStyle: "italic",
-              borderLeft: `4px solid ${el.borderColor || "#ccc"}`,
-              paddingLeft: "12px",
-              margin: "12px 0",
-              backgroundColor: el.backgroundColor || "transparent",
-              lineHeight: "1.6",
-              wordWrap: "break-word",
-              whiteSpace: "normal",
-            }}
-            dangerouslySetInnerHTML={{ __html: el.content || "Blockquote" }}
-          />
+          <div style={{
+            ...baseStyle,
+            fontSize: `${el.fontSize || 16}px`,
+            fontWeight: el.fontWeight || (el.type === 'heading' ? '700' : 'normal'),
+            fontStyle: el.fontStyle || 'normal',
+            textDecoration: el.textDecoration || 'none',
+            lineHeight: el.lineHeight || 1.4,
+            margin: "6px 0",
+            backgroundColor: el.backgroundColor || "transparent",
+            wordWrap: "break-word",
+            whiteSpace: "pre-line",
+            ...(el.type === 'blockquote' && {
+              borderLeft: `4px solid ${el.borderColor || '#ccc'}`,
+              paddingLeft: '12px',
+              fontStyle: 'italic'
+            })
+          }} dangerouslySetInnerHTML={{ __html: el.content || "Text" }} />
         );
-      
-      // In SendCampaign.jsx, update the image rendering in EmailPreview
-case "image":
-  return (
-    <div style={{ textAlign: el.textAlign || "center", margin: "8px 0" }}>
-      <img
-        src={el.src || "https://via.placeholder.com/300x200?text=Image"}
-        alt={el.alt || "Image"}
-        style={{
-          display: "block",
-          margin: "0 auto",
-          width: "100%",
-          maxWidth: `${el.width || 250}px`,
-          height: "auto",
-          borderRadius: `${el.borderRadius || 0}px`,
-          border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor || "#ccc"}` : "none",
-        }}
-        onError={(e) => {
-          console.error("Preview image failed to load:", el.src);
-          e.target.src = "https://via.placeholder.com/300x200?text=Image+Not+Available";
-        }}
-      />
-    </div>
-  );
-      
-      case "button":
-      return (
-  <div
-    style={{
-      textAlign: el.textAlign || "left",
-      margin: el.content.includes("<br") ? "4px 0" : "12px 0", // FIXED
-      lineHeight: el.content.includes("<br") ? "1.2" : "1.4", // FIXED
-    }}
-  >
-    <a
-      href={el.link || "#"}
-      style={{
-        display: "inline-block",
-        padding: el.content.includes("<br")
-          ? "6px 12px"   // tighter padding for multi-line button
-          : el.padding || "10px 18px",
-        background: el.backgroundColor || "#c2831f",
-        color: el.color || "#fff",
-        borderRadius: `${el.borderRadius || 6}px`,
-        textDecoration: "none",
-        fontWeight: el.fontWeight || "700",
-        fontSize: `${el.fontSize || 16}px`,
-        fontFamily: el.fontFamily || "Arial, sans-serif",
-        whiteSpace: "pre-line", // FIX MULTI-LINE BUTTON TEXT
-      }}
-      dangerouslySetInnerHTML={{
-        __html: el.content || "Click Me",
-      }}
-    />
-  </div>
-);
 
-          
-      case "line":
+      case "image":
+        return (
+          <div style={{ textAlign: el.textAlign || "center", margin: "8px 0" }}>
+            <img
+              src={el.src || "https://via.placeholder.com/300x200"}
+              alt={el.alt || "Image"}
+              style={{
+                display: "block",
+                margin: "0 auto",
+                width: "100%",
+                maxWidth: `${el.width || 250}px`,
+                height: "auto",
+                borderRadius: `${el.borderRadius || 0}px`,
+                border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
+              }}
+            />
+          </div>
+        );
+
+    case "button":
+      // ✅ Compute alignment from element's x position if textAlign not explicitly set
+      let buttonAlign = el.textAlign;
+      if (!buttonAlign) {
+        const center = el.x + el.width / 2;
+        
+        // ✅ Better thresholds for 600px canvas
+        if (center >= 200 && center <= 400) {
+          buttonAlign = "center";
+        } else if (center > 400) {
+          buttonAlign = "right";
+        } else {
+          buttonAlign = "left";
+        }
+      }
+
       return (
-        <hr
+        <div
           style={{
+            textAlign: buttonAlign,
+            margin: "12px 0",
+            width: "100%",
+            display: "block"
+          }}
+        >
+          
+          <a href={el.email ? `mailto:${el.email}` : (el.link || "#")}
+            style={{
+              display: "inline-block",
+              padding: el.padding || "10px 18px",
+              background: el.backgroundColor || "#c2831f",
+              color: el.color || "#fff",
+              borderRadius: `${el.borderRadius || 6}px`,
+              textDecoration: "none",
+              fontWeight: el.fontWeight || "700",
+              fontSize: `${el.fontSize || 16}px`,
+              fontFamily: el.fontFamily || "Arial, sans-serif",
+            }}
+          >
+            {el.content || "Click Me"}
+          </a>
+        </div>
+      );
+      
+      case "line":
+        return (
+          <hr style={{
             border: "none",
             height: `${el.strokeWidth || 1}px`,
             background: el.strokeColor || "#ddd",
             margin: `${el.marginTop || 12}px 0 ${el.marginBottom || 12}px 0`,
-          }}
-        />
-      );
+          }} />
+        );
+
+      case "rectangle":
+        return (
+          <div style={{
+            width: "100%",
+            height: `${el.height || 100}px`,
+            backgroundColor: el.backgroundColor || "#4ECDC4",
+            border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
+            borderRadius: `${el.borderRadius || 4}px`,
+            margin: "8px 0",
+          }} />
+        );
+
+      case "circle":
+        const size = Math.min(el.width || 100, el.height || 100);
+        return (
+          <div style={{
+            width: `${size}px`,
+            height: `${size}px`,
+            backgroundColor: el.backgroundColor || "#FF6B6B",
+            border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
+            borderRadius: "50%",
+            margin: "8px auto",
+          }} />
+        );
+
+      case "triangle":
+        return (
+          <div style={{
+            width: 0,
+            height: 0,
+            borderLeft: `${(el.width || 50) / 2}px solid transparent`,
+            borderRight: `${(el.width || 50) / 2}px solid transparent`,
+            borderBottom: `${el.height || 86}px solid ${el.backgroundColor || "#FF9F43"}`,
+            margin: "8px auto",
+          }} />
+        );
+
+      case "star":
+        return (
+          <div style={{
+            textAlign: "center",
+            fontSize: `${Math.min(el.width, el.height) || 24}px`,
+            color: el.backgroundColor || el.color || "#FFD93D",
+            margin: "8px 0",
+          }}>★</div>
+        );
+
+      case "hexagon":
+        return (
+          <div style={{
+            width: `${el.width || 100}px`,
+            height: `${el.height || 100}px`,
+            backgroundColor: el.backgroundColor || "#6C5CE7",
+            clipPath: "polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%)",
+            margin: "8px auto",
+          }} />
+        );
+
+      case "arrow":
+        return (
+          <div style={{
+            textAlign: "center",
+            fontSize: `${Math.min(el.width, el.height) || 24}px`,
+            color: el.color || "#00CEC9",
+            margin: "8px 0",
+            transform: `rotate(${el.rotation || 0}deg)`,
+          }}>→</div>
+        );
+
       case "social":
         return (
-          <a href={el.link || "#"} target="_blank" rel="noopener noreferrer">
+          <a href={el.link || "#"} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", margin: "0 4px" }}>
             <img 
               src={el.src} 
               alt={el.platform} 
-              style={{ width: 32, height: 32, margin: "0 6px" }} 
+              style={{ width: `${el.width || 32}px`, height: `${el.height || 32}px` }} 
             />
           </a>
         );
 
-      
-      case "rectangle":
+      case "icon":
+        const iconMap = {
+          'Star': '★', 'Heart': '♥', 'Check': '✓', 'Arrow': '→',
+          'Home': '⌂', 'User': '👤', 'Settings': '⚙', 'Mail': '✉'
+        };
+        const iconSymbol = iconMap[el.name] || '•';
+        
         return (
-          <div
-            style={{
-              width: "100%",
-              height: `${el.height || 100}px`,
-              backgroundColor: el.backgroundColor || "#4ECDC4",
-              border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor || "#000"}` : "none",
-              borderRadius: `${el.borderRadius || 4}px`,
-              margin: "8px 0",
-            }}
-          />
+          <div style={{
+            textAlign: "center",
+            fontSize: `${el.fontSize || 24}px`,
+            color: el.color || "#000000",
+            margin: "8px 0",
+          }}>
+            {el.link ? <a href={el.link} style={{ color: "inherit", textDecoration: "none" }}>{iconSymbol}</a> : iconSymbol}
+          </div>
         );
-      
-      case "circle":
+
+      case "video":
         return (
-          <div
-            style={{
-              width: `${Math.min(el.width || 100, el.height || 100)}px`,
-              height: `${Math.min(el.width || 100, el.height || 100)}px`,
-              backgroundColor: el.backgroundColor || "#FF6B6B",
-              border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor || "#000"}` : "none",
-              borderRadius: "50%",
-              margin: "8px auto",
-            }}
-          />
+          <div style={{ textAlign: "center", margin: "12px 0" }}>
+            <video controls style={{ width: "100%", maxWidth: `${el.width || 400}px`, height: "auto", borderRadius: `${el.borderRadius || 0}px` }}>
+              <source src={el.src} type="video/mp4" />
+            </video>
+          </div>
         );
-      
+
+      case "audio":
+        return (
+          <div style={{ textAlign: "center", margin: "12px 0" }}>
+            <audio controls style={{ width: "100%", maxWidth: "400px" }}>
+              <source src={el.src} type="audio/mpeg" />
+            </audio>
+          </div>
+        );
+
+      case "input":
+        return (
+          <div style={{
+            padding: "12px",
+            background: "#f5f5f5",
+            border: `1px solid ${el.borderColor || '#ccc'}`,
+            borderRadius: `${el.borderRadius || 4}px`,
+            margin: "8px 0",
+            fontSize: `${el.fontSize || 14}px`,
+            color: "#999",
+          }}>{el.placeholder || "Input field"}</div>
+        );
+
+      case "checkbox":
+        return (
+          <div style={{ textAlign: "center", margin: "8px 0" }}>
+            <span style={{
+              display: "inline-block",
+              width: "20px",
+              height: "20px",
+              border: `2px solid ${el.color || '#4299E1'}`,
+              borderRadius: "3px",
+              background: "white",
+            }}></span>
+          </div>
+        );
+
       default:
         return null;
     }
   };
 
-  // ✅ Build preview HTML with proper table structure
+  // ✅ Build preview with proper background color
   return (
-    <div className="h-full bg-gray-100 overflow-auto">
-      <div className="max-w-2xl mx-auto my-6">
+      <div className="h-full overflow-auto" style={{ background: backgroundColor }}>
+        <div className="max-w-2xl mx-auto my-6">
         <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-          <div className="p-8" style={{ maxWidth: "600px", margin: "0 auto" }}>
+          <div className="p-8" style={{ maxWidth: "600px", margin: "0 auto", background: backgroundColor }}>  
             {rows.map((row, rowIndex) => {
-              const items = row.items || row; // Support both formats
-
-              if (items.length === 1) {
-                // Single item: full width with proper wrapping
+              if (row.length === 1) {
                 return (
-                  <div key={`row-${rowIndex}`} style={{ 
-                    marginBottom: "8px",
-                    width: "100%",
-                  }}>
-                    {renderElement(items[0])}
+                  <div key={`row-${rowIndex}`} style={{ marginBottom: "8px", width: "100%" }}>
+                    {renderElement(row[0])}
                   </div>
                 );
               }
 
-              // Multiple items: side-by-side
               return (
-                <div key={`row-${rowIndex}`} style={{ 
-                  display: "flex", 
-                  gap: "12px",
-                  marginBottom: "8px",
-                  width: "100%",
-                }}>
-                  {items.map((it, i) => (
-                    <div 
-                      key={it.id || `${rowIndex}-${i}`} 
-                      style={{ 
-                        flex: 1,
-                        minWidth: 0, // Important for text wrapping in flex
-                      }}
-                    >
+                <div key={`row-${rowIndex}`} style={{ display: "flex", gap: "12px", marginBottom: "8px", width: "100%" }}>
+                  {row.map((it, i) => (
+                    <div key={it.id || `${rowIndex}-${i}`} style={{ flex: 1, minWidth: 0 }}>
                       {renderElement(it)}
                     </div>
                   ))}
@@ -402,7 +449,7 @@ case "image":
           </div>
 
           <div className="bg-gray-50 px-8 py-6 border-t border-gray-200 text-center text-sm text-gray-600">
-            Sent preview – matches canvas layout exactly
+            Email preview – exactly as it will be sent
           </div>
         </div>
       </div>
@@ -448,7 +495,8 @@ export default function CampaignBuilder() {
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const [emailVerificationStatus, setEmailVerificationStatus] = useState(null);
   const [showShuffleModal, setShowShuffleModal] = useState(false);
-  // Helper function to get auth token
+  const canvasBackgroundColor = location.state?.canvasBackgroundColor || '#FFFFFF';  // ← ADD THIS LINE
+  // Helper function to get auth token  // Helper function to get auth token
   const getAuthToken = () => {
     return localStorage.getItem('token');
   };
@@ -510,26 +558,28 @@ useEffect(() => {
     console.log('✅ Received canvas data:', location.state.canvasData);
     
     // Normalize all numeric values consistently
-    const normalizedElements = location.state.canvasData.map(el => ({
-      ...el,
-      x: Number(el.x) || 0,
-      y: Number(el.y) || 0,
-      width: Number(el.width) || (el.type === 'image' ? 250 : 300),
-      height: Number(el.height) || (el.type === 'paragraph' ? 40 : 80),
-      fontSize: Number(el.fontSize) || 16,
-      // Preserve all styling properties
-      fontFamily: el.fontFamily || "Arial, sans-serif",
-      fontWeight: el.fontWeight || "normal",
-      fontStyle: el.fontStyle || "normal",
-      textDecoration: el.textDecoration || "none",
-      color: el.color || "#333",
-      backgroundColor: el.backgroundColor || "transparent",
-      textAlign: el.textAlign || "left",
-      lineHeight: el.lineHeight || 1.6,
-      borderRadius: el.borderRadius || 0,
-      borderWidth: el.borderWidth || 0,
-      borderColor: el.borderColor || "#000",
-    }));
+   const normalizedElements = location.state.canvasData.map(el => ({
+    ...el,
+    x: Number(el.x) || 0,
+    y: Number(el.y) || 0,
+    width: Number(el.width) || (el.type === 'image' ? 250 : 300),
+    height: Number(el.height) || (el.type === 'paragraph' ? 40 : 80),
+    fontSize: Number(el.fontSize) || 16,
+
+    fontFamily: el.fontFamily || "Arial, sans-serif",
+    fontWeight: el.fontWeight || "normal",
+    fontStyle: el.fontStyle || "normal",
+    textDecoration: el.textDecoration || "none",
+    color: el.color || "#333",
+    backgroundColor: el.backgroundColor || "transparent",
+
+    textAlign: el.textAlign,   // ✅ fixed
+    lineHeight: el.lineHeight || 1.6,
+    borderRadius: el.borderRadius || 0,
+    borderWidth: el.borderWidth || 0,
+    borderColor: el.borderColor || "#000",
+  }));
+
     
     setCanvasPages([{ id: 1, elements: normalizedElements }]);
     setCanvasActivePage(0);
@@ -1559,26 +1609,7 @@ const handleSendCampaign = async () => {
                         </div>
                       )}
 
-                      {id === "design" && (
-                        <div className="space-y-4">
-                          <label className="block text-sm font-medium text-gray-300 mb-1">
-                            Design your email
-                          </label>
-                          <div className="bg-gray-800 border border-gray-700 rounded-lg p-4">
-                            <p className="text-gray-400 mb-4">
-                              Use the design editor to create your email
-                              template. Your design will appear in the preview
-                              panel.
-                            </p>
-                            <a
-                              href="/editor"
-                              className="px-4 py-2 bg-[#c2831f] text-white rounded-md hover:bg-[#d09025]"
-                            >
-                              Open Design Editor
-                            </a>
-                          </div>
-                        </div>
-                      )}
+                       
 
                       {id === "schedule" && (
                         <div className="space-y-4">
@@ -1956,6 +1987,7 @@ const handleSendCampaign = async () => {
                   activePage={canvasActivePage}
                   zoomLevel={canvasZoomLevel}
                   formData={formData}
+                  canvasBackgroundColor={canvasBackgroundColor}
                 />
               </ErrorBoundary>
             </div>
