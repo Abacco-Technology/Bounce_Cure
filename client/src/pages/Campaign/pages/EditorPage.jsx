@@ -1,3 +1,4 @@
+// EditorPage.jsx
 import React, { useState, useRef, useEffect } from "react";
 import { useLocation, useNavigate } from 'react-router-dom';
 import CanvasArea from "../Components/Editor/CanvasArea";
@@ -17,7 +18,8 @@ const EditorPage = () => {
   const [showGrid, setShowGrid] = useState(true);
   const [undoStack, setUndoStack] = useState([]);
   const [redoStack, setRedoStack] = useState([]);
-
+  const [mousePosition, setMousePosition] = useState({ x: 100, y: 100 });
+  const canvasRef = useRef(null);
   // Add state for canvas background color
   const [canvasBackgroundColor, setCanvasBackgroundColor] = useState('#FFFFFF');
 
@@ -134,7 +136,24 @@ useEffect(() => {
   }
 }, [template]);
 
+  // ✅ Track mouse position on canvas
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        setMousePosition({
+          x: (e.clientX - rect.left) / zoomLevel,
+          y: (e.clientY - rect.top) / zoomLevel
+        });
+      }
+    };
 
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.addEventListener('mousemove', handleMouseMove);
+      return () => canvas.removeEventListener('mousemove', handleMouseMove);
+    }
+  }, [zoomLevel]);
 // For AllTemplates page
 useEffect(() => {
   if (template && template.content && Array.isArray(template.content)) {
@@ -153,30 +172,60 @@ useEffect(() => {
 }, [template]);
 
   // Add element from Toolbox
-  const handleAddElement = (type, options = {}) => {
+ const handleAddElement = (type, options = {}) => {
     const newElement = {
       id: crypto.randomUUID(),
       type,
-      content: type === "heading" ? "Heading" : type === "paragraph" ? "Paragraph text" : type === "button" ? "Click Me" : "",
-      src: type === "image" ? "https://images.unsplash.com/photo-1557683316-973673baf926?w=300&h=200&fit=crop" : null,
-      x: 50 + Math.random() * 100,
-      y: 50 + Math.random() * 100,
-      width: type === "heading" || type === "paragraph" ? 200 : type === "image" ? 150 : 120,
-      height: type === "heading" ? 40 : type === "paragraph" ? 60 : type === "image" ? 100 : 40,
-      fontSize: type === "heading" ? 24 : 16,
+      content: type === "heading" ? "Heading" : 
+               type === "subheading" ? "Subheading" :
+               type === "paragraph" ? "Paragraph text" : 
+               type === "blockquote" ? "Quote text" :
+               type === "button" ? "Click Me" : "",
+      src: type === "image" ? "https://images.unsplash.com/photo-1557683316-973673baf926?w=300&h=200&fit=crop" : 
+           type === "social" ? options.src : null,
+      // ✅ Use mouse position instead of random
+      x: mousePosition.x || 50,
+      y: mousePosition.y || 50,
+      width: type === "heading" || type === "paragraph" || type === "subheading" || type === "blockquote" ? 300 : 
+             type === "image" ? 250 : 
+             type === "social" ? (options.width || 32) :
+             type === "button" ? 150 : 120,
+      height: type === "heading" ? 50 : 
+              type === "subheading" ? 40 :
+              type === "paragraph" ? 60 : 
+              type === "blockquote" ? 80 :
+              type === "image" ? 150 : 
+              type === "social" ? (options.height || 32) :
+              type === "button" ? 45 : 
+              type === "line" ? 2 : 40,
+      fontSize: type === "heading" ? 28 : 
+                type === "subheading" ? 22 :
+                type === "paragraph" || type === "blockquote" ? 16 : 
+                type === "button" ? 16 : 16,
       fontFamily: 'Arial',
-      color: '#000000',
-      backgroundColor: 'transparent',
+      color: type === "button" ? '#FFFFFF' : '#000000',
+      backgroundColor: type === "button" ? '#c2831f' : 
+                       type === "rectangle" ? '#4ECDC4' :
+                       type === "circle" ? '#FF6B6B' :
+                       type === "triangle" ? '#FF9F43' :
+                       type === "star" ? '#FFD93D' :
+                       type === "hexagon" ? '#6C5CE7' :
+                       'transparent',
       borderColor: '#000000',
-      borderWidth: type === "rectangle" || type === "circle" ? 2 : 0,
+      borderWidth: type === "rectangle" || type === "circle" ? 0 : 0,
       borderRadius: type === "button" ? 6 : type === "rectangle" ? 4 : 0,
       rotation: 0,
       opacity: 1,
-      fontWeight: 'normal',
+      fontWeight: type === "heading" ? 'bold' : type === "subheading" ? '600' : 'normal',
       fontStyle: 'normal',
-      textAlign: 'left',
+      textAlign: type === 'button' ? calculateInitialButtonAlignment(mousePosition.x || 50, 150) : 'left',      
       textDecoration: 'none',
-      ...options // Spread any additional options passed
+      lineHeight: 1.4,
+      strokeColor: type === "line" ? '#ddd' : undefined,
+      strokeWidth: type === "line" ? 1 : undefined,
+      platform: type === "social" ? options.platform : undefined,
+      link: options.link || null,
+      ...options
     };
 
     const updatedPages = [...pages];
@@ -184,6 +233,14 @@ useEffect(() => {
     setPages(updatedPages);
     setSelectedElement(newElement.id);
     saveToUndoStack();
+  };
+
+  // Helper to calculate button alignment on creation
+  const calculateInitialButtonAlignment = (x, width) => {
+    const center = x + width / 2;
+    if (center >= 200 && center <= 400) return "center";
+    if (center > 400) return "right";
+    return "left";
   };
 
   // Add layout
@@ -1843,34 +1900,32 @@ useEffect(() => {
 
   
 const handleSendCampaign = () => {
-  const currentElements = pages[activePage].elements;
-  
-  // ✅ Ensure all elements have proper numeric values
-  const normalizedElements = currentElements.map(el => ({
-    ...el,
-    x: Number(el.x) || 0,
-    y: Number(el.y) || 0,
-    width: Number(el.width) || (el.type === 'image' ? 250 : 300),
-    height: Number(el.height) || (el.type === 'paragraph' ? 40 : 80),
-    fontSize: Number(el.fontSize) || 16,
-    rotation: Number(el.rotation) || 0,
-    opacity: Number(el.opacity) || 1,
-  }));
-  
-  navigate('/send-campaign', { 
-    state: { 
-      canvasData: normalizedElements,
-      subject: "",
-      canvasBackgroundColor: canvasBackgroundColor,  // ✅ CORRECT - use the state variable from EditorPage
-      timestamp: Date.now() // Force refresh
-    } 
-  });
-};
-  
+    const currentElements = pages[activePage].elements;
+    
+    // ✅ Ensure all elements have proper numeric values
+    const normalizedElements = currentElements.map(el => ({
+      ...el,
+      x: Number(el.x) || 0,
+      y: Number(el.y) || 0,
+      width: Number(el.width) || (el.type === 'image' ? 250 : 300),
+      height: Number(el.height) || (el.type === 'paragraph' ? 40 : 80),
+      fontSize: Number(el.fontSize) || 16,
+      rotation: Number(el.rotation) || 0,
+      opacity: Number(el.opacity) || 1,
+    }));
+    
+    navigate('/send-campaign', { 
+      state: { 
+        canvasData: normalizedElements,
+        subject: "",
+        canvasBackgroundColor: canvasBackgroundColor, // ✅ Pass background color
+        timestamp: Date.now()
+      } 
+    });
+  };
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
-      {/* Toolbox */}
       <Toolbox
         onAddElement={handleAddElement}
         onUploadImage={handleUploadImage}
@@ -1891,9 +1946,9 @@ const handleSendCampaign = () => {
         onAddLayout={handleAddLayout}
       />
 
-      {/* Canvas */}
       <div className="flex-1 overflow-hidden">
         <CanvasArea
+          ref={canvasRef} // ✅ Add ref for mouse tracking
           pages={pages}
           setPages={setPages}
           activePage={activePage}
@@ -1909,7 +1964,6 @@ const handleSendCampaign = () => {
         />
       </div>
 
-      {/* Properties Panel */}
       <PropertiesPanel
         elements={pages[activePage].elements}
         selectedElement={selectedElement}

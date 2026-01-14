@@ -115,31 +115,46 @@ const [showExitModal, setShowExitModal] = useState(false);
                 </button>
                 {/* Exit Confirmation Modal */}
                   {showExitModal && (
-                    <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
-                      <div className="bg-[#111] border border-gray-800 rounded-xl p-8 w-[90%] max-w-md text-center shadow-xl">
-                        <h2 className="text-lg font-semibold text-white mb-3">
-                          Exit Campaign Text Editor?
-                        </h2>
-                        <p className="text-gray-400 text-sm mb-6">
-                          Are you sure you want to exit? All unsaved progress will be lost.
-                        </p>
-                        <div className="flex justify-center gap-4">
-                          <button
-                            onClick={() => setShowExitModal(false)}
-                            className="px-4 py-2 rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={() => navigate('/send-campaign')}
-                            className="px-4 py-2 rounded-md bg-[#c2831f] text-black font-semibold hover:bg-[#d99c2b] transition-all"
-                          >
-                            Yes, Exit
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+  <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+    <div className="bg-[#111] border border-gray-800 rounded-xl p-8 w-[90%] max-w-md text-center shadow-xl">
+      <h2 className="text-lg font-semibold text-white mb-3">
+        Exit Campaign Text Editor?
+      </h2>
+
+      <p className="text-gray-400 text-sm mb-6">
+        Choose where you want to exit. Unsaved progress will be lost.
+      </p>
+
+      <div className="flex flex-col gap-3">
+
+        {/* Exit to Dashboard */}
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="w-full px-4 py-2 rounded-md bg-blue-600 text-white font-semibold hover:bg-blue-700 transition-all"
+        >
+          Exit to Dashboard
+        </button>
+
+        {/* Exit to Campaign Page */}
+        <button
+          onClick={() => navigate('/send-campaign')}
+          className="w-full px-4 py-2 rounded-md bg-[#c2831f] text-black font-semibold hover:bg-[#d99c2b] transition-all"
+        >
+          Exit to Campaign Page
+        </button>
+
+        {/* Cancel */}
+        <button
+          onClick={() => setShowExitModal(false)}
+          className="w-full px-4 py-2 rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
               </div>
         </div>
 
