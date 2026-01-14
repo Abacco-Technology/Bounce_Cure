@@ -966,7 +966,7 @@ const renderMultimedia = () => (
                 controls={isPlaying}
                 className="w-[70%] rounded-xl shadow-2xl border-2 border-yellow-400 hover:border-yellow-500 hover:shadow-[0_20px_50px_rgba(0,0,0,0.8)] transition-all duration-500 hover:shadow-yellow-400/20"
               >
-                <source src="/video/video.mp4" type="video/mp4" />
+                <source src="/Videos/Bounce.mp4" type="video/mp4" />
                 Your browser does not support the video tag.
               </video>
 
