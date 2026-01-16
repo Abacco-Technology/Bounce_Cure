@@ -66,6 +66,7 @@ import twilioRoutes from "./routes/twilioConfig.js";
 import whatsappRoutes from "./routes/whatsappCampaign.js";
 import smsRoutes from "./routes/smsCampaign.js";
 import savedTemplatesRouter from "./routes/savedTemplates.js";
+import chatRoutes from "./routes/chat.routes.js";
 
 // ENV setup
 import customRoutes from "./routes/customRoutes.js";
@@ -90,6 +91,7 @@ const PORT = process.env.PORT || 5000;
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://www.bouncecure.com"
 ];
 
@@ -152,6 +154,10 @@ app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // ----------------------- Routes -----------------------
+// Chat routes
+app.use("/api/chat", chatRoutes);
+
+
 app.use('/api', userRoutes);
 app.use('/api/users', userCredit);
 // Test protected route
