@@ -666,6 +666,18 @@ router.post("/send", async (req, res) => {
         break;
       }
 
+      // const msg = {
+      //   to: toEmail,
+      //   from: { name: fromName, email: fromEmail },
+      //   replyTo: replyToEmail || fromEmail,
+      //   subject: emailSubject,
+      //   text: plainTextContent,
+      //   html: htmlContent,
+      //   customArgs: {
+      //     campaignId: campaign.id,
+      //   },
+      // };
+
       const msg = {
         to: toEmail,
         from: { name: fromName, email: fromEmail },
@@ -673,10 +685,22 @@ router.post("/send", async (req, res) => {
         subject: emailSubject,
         text: plainTextContent,
         html: htmlContent,
-        customArgs: {
-          campaignId: campaign.id,
+
+        // 🔑 CRITICAL
+        trackingSettings: {
+          clickTracking: { enable: true },
+          openTracking: { enable: true },
         },
+
+        // 🔑 CRITICAL
+        customArgs: {
+          campaignId: campaign.id.toString(),
+        },
+
+        // 🔑 OPTIONAL BUT RECOMMENDED
+        categories: [`campaign_${campaign.id}`],
       };
+
 
       try {
         const response = await sgMail.send(msg);
