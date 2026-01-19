@@ -26,11 +26,17 @@ router.post("/sendgrid-events", express.json(), webhookLimiter, async (req, res)
     for (const event of events) {
       try {
         // ✅ Correct campaignId extraction (this is critical)
-        const campaignId =
+        let campaignId =
           event.custom_args?.campaignId ||
           event.unique_args?.campaignId ||
-          event.campaignId ||
-          event.category?.[0]?.replace("campaign_", "");
+          event.campaignId;
+
+        if (!campaignId && Array.isArray(event.category)) {
+          const cat = event.category.find((c) => c.startsWith("campaign_"));
+          if (cat) {
+            campaignId = cat.replace("campaign_", "");
+          }
+        }
 
 
         if (!campaignId) {
@@ -64,7 +70,17 @@ router.post("/sendgrid-events", express.json(), webhookLimiter, async (req, res)
         if (type === "spam_report") type = "spamreport";
 
         // Only store useful events
-        const allowed = ["delivered", "open", "click", "bounce", "spamreport"];
+        const allowed = [
+          "processed",
+          "delivered",
+          "open",
+          "click",
+          "bounce",
+          "dropped",
+          "deferred",
+          "spamreport",
+        ];
+
         if (!allowed.includes(type)) continue;
 
         await prisma.campaignEvent.create({
