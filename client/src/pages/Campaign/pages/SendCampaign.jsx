@@ -468,6 +468,7 @@ export default function CampaignBuilder() {
     recipients: "",
     fromEmail: "",
     fromName: "",
+    replyToEmail: "",
     fromAddress: "",
     subject: "",
     sendTime: "",
@@ -839,6 +840,7 @@ const handleSendCampaign = async () => {
       subject: formData.subject,
       fromEmail: formData.fromEmail,
       fromName: formData.fromName,
+      replyToEmail: formData.replyToEmail,
       fromAddress: formData.fromAddress,
       recipients: recipientsList,
       canvasData: canvasPages[0].elements,
@@ -1511,6 +1513,21 @@ const handleSendCampaign = async () => {
                             placeholder="Your sender name"
                           />
                         </div>
+                        <div className="mt-4">
+                        <label className="block text-sm text-gray-400 mb-1">
+                            Reply To Email
+                          </label>
+
+                          <input
+                            type="email"
+                            name="replyToEmail"
+                            value={formData.replyToEmail}
+                            onChange={handleChange}
+                            placeholder="reply@yourdomain.com"
+                            className="w-full bg-gray-800 border border-gray-700 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#c2831f] text-white"
+                          />
+                        </div>
+
                         <div className="mt-4">
                           <label className="block text-sm font-medium text-gray-300 mb-1">
                             Sender Address

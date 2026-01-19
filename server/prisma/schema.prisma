@@ -529,6 +529,7 @@ model Campaign {
   fromEmail          String
   fromName           String
   fromAddress        String?
+  replyToEmail       String?
   scheduleType       String    @default("immediate") // "immediate", "scheduled", "recurring"
   designJson         String?   @db.Text
   recipientsJson     String?   @db.Text // ✅ NEW: Store recipients for scheduled/recurring

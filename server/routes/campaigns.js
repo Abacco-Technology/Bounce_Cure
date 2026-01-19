@@ -480,6 +480,7 @@ router.post("/send", async (req, res) => {
       fromEmail,
       fromName,
       fromAddress,
+      replyToEmail, 
       subject,
       canvasData,
       scheduleType = "immediate",
@@ -649,6 +650,7 @@ router.post("/send", async (req, res) => {
       const msg = {
         to: toEmail,
         from: { name: fromName, email: fromEmail },
+        replyTo: replyToEmail || fromEmail,
         subject: emailSubject,
         text: plainTextContent,
         html: htmlContent,
@@ -1072,6 +1074,7 @@ router.post("/send-shuffled", async (req, res) => {
         const msg = {
           to: email,
           from: { name: fromName, email: fromEmail },
+          replyTo: replyToEmail || fromEmail,
           subject: subject,
           text: plainTextContent,
           html: htmlContent,
