@@ -44,72 +44,6 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
   const endDate = req.query.endDate || new Date().toISOString().split("T")[0];
 
   try {
-    // Get user-specific campaigns
-    const campaigns = await prisma.campaign.findMany({
-      where: {
-        userId: req.user.id,
-        createdAt: {
-          gte: new Date(startDate),
-          lte: new Date(endDate + "T23:59:59.999Z"), // Include full end date
-        },
-      },
-      include: {
-        events: true, // Include events to count delivered
-      },
-    });
-
-    let processed = 0; // Total attempted sends
-    let delivered = 0; // Successfully delivered
-    let opens = 0;
-    let clicks = 0;
-    let conversions = 0;
-
-    for (const c of campaigns) {
-      // ✅ Processed = total attempted sends (from sentCount)
-      processed += c.sentCount || 0;
-      
-      // ✅ Delivered = count of "delivered" events
-      const deliveredCount = c.events?.filter(e => e.type === "delivered").length || 0;
-      delivered += deliveredCount;
-      
-      // ✅ Engagement metrics from campaign fields
-      opens += c.openCount || 0;
-      clicks += c.clickCount || 0;
-      conversions += c.conversionCount || 0;
-    }
-
-    // ✅ Calculate rates based on DELIVERED count (not processed)
-    const openRate = delivered > 0 ? Math.round((opens / delivered) * 100) : 0;
-    const clickRate = delivered > 0 ? Math.round((clicks / delivered) * 100) : 0;
-    const conversionRate = delivered > 0 ? Math.round((conversions / delivered) * 100) : 0;
-
-    return res.json({
-      source: "db",
-      processed,
-      delivered,
-      opens,
-      clicks,
-      conversions,
-      openRate,
-      clickRate,
-      conversionRate,
-    });
-  } catch (error) {
-    console.error("Error fetching summary:", error);
-    return res.status(500).json({ error: "Analytics unavailable", details: error.message });
-  }
-});
-
-// Get detailed stats per campaign
-// ==========================================================
-// 📊 GET ALL CAMPAIGNS (SendGrid + DB Combined)
-// ==========================================================
-router.get("/sendgrid/campaigns", protect, async (req, res) => {
-  const startDate = req.query.startDate || "2024-01-01";
-  const endDate = req.query.endDate || new Date().toISOString().split("T")[0];
-
-  try {
-    // ✅ Fetch all campaigns for this user (no pagination limit)
     const campaigns = await prisma.campaign.findMany({
       where: {
         userId: req.user.id,
@@ -119,53 +53,127 @@ router.get("/sendgrid/campaigns", protect, async (req, res) => {
         },
       },
       include: {
-        events: true, // Include all event details for stats
+        events: true,
+      },
+    });
+
+    let processed = 0;
+    let delivered = 0;
+    let opens = 0;
+    let clicks = 0;
+    let bounces = 0;
+    let spam = 0;
+
+    for (const c of campaigns) {
+      const events = c.events || [];
+
+      processed += c.sentCount || 0;
+      delivered += events.filter(e => e.type === "delivered").length;
+      opens += events.filter(e => e.type === "open").length;
+      clicks += events.filter(e => e.type === "click").length;
+      bounces += events.filter(e => e.type === "bounce").length;
+      spam += events.filter(e => e.type === "spamreport").length;
+    }
+
+    const openRate = delivered > 0 ? Math.round((opens / delivered) * 100) : 0;
+    const clickRate = delivered > 0 ? Math.round((clicks / delivered) * 100) : 0;
+    const deliveryRate = processed > 0 ? Math.round((delivered / processed) * 100) : 0;
+
+    return res.json({
+      source: "db",
+      processed,
+      delivered,
+      opens,
+      clicks,
+      bounces,
+      spam,
+      openRate,
+      clickRate,
+      deliveryRate,
+    });
+  } catch (error) {
+    console.error("Error fetching summary:", error);
+    return res.status(500).json({
+      error: "Analytics unavailable",
+      details: error.message,
+    });
+  }
+});
+
+
+// Get detailed stats per campaign
+// ==========================================================
+// 📊 GET ALL CAMPAIGNS (SendGrid + DB Combined)
+// ==========================================================
+router.get("/sendgrid/campaigns", protect, async (req, res) => {
+  const startDate = req.query.startDate || "2026-01-01";
+  const endDate = req.query.endDate || new Date().toISOString().split("T")[0];
+
+  try {
+    const campaigns = await prisma.campaign.findMany({
+      where: {
+        userId: req.user.id,
+        createdAt: {
+          gte: new Date(startDate),
+          lte: new Date(endDate + "T23:59:59.999Z"),
+        },
+      },
+      include: {
+        events: true,
       },
       orderBy: { createdAt: "desc" },
     });
 
-    // ✅ Enrich campaigns with computed analytics
-    const enrichedCampaigns = campaigns.map((campaign) => {
-      // Attempted sends
-      const sentCount = campaign.sentCount || 0;
+    const formatted = campaigns.map((c) => {
+      const events = c.events || [];
 
-      // Delivered = "delivered" event count
-      const deliveredCount = campaign.events?.filter((e) => e.type === "delivered").length || 0;
+      const delivered = events.filter(e => e.type === "delivered").length;
+      const opens = events.filter(e => e.type === "open").length;
+      const clicks = events.filter(e => e.type === "click").length;
+      const bounces = events.filter(e => e.type === "bounce").length;
+      const spam = events.filter(e => e.type === "spamreport").length;
 
-      // Engagement metrics
-      const openCount = campaign.openCount || 0;
-      const clickCount = campaign.clickCount || 0;
-      const conversionCount = campaign.conversionCount || 0;
+      // 👇 If recipientsJson exists, we can calculate total
+      let totalRecipients = 0;
+      try {
+        if (c.recipientsJson) {
+          const parsed = JSON.parse(c.recipientsJson);
+          totalRecipients = Array.isArray(parsed) ? parsed.length : 0;
+        }
+      } catch {}
+
+      const pending = totalRecipients > 0
+        ? Math.max(0, totalRecipients - c.sentCount)
+        : null;
 
       return {
-        id: campaign.id,
-        name: campaign.name || campaign.campaignName || "Untitled Campaign",
-        sentCount,
-        deliveredCount,
-        openCount,
-        clickCount,
-        conversionCount,
-        createdAt: campaign.createdAt,
-        openRate: deliveredCount > 0 ? Math.round((openCount / deliveredCount) * 100) : 0,
-        clickRate: deliveredCount > 0 ? Math.round((clickCount / deliveredCount) * 100) : 0,
-        conversionRate: deliveredCount > 0 ? Math.round((conversionCount / deliveredCount) * 100) : 0,
+        id: c.id,
+        name: c.name,
+        status: c.status,           // ✅ IMPORTANT
+        sentCount: c.sentCount,
+        totalRecipients,
+        pending,
+
+        deliveredCount: delivered,
+        openCount: opens,
+        clickCount: clicks,
+        bounceCount: bounces,
+        spamCount: spam,
+
+        openRate: delivered > 0 ? ((opens / delivered) * 100).toFixed(2) : 0,
+        clickRate: delivered > 0 ? ((clicks / delivered) * 100).toFixed(2) : 0,
+        deliveryRate: c.sentCount > 0 ? ((delivered / c.sentCount) * 100).toFixed(2) : 0,
       };
     });
 
-    // ✅ Return all campaigns (no pagination)
-    res.json({
-      total: enrichedCampaigns.length,
-      count: enrichedCampaigns.length,
-      campaigns: enrichedCampaigns,
-    });
+    res.json({ campaigns: formatted });
   } catch (err) {
-    console.error("❌ Error fetching campaign analytics:", err);
-    res.status(500).json({
-      error: "Failed to fetch campaigns",
-      details: err.message,
-    });
+    console.error("Analytics error:", err);
+    res.status(500).json({ error: "Failed to load analytics" });
   }
 });
+
+
 
 
 export { router };
