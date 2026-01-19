@@ -10,7 +10,7 @@ router.use(protect);
 /* ==========================================================
    HTML + Plain Text Generators
 ========================================================== */
-const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress) => {
+const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail) => {
 
   // -------------- EMPTY TEMPLATE -----------------
   if (!canvasData || canvasData.length === 0) {
@@ -391,8 +391,12 @@ rows.forEach(row => {
               </p>
 
               <p style="margin:0;font-size:12px;color:#777;">
-                <a href="mailto:${fromEmail}" style="color:#007bff;">${fromEmail}</a>
+                Reply to:
+                <a href="mailto:${replyToEmail || fromEmail}" style="color:#007bff;">
+                  ${replyToEmail || fromEmail}
+                </a>
               </p>
+
 
             </td>
           </tr>
@@ -409,7 +413,7 @@ rows.forEach(row => {
 
 
 
-const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail) => {
+const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, replyToEmail) => {
   let plainText = `${subject}\n\n`;
   if (!canvasData || canvasData.length === 0) {
     plainText += "This email was sent from your campaign builder.\n\n";
@@ -433,7 +437,7 @@ const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail) =
       }
     });
   }
-  plainText += `\n\nSent by ${fromName}\nEmail: ${fromEmail}`;
+  plainText += `\n\nSent by ${fromName}\nReply To: ${replyToEmail || fromEmail}`;
   return plainText;
 };
 
@@ -480,6 +484,7 @@ router.post("/send", async (req, res) => {
       fromEmail,
       fromName,
       fromAddress,
+      replyToEmail, 
       subject,
       canvasData,
       scheduleType = "immediate",
@@ -568,6 +573,7 @@ router.post("/send", async (req, res) => {
         subject: emailSubject,
         fromEmail,
         fromName,
+        replyToEmail,
         fromAddress,
         scheduleType,
         designJson: JSON.stringify(canvasData || []),
@@ -576,7 +582,7 @@ router.post("/send", async (req, res) => {
         recurringFrequency: scheduleType === "recurring" ? recurringFrequency : null,
         recurringDays: scheduleType === "recurring" ? JSON.stringify(recurringDays || []) : null,
         recurringEndDate: scheduleType === "recurring" && recurringEndDate ? new Date(recurringEndDate) : null,
-        status: scheduleType === "immediate" ? "processing" : "scheduled",
+        status: scheduleType === "immediate" ? "sending" : "scheduled",
       },
     });
 
@@ -630,8 +636,22 @@ router.post("/send", async (req, res) => {
     // ==========================================================
     // 🚀 STEP 6: Immediate Send
     // ==========================================================
-    const htmlContent = generateHtmlFromCanvas(canvasData, emailSubject, fromName, fromEmail, fromAddress);
-    const plainTextContent = generatePlainTextFromCanvas(canvasData, emailSubject, fromName, fromEmail);
+    const htmlContent = generateHtmlFromCanvas(
+        canvasData,
+        subject,
+        fromName,
+        fromEmail,
+        fromAddress,
+        replyToEmail
+      );
+
+      const plainTextContent = generatePlainTextFromCanvas(
+        canvasData,
+        subject,
+        fromName,
+        fromEmail,
+        replyToEmail
+      );
 
     const results = { success: [], failed: [] };
     let actualSentCount = 0;
@@ -649,9 +669,13 @@ router.post("/send", async (req, res) => {
       const msg = {
         to: toEmail,
         from: { name: fromName, email: fromEmail },
+        replyTo: replyToEmail || fromEmail,
         subject: emailSubject,
         text: plainTextContent,
         html: htmlContent,
+        customArgs: {
+          campaignId: campaign.id,
+        },
       };
 
       try {
@@ -720,7 +744,7 @@ router.post("/send", async (req, res) => {
       where: { id: campaign.id },
       data: {
         sentCount: actualSentCount,
-        status: results.failed.length === 0 ? "sent" : "failed",
+        status: results.failed.length === 0 ? "completed" : "failed",
       },
     });
 
@@ -729,7 +753,7 @@ router.post("/send", async (req, res) => {
         userId: req.user.id,
         campaignId: campaign.id,
         campaignName: emailSubject,
-        status: results.failed.length === 0 ? "sent" : "failed",
+        status: results.failed.length === 0 ? "completed" : "failed",
         message: `Campaign sent: ${results.success.length} success, ${results.failed.length} failed`,
         error: results.failed.length > 0 ? `${results.failed.length} emails failed` : null,
       },
@@ -1007,7 +1031,7 @@ router.post("/send-shuffled", async (req, res) => {
           designJson: JSON.stringify(canvasData || []),
           recipientsJson: JSON.stringify(item.emails),
           scheduledAt: scheduledDateTime,
-          status: scheduleType === "immediate" ? "processing" : "scheduled",
+          status: scheduleType === "immediate" ? "sending" : "scheduled",
         },
       });
       campaignIds.push(campaign.id);
@@ -1072,10 +1096,17 @@ router.post("/send-shuffled", async (req, res) => {
         const msg = {
           to: email,
           from: { name: fromName, email: fromEmail },
+          replyTo: replyToEmail || fromEmail,
           subject: subject,
           text: plainTextContent,
           html: htmlContent,
+
+          // ✅ REQUIRED
+          customArgs: {
+            campaignId: campaignId,
+          },
         };
+
 
         try {
           const response = await sgMail.send(msg);
@@ -1102,7 +1133,7 @@ router.post("/send-shuffled", async (req, res) => {
         where: { id: campaignId },
         data: {
           sentCount: sentForSubject,
-          status: failedForSubject === 0 ? "sent" : "failed",
+          status: failedForSubject === 0 ? "completed" : "failed",
         },
       });
 
@@ -1112,7 +1143,7 @@ router.post("/send-shuffled", async (req, res) => {
           userId: req.user.id,
           campaignId: campaignId,
           campaignName: subject,
-          status: failedForSubject === 0 ? "sent" : "failed",
+          status: failedForSubject === 0 ? "completed" : "failed",
           message: `Shuffled campaign sent: ${sentForSubject} success, ${failedForSubject} failed`,
           error: failedForSubject > 0 ? `${failedForSubject} emails failed` : null,
         },

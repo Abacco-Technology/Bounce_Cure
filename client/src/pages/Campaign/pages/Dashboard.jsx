@@ -580,9 +580,7 @@ const totalScheduledMails = scheduledCampaigns
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex-1 min-w-0">
                             <p className="text-white font-medium truncate">{campaign.campaignName || 'Unnamed Campaign'}</p>
-                            <p className="text-sm text-gray-400">
-                              {campaign.scheduledDateTime ? formatDateTime(campaign.scheduledDateTime) : 'N/A'}
-                            </p>
+                             
                           </div>
                           <div className={`p-2 rounded-lg ${getStatusColor(campaign.status)}`}>
                             {getStatusIcon(campaign.status)}
