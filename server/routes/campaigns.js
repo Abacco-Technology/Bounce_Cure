@@ -1093,19 +1093,44 @@ router.post("/send-shuffled", async (req, res) => {
           break;
         }
 
-        const msg = {
-          to: email,
-          from: { name: fromName, email: fromEmail },
-          replyTo: replyToEmail || fromEmail,
-          subject: subject,
-          text: plainTextContent,
-          html: htmlContent,
+      const msg = {
+        to: email,
+        from: { name: fromName, email: fromEmail },
+        replyTo: replyToEmail || fromEmail,
+        subject: subject,
+        text: plainTextContent,
+        html: htmlContent,
 
-          // ✅ REQUIRED
-          customArgs: {
-            campaignId: campaignId,
+        // ✅ Campaign identification
+        customArgs: {
+          campaignId: String(campaignId), // Convert to string
+        },
+
+        // ✅ Categories for easier tracking
+        categories: [`campaign_${campaignId}`],
+
+        // ✅✅✅ CRITICAL: Enable tracking
+        trackingSettings: {
+          clickTracking: {
+            enable: true,
+            enableText: false,
           },
-        };
+          openTracking: {
+            enable: true,
+            substitutionTag: '%open-track%',
+          },
+          subscriptionTracking: {
+            enable: false,
+          },
+        },
+
+        // ✅ Better deliverability
+        mailSettings: {
+          bypassListManagement: {
+            enable: false,
+          },
+        },
+      };
 
 
         try {
