@@ -44,6 +44,36 @@ export default function Analytics() {
     }
   };
 
+  const deleteCampaign = async (id) => {
+  if (!window.confirm("Are you sure you want to delete this campaign?")) return;
+
+  try {
+    const token = localStorage.getItem("token");
+
+    const res = await fetch(`${API_URL}/api/campaigns/${id}`, {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      alert(data.error || "Failed to delete campaign");
+      return;
+    }
+
+    // Remove deleted campaign from UI instantly
+    setCampaigns(prev => prev.filter(c => String(c.id) !== String(id)));
+
+    alert("Campaign deleted successfully");
+  } catch (err) {
+    console.error("Delete error:", err);
+    alert("Error deleting campaign");
+  }
+};
+
   // ============================
   // Initial load
   // ============================
@@ -145,6 +175,7 @@ export default function Analytics() {
                   <th>Sent</th>
                   <th>Pending</th>
                   <th>Status</th>
+                  <th>Delete</th>
                 </tr>
               </thead>
 
@@ -180,6 +211,14 @@ export default function Analytics() {
                       {c.status === "scheduled" && (
                         <span className="text-blue-400 font-medium">Scheduled</span>
                       )}
+                    </td>
+                    <td> 
+                    <button
+                      onClick={() => deleteCampaign(c.id)}
+                      className="text-red-600 hover:text-red-800 text-sm font-medium"
+                    >
+                      Delete
+                    </button>
                     </td>
                   </tr>
                 ))}
