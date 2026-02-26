@@ -7,412 +7,680 @@ import { protect } from "../middleware/authMiddleware.js";
 const router = express.Router();
 router.use(protect);
 
-/* ==========================================================
-   HTML + Plain Text Generators
-========================================================== */
-const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail) => {
 
-  // -------------- EMPTY TEMPLATE -----------------
+const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail, bgColorOverride) => {
+
+  /* ── EMPTY FALLBACK ─────────────────────────────────────────── */
   if (!canvasData || canvasData.length === 0) {
-    return `
-    <!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>${subject}</title></head>
-    <body style="margin:0;padding:0;font-family:Arial,sans-serif;background-color:#ffffff;">
-      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-        <tr><td align="center" style="padding:20px;">
-          <table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;">
-            <tr><td style="padding:20px;background-color:#ffffff;">
-              <h1 style="margin:0 0 20px 0;font-size:24px;color:#333;">${subject}</h1>
-              <p style="margin:0 0 16px 0;font-size:16px;line-height:1.6;color:#333;">
-                This email was sent from your campaign builder.
-              </p>
-              <hr style="border:none;height:1px;background:#eee;margin:30px 0;">
-
-              <div style="margin:0;padding:0;text-align:center;">
-  
-                <p style="margin:0;font-size:12px;color:#999;">
-                  Sent by ${fromName}
-                </p>
-
-                <p style="margin:5px 0;font-size:12px;color:#999;">
-                    ${fromAddress}
-                </p>
-
-                <p style="margin:0;font-size:12px;color:#999;">
-                  <a href="mailto:${fromEmail}" style="color:#007bff;">
-                    ${fromEmail}
-                  </a>
-                </p>
-
-              </div>
-
-
-            </td></tr>
-          </table>
-        </td></tr>
-      </table>
-    </body>
-    </html>`;
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${subject}</title></head>
+<body style="margin:0;padding:0;font-family:Arial,sans-serif;background:#fff;">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:20px;">
+<table width="700" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;">
+<tr><td style="padding:24px;"><h1 style="color:#333;">${subject}</h1>
+<p style="color:#555;">This email was sent from your campaign builder.</p></td></tr>
+<tr><td style="padding:14px;text-align:center;font-size:12px;color:#999;border-top:1px solid #eee;">
+Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEmail}">${fromEmail}</a>
+</td></tr></table></td></tr></table></body></html>`;
   }
 
+  /* ── DIMENSIONS ─────────────────────────────────────────────── */
+  /* The canvas editor uses 800px width.                           */
+  /* The email content area is 560px (600px − 40px padding).      */
+  const CW = 800;   // canvas width
+  const EW = 560;   // email content width
 
-  // =====================================================
-  // 1️⃣ NORMALIZE Y VALUES (Fix broken Y placements)
-  // =====================================================
-const CONTAINER_WIDTH = 600;
+  // Scale a canvas pixel value to an email pixel value
+  const sc = (v) => Math.round((Number(v) || 0) * EW / CW);
 
-const normalized = canvasData.map((e) => {
-  const x = Number(e.x) || 0;
-  const width = Number(e.width) || 300;
+  /* ── READ BACKGROUND COLOR ──────────────────────────────────── */
+  const sentinel = (canvasData || []).find(e => e.type === '__canvas_bg__');
+  const emailBg = bgColorOverride || (sentinel && sentinel.color) || '#ffffff';
 
-  let computedAlign = e.textAlign;
+  /* ── NORMALIZE ELEMENTS ─────────────────────────────────────── */
+  const els = (canvasData || [])
+    .filter(e => e && e.type && e.type !== '__canvas_bg__')
+    .map(e => ({
+      ...e,
+      x: Number(e.x) || 0,
+      y: Number(e.y) || 0,
+      width: Number(e.width) || 80,
+      height: Number(e.height) || 40,
+    }));
 
-if (!computedAlign) {
-    const center = x + width / 2;
-    
-    // ✅ Updated thresholds to 200-400
-    if (center >= 200 && center <= 400) {
-      computedAlign = "center";
-    } else if (center > 400) {
-      computedAlign = "right";
-    } else {
-      computedAlign = "left";
+  /* ── ALIGNMENT INFERENCE ────────────────────────────────────── */
+  // Uses ratio of element center to canvas width (not hardcoded px).
+  // When inside a card (inCard=true), ALWAYS trust the element's textAlign
+  // because card children are positioned relative to the card, not the canvas,
+  // so position-based detection wrongly centers left-aligned card text.
+function align(el, inCard, forceLeft) {
+  // 1️⃣ Inside a card: always trust the stored textAlign directly.
+  if (inCard) return el.textAlign || 'left';
+
+  // 2️⃣ forceLeft: companion column beside an image — skip position-based
+  //    detection, but still respect whatever the user explicitly set.
+  if (forceLeft) {
+    if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
+      return el.textAlign;
+    return 'left'; // default for companion columns with no explicit alignment
+  }
+
+  // 3️⃣ Trust explicit alignment set in the editor.
+  if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
+    return el.textAlign;
+
+  // 4️⃣ Fall back to position-based detection (only when textAlign is not set).
+  const ratio = (el.x + el.width / 2) / CW;
+  if (ratio < 0.30) return 'left';
+  if (ratio > 0.70) return 'right';
+  return 'center';
+}
+
+  /* ── ELEMENT RENDERERS ──────────────────────────────────────── */
+  // Convert \n to <br/> so multi-line canvas text renders correctly in email clients
+  const nl2br = (str) => (str || '').replace(/\n/g, '<br/>');
+
+  function renderEl(el, inCard, forceLeft, colWidthPx) {
+    const a = align(el, inCard, forceLeft);
+
+    switch (el.type) {
+
+      case 'heading':
+        return `<h1 style="margin:4px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
+
+      case 'subheading':
+        return `<h2 style="margin:4px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
+
+      case 'paragraph':
+        return `<p style="margin:5px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.6};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
+
+      case 'blockquote':
+        return `<div style="margin:8px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
+
+      case 'image': {
+        let src = el.src || '';
+        if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/560x200?text=No+Image';
+        if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
+        const br = Number(el.borderRadius) || 0;
+        const bdr = el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#ccc'};` : '';
+        // inCard or forceLeft = image is inside a side-by-side column cell → fill column width
+        // Wide standalone (>= 55% canvas width) → full email width
+        // Small standalone → scale proportionally based on canvas size
+        const isWide = inCard || forceLeft || (Number(el.width) || 0) / CW >= 0.55;
+        const maxW = isWide ? '100%' : `${sc(el.width)}px`;
+        // Preserve exact canvas height in side-by-side column.
+        // colWidthPx = actual pixel width of this column in the email (passed from multi-col renderer)
+        // Scale height = canvas_height * (colWidthPx / canvas_el_width)
+        const elH = Number(el.height) || 0;
+        const elW = Number(el.width) || 1;
+        let scaledH = 0;
+        if (forceLeft && elH > 0) {
+          const refW = colWidthPx || Math.round((elW / CW) * EW);
+          scaledH = Math.round(elH * (refW / elW));
+        }
+        const heightStyle = scaledH > 0
+          ? `height:${scaledH}px;object-fit:cover;`
+          : 'height:auto;';
+        return `<div style="margin:0;font-size:0;line-height:0;"><img src="${src}" alt="${el.alt || ''}" width="100%" style="display:block;width:100%;max-width:${maxW};${heightStyle}border-radius:${br}px;${bdr}"/></div>`;
+      }
+
+      case 'button': {
+        const ba = align(el, inCard);
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
+      }
+
+      case 'line':
+        return `<div style="margin:8px 0;font-size:0;line-height:0;"><hr style="border:none;height:${el.strokeWidth || 2}px;background:${el.strokeColor || '#333'};margin:0;"/></div>`;
+
+      case 'rectangle': {
+        if (inCard) return ''; // card background already applied — skip
+        const w = `${sc(el.width)}px`;
+        return `<div style="width:${w};height:${sc(el.height) || 40}px;background:${el.backgroundColor || '#4ECDC4'};border-radius:${el.borderRadius || 4}px;${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#000'};` : ''}display:block;margin:4px 0;"></div>`;
+      }
+
+      case 'circle': {
+        const sz = Math.min(sc(el.width) || 36, sc(el.height) || 36);
+        return `<div style="display:inline-block;width:${sz}px;height:${sz}px;background:${el.backgroundColor || '#FF6B6B'};border-radius:50%;${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#000'};` : ''}vertical-align:middle;"></div>`;
+      }
+
+      case 'star': {
+        const sz = Math.max(sc(el.width) || 24, 14);
+        const clr = el.backgroundColor || el.color || '#FFD700';
+        return `<span style="display:inline-block;font-size:${sz}px;line-height:1;color:${clr};vertical-align:middle;">&#9733;</span>`;
+      }
+
+      case 'triangle': {
+        const w = sc(el.width) || 28, h = sc(el.height) || 28;
+        return `<div style="display:inline-block;width:0;height:0;border-left:${Math.round(w / 2)}px solid transparent;border-right:${Math.round(w / 2)}px solid transparent;border-bottom:${h}px solid ${el.backgroundColor || '#FF9F43'};vertical-align:middle;"></div>`;
+      }
+
+      case 'lucide-icon': {
+        // jsDelivr with pinned version — most reliable CDN for Gmail
+        const name = (el.iconName || 'star').toLowerCase().replace(/\s+/g, '-');
+        const sz = Math.min(sc(el.width) || 28, sc(el.height) || 28, 44);
+        const url = `https://cdn.jsdelivr.net/npm/lucide-static@0.263.1/icons/${name}.svg`;
+        // Unicode fallbacks so text shows if image blocked
+        const fb = { star: '★', heart: '♥', mail: '✉', check: '✓', home: '⌂', zap: '⚡', lock: '🔒', bookmark: '🔖', filter: '▽', search: '🔍', phone: '📞', camera: '📷', user: '👤', settings: '⚙', bell: '🔔', info: 'ℹ', warning: '⚠', download: '↓', upload: '↑', edit: '✏', trash: '🗑', share: '↗', twitter: '🐦', instagram: '📷', facebook: 'f', linkedin: 'in', arrow: '→', eye: '👁', tag: '🏷', calendar: '📅', clock: '🕐', map: '🗺', pin: '📍', flag: '🚩', globe: '🌐', image: '🖼', video: '▶', music: '♪', file: '📄', folder: '📁', plus: '+', minus: '-', x: '✕', refresh: '↻', link: '🔗', shield: '🛡', award: '🏆', gift: '🎁', truck: '🚚', box: '📦', tool: '🔧', cpu: '💻', wifi: '📶', battery: '🔋', power: '⚡', sun: '☀', moon: '🌙', cloud: '☁', wind: '💨', fire: '🔥', drop: '💧' }[name] || '●';
+        return `<img src="${url}" width="${sz}" height="${sz}" alt="${fb}" title="${name}" style="display:inline-block;width:${sz}px;height:${sz}px;vertical-align:middle;border:0;"/>`;
+      }
+
+      case 'social': {
+        const sz = Math.min(sc(el.width) || 30, sc(el.height) || 30, 40);
+        return `<a href="${el.link || '#'}" target="_blank" style="display:inline-block;vertical-align:middle;margin:0 3px;"><img src="${el.src || ''}" width="${sz}" height="${sz}" alt="${el.platform || ''}" style="display:inline-block;border:0;border-radius:6px;width:${sz}px;height:${sz}px;"/></a>`;
+      }
+
+      default: return '';
     }
   }
-  return {
-    ...e,
-    y: Number(e.y) || 0,
-    x,
-    width,
-    textAlign: computedAlign
-  };
-});
 
+  /* ── CARD DETECTION ─────────────────────────────────────────── */
+  // A "card" is a rectangle that contains other elements.
+  // Any element whose CENTER falls within a rectangle's bounds
+  // is treated as a child of that rectangle.
+  function centerIn(el, r) {
+    // Primary: element center is inside the rect
+    const cx = el.x + el.width / 2;
+    const cy = el.y + el.height / 2;
+    if (cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height) return true;
+    // Fallback: element significantly overlaps the rect (>50% of element area)
+    const ix = Math.max(0, Math.min(el.x + el.width, r.x + r.width) - Math.max(el.x, r.x));
+    const iy = Math.max(0, Math.min(el.y + el.height, r.y + r.height) - Math.max(el.y, r.y));
+    const overlap = ix * iy;
+    const elArea = el.width * el.height;
+    return elArea > 0 && overlap / elArea > 0.50;
+  }
 
-  // =====================================================
-  // 2️⃣ SORT ELEMENTS BY Y (top → bottom)
-  // =====================================================
-  const sorted = normalized.sort((a, b) => a.y - b.y);
-
-
-  // =====================================================
-  // 3️⃣ GROUP ELEMENTS INTO ROWS (for side-by-side support)
-  // =====================================================
-function groupRows(elements, threshold = 15) {  // ✅ Changed from 50 to 15 to match canvas
-  let rows = [];
-
-  // Sort elements by Y position first, then by X if Y is close
-  const sortedElements = [...elements].sort((a, b) => {
-    if (Math.abs(a.y - b.y) > 10) {
-      return a.y - b.y;
+  // Deduplicate overlapping rects: skip transparent grid overlays sharing same bounds
+  const allRects = els.filter(e => e.type === 'rectangle');
+  const skipRectIds = new Set();
+  for (let i = 0; i < allRects.length; i++) {
+    for (let j = i + 1; j < allRects.length; j++) {
+      const a = allRects[i], b = allRects[j];
+      const ix = Math.max(0, Math.min(a.x+a.width, b.x+b.width) - Math.max(a.x, b.x));
+      const iy = Math.max(0, Math.min(a.y+a.height, b.y+b.height) - Math.max(a.y, b.y));
+      const intersection = ix * iy;
+      const aArea = a.width * a.height, bArea = b.width * b.height;
+      const smaller = Math.min(aArea, bArea);
+      if (smaller > 0 && intersection / smaller > 0.85) {
+        const aIsOverlay = !a.backgroundColor || a.backgroundColor === 'transparent';
+        const bIsOverlay = !b.backgroundColor || b.backgroundColor === 'transparent';
+        if (aIsOverlay) skipRectIds.add(a.id);
+        else if (bIsOverlay) skipRectIds.add(b.id);
+        else skipRectIds.add(aArea <= bArea ? a.id : b.id);
+      }
     }
-    return a.x - b.x;
+  }
+  const rects = allRects.filter(r => !skipRectIds.has(r.id));
+  const cardMap = new Map();
+  rects.forEach(r => cardMap.set(r.id, { bg: r, kids: [] }));
+
+  const orphans = [];
+  els.forEach(el => {
+    if (el.type === 'rectangle') return;
+    let best = null, bestA = Infinity;
+    rects.forEach(r => {
+      if (centerIn(el, r)) {
+        const a = r.width * r.height;
+        if (a < bestA) { bestA = a; best = r; }
+      }
+    });
+    if (best) cardMap.get(best.id).kids.push(el);
+    else orphans.push(el);
   });
 
-  sortedElements.forEach(el => {
-    const elTop = el.y;
-    const elBottom = el.y + (el.height || 80);
-    const elMidpoint = el.y + ((el.height || 80) / 2);
-    
-    let added = false;
+  /* ── CARD RENDERER ──────────────────────────────────────────── */
+  function renderCard(bg, kids) {
+    const bgC = bg.backgroundColor || '#1A1A1A';
+    const rad = Number(bg.borderRadius) || 8;
+    const bdr = bg.borderWidth ? `border:${bg.borderWidth}px solid ${bg.borderColor || '#444'};` : '';
+    const sorted = [...kids].sort((a, b) => a.y - b.y);
 
-    for (let row of rows) {
-      // Use first element in row as reference
-      const rowEl = row[0];
-      const rowMidpoint = rowEl.y + ((rowEl.height || 80) / 2);
-      
-      // ✅ Stricter grouping - only group if midpoints are very close
-      if (Math.abs(elMidpoint - rowMidpoint) <= threshold) {
-        row.push(el);
-        added = true;
-        break;
+    /* ── SIDE-BY-SIDE SPLIT DETECTION ──────────────────────────
+       Detect split layout: image on RIGHT side of card (left-edge
+       starts past 45% of card width) and not a full-bleed top image.
+       ALL other children go to the left column.
+
+       BULLET ROW LOGIC:
+       Each feature bullet can be made of up to 3 elements at the same Y:
+         - A circle (background shape)
+         - A paragraph used as emoji/icon (small width, same x as circle)
+         - A paragraph with the feature text (further right, e.g. x+62)
+       We group all elements that share the same Y "row band" into bullet rows,
+       render them as icon+text pairs, and never render anything twice.  */
+    const cardRight2 = bg.x + bg.width;
+
+    // ── Shared band builder ────────────────────────────────────────────────
+    function buildBands(items) {
+      const used = new Set();
+      const bands = [];
+      for (let i = 0; i < items.length; i++) {
+        if (used.has(i)) continue;
+        const el = items[i];
+        const band = [{ idx: i, el }];
+        used.add(i);
+        let bTop = el.y, bBot = el.y + el.height;
+        let changed = true;
+        while (changed) {
+          changed = false;
+          for (let j = 0; j < items.length; j++) {
+            if (used.has(j)) continue;
+            const k = items[j];
+            if (k.y < bBot + 10 && k.y + k.height > bTop - 10) {
+              band.push({ idx: j, el: k }); used.add(j);
+              bTop = Math.min(bTop, k.y); bBot = Math.max(bBot, k.y + k.height);
+              changed = true;
+            }
+          }
+        }
+        bands.push(band);
+      }
+      return bands;
+    }
+
+    // ── Shared band renderer ───────────────────────────────────────────────
+    function renderBands(bands) {
+      let html = '';
+      for (const band of bands) {
+        const bandEls = band.map(b => b.el);
+        const iconEls = bandEls.filter(e =>
+          ['circle','lucide-icon','star'].includes(e.type) ||
+          (e.type === 'paragraph' && e.width <= 50)
+        );
+        const textEls = bandEls.filter(e =>
+          ['paragraph','heading','subheading'].includes(e.type) && e.width > 50
+        );
+        if (iconEls.length > 0 && textEls.length > 0) {
+          const emojiEl  = iconEls.find(e => e.type === 'paragraph');
+          const circleEl = iconEls.find(e => e.type === 'circle');
+          const lucideEl = iconEls.find(e => e.type === 'lucide-icon');
+          const starEl   = iconEls.find(e => e.type === 'star');
+
+          let iconHtml = '';
+          if (emojiEl && circleEl) {
+            // Render emoji inside its circle badge — preserves the coloured badge + emoji
+            const bgColor  = circleEl.backgroundColor || '#FFF8E0';
+            const bdColor  = circleEl.borderColor || '#C9A84C';
+            const bdWidth  = circleEl.borderWidth  || 2;
+            const sz       = Math.min(sc(circleEl.width) || 28, 36);
+            const emoji    = emojiEl.content || '';
+            const fSize    = Math.round(sz * 0.55);
+            iconHtml = `<div style="display:inline-block;width:${sz}px;height:${sz}px;line-height:${sz}px;text-align:center;background:${bgColor};border:${bdWidth}px solid ${bdColor};border-radius:50%;font-size:${fSize}px;vertical-align:middle;box-sizing:border-box;">${emoji}</div>`;
+          } else if (emojiEl) {
+            // Emoji without a circle — render it simply
+            const emoji  = emojiEl.content || '';
+            const fSize  = emojiEl.fontSize || 18;
+            iconHtml = `<span style="display:inline-block;font-size:${fSize}px;line-height:1;vertical-align:middle;">${emoji}</span>`;
+          } else if (lucideEl || starEl) {
+            iconHtml = renderEl(lucideEl || starEl, true);
+          } else if (circleEl) {
+            iconHtml = renderEl(circleEl, true);
+          }
+
+          const textHtml = textEls.sort((a,b) => a.y - b.y).map(e => renderEl(e, true)).join('');
+          html += '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;border-collapse:collapse;"><tr>'
+            + '<td width="36" valign="middle" style="padding-right:10px;vertical-align:middle;">' + iconHtml + '</td>'
+            + '<td valign="middle" style="vertical-align:middle;">' + textHtml + '</td>'
+            + '</tr></table>';
+        } else {
+          const nonCircle = bandEls.filter(e => !['circle','star'].includes(e.type));
+          (nonCircle.length > 0 ? nonCircle : []).forEach(e => { html += renderEl(e, true); });
+        }
+      }
+      return html;
+    }
+
+    // Image RIGHT: left-edge >= 45% of card width (all coords relative to card)
+    const sideImg = sorted.find(k =>
+      k.type === 'image' &&
+      (k.x - bg.x) >= bg.width * 0.45 &&
+      (k.y - bg.y) >= 15
+    );
+
+    // Image LEFT: starts in left 25% of card, right-edge within left 60% of card
+    const sideImgLeft = !sideImg && sorted.find(k =>
+      k.type === 'image' &&
+      (k.x - bg.x) >= 0 &&
+      (k.x - bg.x) < bg.width * 0.25 &&
+      (k.x + k.width - bg.x) <= bg.width * 0.60 &&
+      (k.y - bg.y) >= 15
+    );
+
+    if (sideImgLeft) {
+      /* ── IMAGE LEFT, TEXT RIGHT ── */
+      let src = sideImgLeft.src || '';
+      if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/260x220?text=Image';
+      if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
+
+      const rightSorted = sorted.filter(k => k !== sideImgLeft).sort((a, b) => a.y - b.y);
+      const rightHtml = renderBands(buildBands(rightSorted));
+      const imgColPct = Math.round(((sideImgLeft.x + sideImgLeft.width - bg.x) / bg.width) * 100);
+      const textColPct = 100 - imgColPct;
+      // Use the card's actual height for the image (not just the image element height)
+      // so both columns fill the full card
+      const imgHeightPx = Math.round((bg.height / bg.height) * (sc(bg.height) || 220));
+
+      return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + bgC + ';border-radius:' + rad + 'px;' + bdr + 'overflow:hidden;border-collapse:collapse;">'
+        + '<tr>'
+        + '<td width="' + imgColPct + '%" valign="middle" style="padding:0;vertical-align:middle;font-size:0;line-height:0;">'
+        + '<img src="' + src + '" alt="" width="100%" style="display:block;width:100%;height:auto;min-height:' + Math.round(sc(sideImgLeft.height)) + 'px;object-fit:cover;border-radius:' + rad + 'px 0 0 ' + rad + 'px;"/>'
+        + '</td>'
+        + '<td width="' + textColPct + '%" valign="top" style="padding:16px 16px 16px 14px;vertical-align:top;">' + rightHtml + '</td>'
+        + '</tr>'
+        + '</table>';
+    }
+
+    if (sideImg) {
+      /* ── TEXT LEFT, IMAGE RIGHT ── */
+      let src = sideImg.src || '';
+      if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/260x220?text=Image';
+      if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
+
+      const leftSorted = sorted.filter(k => k !== sideImg).sort((a, b) => a.y - b.y);
+      const leftHtml = renderBands(buildBands(leftSorted));
+      const imgColPct = Math.round(((cardRight2 - sideImg.x) / bg.width) * 100);
+      const textColPct = 100 - imgColPct;
+      const imgHeightPx = Math.round((sideImg.height / bg.height) * 220);
+
+      return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + bgC + ';border-radius:' + rad + 'px;' + bdr + 'overflow:hidden;border-collapse:collapse;">'
+        + '<tr>'
+        + '<td width="' + textColPct + '%" valign="top" style="padding:16px 14px 16px 16px;vertical-align:top;">' + leftHtml + '</td>'
+        + '<td width="' + imgColPct + '%" valign="middle" style="padding:0;vertical-align:middle;font-size:0;line-height:0;">'
+        + '<img src="' + src + '" alt="" width="100%" style="display:block;width:100%;height:' + imgHeightPx + 'px;max-height:' + imgHeightPx + 'px;object-fit:cover;border-radius:0 ' + rad + 'px ' + rad + 'px 0;"/>'
+        + '</td>'
+        + '</tr>'
+        + '</table>';
+    }
+
+        /* ── ORIGINAL STACKED LAYOUT (unchanged for other card types) ── */
+
+    // Top-image: image whose top edge is within 20px of card top
+    const topImg = sorted.find(k => k.type === 'image' && (k.y - bg.y) < 20);
+    let rest = sorted.filter(k => k !== topImg);
+
+    // Icon+heading inline pair detection
+    let iconEl = null, headEl = null;
+    const iIdx = rest.findIndex(k => ['lucide-icon', 'circle', 'star'].includes(k.type));
+    if (iIdx !== -1) {
+      const ic = rest[iIdx];
+      const hIdx = rest.findIndex((k, i) => i !== iIdx
+        && ['heading', 'subheading'].includes(k.type)
+        && Math.abs((k.y + k.height / 2) - (ic.y + ic.height / 2)) < 32);
+      if (hIdx !== -1) {
+        iconEl = ic; headEl = rest[hIdx];
+        rest = rest.filter((_, i) => i !== iIdx && i !== hIdx);
       }
     }
 
-    if (!added) {
-      rows.push([el]);
+    let rows = '';
+
+    // Full-bleed top image
+    if (topImg) {
+      let src = topImg.src || '';
+      if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/560x200?text=Image';
+      if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
+      rows += `<tr><td style="padding:0;font-size:0;line-height:0;"><img src="${src}" alt="" width="100%" style="display:block;width:100%;height:auto;max-height:280px;object-fit:cover;border-radius:${rad}px ${rad}px 0 0;"/></td></tr>`;
+    }
+
+    // Icon + heading side by side
+    if (iconEl) {
+      rows += `<tr><td style="padding:12px 16px 4px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="44" valign="middle" style="padding-right:8px;">${renderEl(iconEl, true)}</td><td valign="middle">${renderEl(headEl, true)}</td></tr></table></td></tr>`;
+    }
+
+    // Body content — sort by Y, render each element in its own <tr> with gap spacing
+    if (rest.length > 0) {
+      const restSorted = [...rest].sort((a, b) => a.y - b.y);
+      const topPad = (topImg || iconEl) ? '6' : '16';
+      restSorted.forEach((k, idx) => {
+        // Calculate Y-gap from previous element to preserve canvas spacing
+        let gapPx = 0;
+        if (idx > 0) {
+          const prev = restSorted[idx - 1];
+          const canvasGap = Math.max(0, k.y - (prev.y + prev.height));
+          gapPx = Math.round(canvasGap * (EW / CW));
+        }
+        const padTop = idx === 0 ? topPad : (gapPx > 2 ? gapPx : 4);
+        const padBot = idx === restSorted.length - 1 ? '16' : '0';
+        rows += `<tr><td style="padding:${padTop}px 16px ${padBot}px;">${renderEl(k, true)}</td></tr>`;
+      });
+    }
+
+    return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bgC};border-radius:${rad}px;${bdr}overflow:hidden;">${rows}</table>`;
+  }
+
+  /* ── BUILD LAYOUT UNITS ─────────────────────────────────────── */
+  // Each "unit" = one rendered block with its canvas x/y/width
+  // so we can position it correctly in the email layout.
+  const units = [];
+
+  cardMap.forEach(({ bg, kids }) => {
+    units.push({
+      x: bg.x, y: bg.y, cw: bg.width, ch: bg.height, elType: 'card', origId: bg.id,
+      html: kids.length > 0 ? renderCard(bg, kids) : renderEl(bg, false),
+    });
+  });
+
+  orphans.forEach(el => {
+    units.push({ x: el.x, y: el.y, cw: el.width, ch: el.height, elType: el.type, origId: el.id, _el: el, html: renderEl(el, false) });
+  });
+
+  // ── PRE-MERGE: Fix image + stacked-text side-by-side layout ────────────────
+  // Problem: image (left) + two paragraphs (right, stacked vertically).
+  // groupRows correctly groups Para1 with the image (Y overlap), but Para2
+  // also Y-overlaps the image yet X-overlaps Para1 → gets rejected into its
+  // own new row → renders full-width below the image.
+  //
+  // Fix: for each image unit, find ALL non-image units whose X range does NOT
+  // overlap the image AND whose Y range overlaps the image. Merge those
+  // companion units into one combined "column unit" so groupRows sees only
+  // 2 units (image + merged column) and places them side-by-side.
+  (function mergeImageCompanions() {
+    const imgUnits  = units.filter(u => u.elType === 'image');
+    const nonImgIds = new Set(units.filter(u => u.elType !== 'image').map(u => u.origId));
+
+    imgUnits.forEach(img => {
+      const imgTop = img.y, imgBot = img.y + img.ch;
+      const imgL   = img.x, imgR   = img.x + img.cw;
+
+      // Find companion units: Y overlaps image, X does NOT overlap image
+      const companions = units.filter(u =>
+        u.origId !== img.origId &&
+        u.elType !== 'image' &&
+        // Y overlap with image
+        u.y < imgBot && (u.y + u.ch) > imgTop &&
+        // X does NOT overlap image (they are side-by-side)
+        (u.x + u.cw <= imgL || u.x >= imgR)
+      );
+
+      if (companions.length < 1) return; // nothing to fix
+
+      // Group companions by which X side they're on (left or right of image)
+      const leftComps  = companions.filter(u => u.x + u.cw <= imgL);
+      const rightComps = companions.filter(u => u.x >= imgR);
+
+      [leftComps, rightComps].forEach(group => {
+        if (group.length === 0) return;
+
+        // Remove individual units from the units array
+        group.forEach(u => {
+          const idx = units.indexOf(u);
+          if (idx !== -1) units.splice(idx, 1);
+        });
+
+        if (group.length === 1) {
+          // Single companion — just re-render with forceLeft to fix alignment
+          const u = group[0];
+          units.push({
+            ...u,
+            html: u._el ? renderEl(u._el, false, true) : u.html,
+          });
+          return;
+        }
+
+        // Merge into one tall column unit, re-rendering each el with forceLeft=true
+        // so text on the right side of canvas doesn't get wrongly right-aligned
+        const sorted = [...group].sort((a, b) => a.y - b.y);
+        const minY  = sorted[0].y;
+        const maxBot2 = Math.max(...sorted.map(u => u.y + u.ch));
+        const minX  = Math.min(...sorted.map(u => u.x));
+        const maxR  = Math.max(...sorted.map(u => u.x + u.cw));
+        units.push({
+          x: minX, y: minY,
+          cw: maxR - minX, ch: maxBot2 - minY,
+          elType: sorted[0].elType,
+          origId: sorted[0].origId,
+          // Preserve the canvas Y-gap between stacked companion elements as margin-top.
+          // Scale: gap_px * (EW / CW) converts canvas pixels → email pixels.
+          html: sorted.map((u, idx) => {
+            const baseHtml = u._el ? renderEl(u._el, false, true) : u.html;
+            if (idx === 0) return baseHtml;
+            const prevBot = sorted[idx - 1].y + sorted[idx - 1].ch;
+            const gapPx   = Math.max(0, u.y - prevBot);
+            const emailGap = Math.round(gapPx * (EW / CW));
+            if (emailGap <= 2) return baseHtml;
+            return `<div style="margin-top:${emailGap}px;">${baseHtml}</div>`;
+          }).join(''),
+        });
+      });
+    });
+  })();
+
+  // Sort: top-to-bottom, left-to-right
+  units.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+  /* ── ROW GROUPING ───────────────────────────────────────────── */
+  // Two units belong to the same "row" (side-by-side columns) if their
+  // Y ranges OVERLAP — i.e. they are visually beside each other on the canvas.
+  // This correctly handles elements of different heights placed side-by-side.
+  function groupRows(units) {
+    // Attach height to each unit (use ch property if set, else fall back to elType defaults)
+    const withH = units.map(u => ({ ...u, ch: u.ch || 40 }));
+
+    const rows = [];
+    withH.forEach(u => {
+      const uTop = u.y;
+      const uBot = u.y + u.ch;
+      let placed = false;
+
+      for (const row of rows) {
+        // Compute the vertical span already occupied by this row
+        const rowTop = Math.min(...row.map(r => r.y));
+        const rowBot = Math.max(...row.map(r => r.y + r.ch));
+
+        // Does u overlap the row's vertical range?
+        const yOverlap = uTop < rowBot && uBot > rowTop;
+        if (!yOverlap) continue;
+
+        // Only group if X ranges do NOT overlap (they must be side-by-side)
+        const xOverlap = row.some(r => !(u.x + u.cw <= r.x || u.x >= r.x + r.cw));
+        if (xOverlap) continue;
+
+        row.push(u); placed = true; break;
+      }
+      if (!placed) rows.push([u]);
+    });
+
+    // Sort each row left-to-right, then rows top-to-bottom
+    rows.forEach(r => r.sort((a, b) => a.x - b.x));
+    rows.sort((a, b) => Math.min(...a.map(r => r.y)) - Math.min(...b.map(r => r.y)));
+    return rows;
+  }
+
+  const rows = groupRows(units);
+
+  /* ── HTML OUTPUT ────────────────────────────────────────────── */
+  let html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f0f0f0">
+<tr><td align="center" style="padding:16px 8px;">
+<table width="700" cellpadding="0" cellspacing="0" border="0" bgcolor="${emailBg}"
+       style="max-width:700px;width:100%;background:${emailBg};">
+<tr><td style="padding:20px;">
+`;
+
+  rows.forEach(row => {
+
+    if (row.length === 1) {
+      // Single unit: respect its canvas width proportion
+      const u = row[0];
+      const pct = u.cw / CW;                     // fraction of canvas width
+      // Text-type elements should always fill 100% to preserve readability
+      const isTextEl = ['heading','subheading','paragraph','blockquote','button'].includes(u.elType);
+      const colW = (pct >= 0.50 || isTextEl) ? '100%' : `${sc(u.cw)}px`;
+      const cx = (u.x + u.cw / 2) / CW;
+      // Cards and wide elements always use 'left' on the outer wrapper —
+      // the card itself controls internal text alignment via renderCard/renderEl.
+      // Only small standalone elements (images, shapes) use position-based alignment.
+      const tdA = (u.elType === 'card' || colW === '100%') ? 'left'
+        : cx < 0.30 ? 'left' : cx > 0.70 ? 'right' : 'center';
+
+      html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+<tr><td align="${tdA}">
+<table width="${colW}" cellpadding="0" cellspacing="0" border="0">
+<tr><td>${u.html}</td></tr>
+</table></td></tr></table>\n`;
+
+    } else {
+      // Multiple units side-by-side
+      // Recalculate column widths so they sum to 100% and match canvas proportions.
+      // Re-render image units with forceLeft=true so they fill their column cell.
+      const totalCW = row.reduce((s, u) => s + u.cw, 0);
+      // Normalise widths to sum to 100
+      const pcts = row.map(u => Math.round((u.cw / totalCW) * 100));
+      // Correct rounding drift on last column
+      const drift = 100 - pcts.reduce((a, b) => a + b, 0);
+      pcts[pcts.length - 1] += drift;
+
+      html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
+<tr>\n`;
+      // Find the tallest unit in the row (usually the image) to detect vertical alignment
+      const rowH = Math.max(...row.map(u => u.ch));
+      const rowTop = Math.min(...row.map(u => u.y));
+
+      row.forEach((u, i) => {
+        const pct = pcts[i];
+        const pad = i < row.length - 1 ? 'padding-right:8px;' : '';
+        // Re-render images with forceLeft so max-width:100% fills the column
+        // Pass colWidthPx so image height scales correctly to column width
+        const colWidthPx = Math.round((pct / 100) * EW);
+        const cellHtml = (u.elType === 'image' && u._el)
+          ? renderEl(u._el, false, true, colWidthPx)
+          : u.html;
+        // Detect vertical alignment: if this unit's Y center is in the middle 
+        // 40% of the row height → middle-align; otherwise top-align
+        const uCenterRatio = u.ch < rowH
+          ? ((u.y - rowTop) + u.ch / 2) / rowH
+          : 0;
+        const va = (u.elType !== 'image' && uCenterRatio > 0.25 && uCenterRatio < 0.75)
+          ? 'middle' : 'top';
+        html += `<td width="${pct}%" valign="${va}" style="${pad}vertical-align:${va};">${cellHtml}</td>\n`;
+      });
+      html += `</tr></table>\n`;
     }
   });
 
-  // Sort items within each row by X position (left to right)
-  rows.forEach(row => row.sort((a, b) => a.x - b.x));
+  html += `</td></tr>
+<tr><td style="padding:14px 20px;background:#f8f9fa;border-top:1px solid #e0e0e0;text-align:center;font-size:12px;color:#888;">
+<p style="margin:0 0 4px;">Sent by <strong>${fromName}</strong></p>
+<p style="margin:4px 0;">${fromAddress}</p>
+<p style="margin:0;">Reply to: <a href="mailto:${replyToEmail || fromEmail}" style="color:#007bff;">${replyToEmail || fromEmail}</a></p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`;
 
-  return rows;
-}
-
-  const rows = groupRows(sorted);
-
-
-  // =====================================================
-  // 4️⃣ RENDER FUNCTION (converts each element → HTML)
-  // =====================================================
-function renderElement(el) {
-  switch (el.type) {
-
-    case "heading":
-      return `
-        <h1 style="
-          margin:6px 0;
-          font-size:${el.fontSize || 28}px;
-          color:${el.color || "#333"};
-          background:${el.backgroundColor || "transparent"};
-          font-weight:${el.fontWeight || "700"};
-          font-family:${el.fontFamily || "Arial, sans-serif"};
-          text-align:${el.textAlign || "left"};
-          line-height:1.3;
-        ">${el.content || "Heading"}</h1>
-      `;
-
-    case "subheading":
-      return `
-        <h2 style="
-          margin:6px 0;
-          font-size:${el.fontSize || 22}px;
-          color:${el.color || "#333"};
-          background:${el.backgroundColor || "transparent"};
-          font-weight:${el.fontWeight || "600"};
-          font-family:${el.fontFamily || "Arial, sans-serif"};
-          text-align:${el.textAlign || "left"};
-        ">${el.content || "Subheading"}</h2>
-      `;
-
-    case "paragraph":
-      return `
-        <div style="
-          font-size:${el.fontSize || 16}px;
-          color:${el.color || "#333"};
-          background:${el.backgroundColor || "transparent"};
-          font-family:${el.fontFamily || "Arial, sans-serif"};
-          font-weight:${el.fontWeight || "normal"};
-          font-style:${el.fontStyle || "normal"};
-          text-decoration:${el.textDecoration || "none"};
-          line-height:${el.lineHeight || 1.6};
-          text-align:${el.textAlign || "left"};
-          margin:8px 0;
-          word-wrap:break-word;
-          word-break:break-word;
-          overflow-wrap:break-word;
-          -webkit-hyphens:auto;
-          -moz-hyphens:auto;
-          hyphens:auto;
-        ">
-          ${el.content || "Paragraph text"}
-        </div>
-      `;
-
-    case "blockquote":
-      return `
-        <div style="
-          font-size:${el.fontSize || 16}px;
-          color:${el.color || "#333"};
-          background:${el.backgroundColor || "transparent"};
-          font-family:${el.fontFamily || "Arial, sans-serif"};
-          font-style:italic;
-          border-left:4px solid ${el.borderColor || "#ccc"};
-          padding-left:12px;
-          margin:12px 0;
-        ">${el.content || "Blockquote"}</div>
-      `;
-
-case "image": {
-  let imgSrc = el.src;
-
-  // 1️⃣ If blob/base64 → use placeholder OR block sending
-  if (!imgSrc || imgSrc.startsWith("blob:") || imgSrc.startsWith("data:")) {
-    console.warn("Invalid image source detected:", imgSrc);
-    imgSrc = "https://via.placeholder.com/600x400?text=No+Image+Available";
-  }
-
-  // 2️⃣ If relative URL → convert to absolute (required for email)
-  if (!imgSrc.startsWith("http://") && !imgSrc.startsWith("https://")) {
-    imgSrc = `${process.env.API_BASE_URL}${imgSrc}`;
-  }
-
-  return `
-    <div style="text-align:${el.textAlign || "center"};margin:12px 0;">
-      <img 
-        src="${imgSrc}"
-        alt="${el.alt || "Image"}"
-        style="
-          display:block;
-          margin:0 auto;
-          width:100%;
-          max-width:${el.width || 300}px;
-          height:auto;
-          border-radius:${el.borderRadius || 0}px;
-          ${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || "#ccc"};` : ""}
-        "
-      />
-    </div>
-  `;
-}
-
-
-case 'button': {
-  // ✅ Calculate alignment from element position
-  let buttonAlignment = el.textAlign;
-  if (!buttonAlignment && el.x !== undefined) {
-    const center = el.x + (el.width || 150) / 2;
-    
-    // ✅ Better thresholds for 600px canvas
-    if (center >= 200 && center <= 400) {
-      buttonAlignment = "center";
-    } else if (center > 400) {
-      buttonAlignment = "right";
-    } else {
-      buttonAlignment = "left";
-    }
-  }
-  buttonAlignment = buttonAlignment || 'left';
-  
-  return `
-    <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin: 12px 0;">
-      <tr>
-        <td align="${buttonAlignment}">
-          <a href="${el.link || '#'}" 
-             style="display: inline-block;
-                    padding: ${el.padding || '10px 18px'};
-                    background-color: ${el.backgroundColor || '#c2831f'};
-                    color: ${el.color || '#ffffff'};
-                    text-decoration: none;
-                    border-radius: ${el.borderRadius || 6}px;
-                    font-weight: ${el.fontWeight || '700'};
-                    font-size: ${el.fontSize || 16}px;
-                    font-family: ${el.fontFamily || 'Arial, sans-serif'};">
-            ${el.content || 'Click Me'}
-          </a>
-        </td>
-      </tr>
-    </table>
-  `;
-}
-    case "line":
-    return `
-      <hr style="
-        border:none;
-        height:${el.strokeWidth || 1}px;
-        background:${el.strokeColor || "#ddd"};
-        margin:${el.marginTop || 12}px 0 ${el.marginBottom || 12}px 0;
-      "/>
-    `;
-
-    case "rectangle":
-      return `
-        <div style="
-          width:100%;
-          height:${el.height || 100}px;
-          background:${el.backgroundColor || "#4ECDC4"};
-          ${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || "#000"};` : ""}
-          border-radius:${el.borderRadius || 4}px;
-          margin:8px 0;
-        "></div>
-    `;
-    case "social":
-    return `
-      <a href="${el.link || "#"}" target="_blank" style="margin:0 6px;display:inline-block;">
-        <img src="${el.src}" width="32" height="32" style="display:inline-block;" />
-      </a>
-    `;
-
-
-    case "circle":
-      return `
-        <div style="
-          width:${Math.min(el.width || 100, el.height || 100)}px;
-          height:${Math.min(el.width || 100, el.height || 100)}px;
-          background:${el.backgroundColor || "#FF6B6B"};
-          ${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || "#000"};` : ""}
-          border-radius:50%;
-          margin:8px auto;
-        "></div>
-    `;
-
-    default:
-      return "";
-  }
-}
-
-
-  // =====================================================
-  // 5️⃣ BUILD FINAL HTML WITH AUTO SIDE-BY-SIDE ROWS
-  // =====================================================
-let htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${subject}</title>
-</head>
-<body style="margin:0;padding:0;background:#f4f4f4;font-family:Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" border="0">
-    <tr><td align="center" style="padding:20px;">
-      <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#fff;max-width:600px;">
-        <tr><td style="padding:30px;">`;
-
-// ✅ Loop through rows exactly like SendCampaign preview
-rows.forEach(row => {
-  if (row.length > 1) {
-    // Multi-column row
-    const colWidth = Math.floor(100 / row.length);
-    htmlContent += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:8px;"><tr>`;
-    
-    row.forEach(el => {
-      htmlContent += `
-        <td width="${colWidth}%" valign="top" style="padding:6px;">
-          ${renderElement(el)}
-        </td>
-      `;
-    });
-    
-    htmlContent += `</tr></table>`;
-  } else {
-    // Single element row
-    htmlContent += `<div style="margin-bottom:8px;">${renderElement(row[0])}</div>`;
-  }
-});
-
-
-  // =====================================================
-  // 6️⃣ FOOTER
-  // =====================================================
-  htmlContent += `
-          </td></tr>
-          <tr>
-            <td style="padding:20px;background:#f8f9fa;border-top:1px solid #ddd;text-align:center;">
-
-              <p style="margin:0 0 5px;font-size:12px;color:#777;">
-                Sent by <strong>${fromName}</strong>
-              </p>
-
-              <p style="margin:5px 0;font-size:12px;color:#777;">
-                ${fromAddress}
-              </p>
-
-              <p style="margin:0;font-size:12px;color:#777;">
-                Reply to:
-                <a href="mailto:${replyToEmail || fromEmail}" style="color:#007bff;">
-                  ${replyToEmail || fromEmail}
-                </a>
-              </p>
-
-
-            </td>
-          </tr>
-
-        </table>
-      </td></tr>
-    </table>
-  </body>
-  </html>
-  `;
-
-  return htmlContent;
+  return html;
 };
 
 
 
+
+/* ==========================================================
+   HTML + Plain Text Generators
+========================================================== */
 const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, replyToEmail) => {
   let plainText = `${subject}\n\n`;
   if (!canvasData || canvasData.length === 0) {
@@ -484,9 +752,11 @@ router.post("/send", async (req, res) => {
       fromEmail,
       fromName,
       fromAddress,
-      replyToEmail, 
+      replyToEmail,
       subject,
-      canvasData,
+      canvasData: _cd,
+      canvasBackgroundColor: _bg,
+      snapshotUrl,
       scheduleType = "immediate",
       scheduledDate,
       scheduledTime,
@@ -495,6 +765,11 @@ router.post("/send", async (req, res) => {
       recurringDays,
       recurringEndDate,
     } = req.body;
+
+    // Merge background color as sentinel into canvasData
+    const canvasData = _bg
+      ? [{ id: '__bg__', type: '__canvas_bg__', color: _bg }, ...(_cd || [])]
+      : (_cd || []);
 
     // 🧩 Basic validation
     if (!Array.isArray(recipients) || recipients.length === 0) {
@@ -636,7 +911,38 @@ router.post("/send", async (req, res) => {
     // ==========================================================
     // 🚀 STEP 6: Immediate Send
     // ==========================================================
-    const htmlContent = generateHtmlFromCanvas(
+
+    // ✅ If a pixel-perfect snapshot was uploaded, use it as the email body.
+    // This ensures the inbox rendering matches the canvas editor exactly,
+    // avoiding all HTML layout/alignment issues across email clients.
+    let htmlContent;
+    if (snapshotUrl) {
+      const emailBg = _bg || '#ffffff';
+      htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f0f0f0">
+<tr><td align="center" style="padding:16px 8px;">
+<table width="700" cellpadding="0" cellspacing="0" border="0" bgcolor="${emailBg}"
+       style="max-width:700px;width:100%;background:${emailBg};">
+<tr><td style="padding:0;font-size:0;line-height:0;">
+  <img src="${snapshotUrl}" alt="${subject}" width="600"
+       style="display:block;width:100%;max-width:600px;height:auto;border:0;"/>
+</td></tr>
+<tr><td style="padding:14px 20px;background:#f8f9fa;border-top:1px solid #e0e0e0;text-align:center;font-size:12px;color:#888;">
+<p style="margin:0 0 4px;">Sent by <strong>${fromName}</strong></p>
+<p style="margin:4px 0;">${fromAddress || ''}</p>
+<p style="margin:0;">Reply to: <a href="mailto:${replyToEmail || fromEmail}" style="color:#007bff;">${replyToEmail || fromEmail}</a></p>
+</td></tr>
+</table></td></tr></table>
+</body></html>`;
+    } else {
+      htmlContent = generateHtmlFromCanvas(
         canvasData,
         subject,
         fromName,
@@ -644,14 +950,15 @@ router.post("/send", async (req, res) => {
         fromAddress,
         replyToEmail
       );
+    }
 
-      const plainTextContent = generatePlainTextFromCanvas(
-        canvasData,
-        subject,
-        fromName,
-        fromEmail,
-        replyToEmail
-      );
+    const plainTextContent = generatePlainTextFromCanvas(
+      canvasData,
+      subject,
+      fromName,
+      fromEmail,
+      replyToEmail
+    );
 
     const results = { success: [], failed: [] };
     let actualSentCount = 0;
@@ -855,18 +1162,18 @@ router.post("/verify-email", async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ 
-        verified: false, 
-        error: 'Email address is required' 
+      return res.status(400).json({
+        verified: false,
+        error: 'Email address is required'
       });
     }
 
     // Validate email format
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      return res.status(400).json({ 
-        verified: false, 
-        error: 'Invalid email format' 
+      return res.status(400).json({
+        verified: false,
+        error: 'Invalid email format'
       });
     }
 
@@ -883,35 +1190,35 @@ router.post("/verify-email", async (req, res) => {
 
     if (!response.ok) {
       console.error('❌ SendGrid API error:', response.status);
-      return res.status(500).json({ 
-        verified: false, 
-        error: 'Failed to check verification status with SendGrid' 
+      return res.status(500).json({
+        verified: false,
+        error: 'Failed to check verification status with SendGrid'
       });
     }
 
     const data = await response.json();
-    
+
     // Check if email exists in verified senders list
     const isVerified = data.results?.some(
-      sender => sender.from_email?.toLowerCase() === email.toLowerCase() && 
-                sender.verified === true
+      sender => sender.from_email?.toLowerCase() === email.toLowerCase() &&
+        sender.verified === true
     );
 
     console.log(`${isVerified ? '✅' : '❌'} Email ${email} verification status: ${isVerified}`);
 
-    return res.json({ 
+    return res.json({
       verified: isVerified,
       email: email,
-      message: isVerified 
-        ? 'Email is verified and ready to send campaigns' 
+      message: isVerified
+        ? 'Email is verified and ready to send campaigns'
         : 'Email is not verified in SendGrid. Please verify it first.'
     });
 
   } catch (error) {
     console.error('❌ Error verifying email:', error);
-    return res.status(500).json({ 
-      verified: false, 
-      error: 'Internal server error while checking verification' 
+    return res.status(500).json({
+      verified: false,
+      error: 'Internal server error while checking verification'
     });
   }
 });
@@ -936,13 +1243,18 @@ router.post("/send-shuffled", async (req, res) => {
       fromEmail,
       fromName,
       fromAddress,
-      canvasData,
+      canvasData: _cdS,
+      canvasBackgroundColor: _bgS,
       distribution, // Array of { subject, emails, count }
       scheduleType = "immediate",
       scheduledDate,
       scheduledTime,
       timezone
     } = req.body;
+
+    const canvasData = _bgS
+      ? [{ id: '__bg__', type: '__canvas_bg__', color: _bgS }, ...(_cdS || [])]
+      : (_cdS || []);
 
     // Validation with detailed error messages
     if (!fromEmail) {
@@ -981,7 +1293,7 @@ router.post("/send-shuffled", async (req, res) => {
 
     // Calculate total recipients
     const totalRecipients = distribution.reduce((sum, item) => sum + item.emails.length, 0);
-    
+
     console.log(`📊 Shuffled campaign - ${distribution.length} subjects, ${totalRecipients} total recipients, scheduleType: ${scheduleType}`);
 
     // ==========================================================
@@ -1041,7 +1353,7 @@ router.post("/send-shuffled", async (req, res) => {
     // 💾 STEP 4: Create Campaign Records for Each Subject Line
     // ==========================================================
     const campaignIds = [];
-    
+
     for (const item of distribution) {
       const campaign = await prisma.campaign.create({
         data: {
@@ -1107,7 +1419,7 @@ router.post("/send-shuffled", async (req, res) => {
 
       console.log(`📤 Sending with subject: "${subject}" to ${emails.length} recipients`);
 
-      const htmlContent = generateHtmlFromCanvas(canvasData, subject, fromName, fromEmail,fromAddress);
+      const htmlContent = generateHtmlFromCanvas(canvasData, subject, fromName, fromEmail, fromAddress);
       const plainTextContent = generatePlainTextFromCanvas(canvasData, subject, fromName, fromEmail);
 
       for (const email of emails) {
@@ -1125,9 +1437,34 @@ router.post("/send-shuffled", async (req, res) => {
           text: plainTextContent,
           html: htmlContent,
 
-          // ✅ REQUIRED
+          // ✅ Campaign identification
           customArgs: {
-            campaignId: campaignId,
+            campaignId: String(campaignId), // Convert to string
+          },
+
+          // ✅ Categories for easier tracking
+          categories: [`campaign_${campaignId}`],
+
+          // ✅✅✅ CRITICAL: Enable tracking
+          trackingSettings: {
+            clickTracking: {
+              enable: true,
+              enableText: false,
+            },
+            openTracking: {
+              enable: true,
+              substitutionTag: '%open-track%',
+            },
+            subscriptionTracking: {
+              enable: false,
+            },
+          },
+
+          // ✅ Better deliverability
+          mailSettings: {
+            bypassListManagement: {
+              enable: false,
+            },
           },
         };
 
@@ -1180,7 +1517,7 @@ router.post("/send-shuffled", async (req, res) => {
         total: emails.length
       });
     }
-// ==========================================================
+    // ==========================================================
     // 💰 STEP 7: Deduct Credits (ONLY for immediate sends)
     // ==========================================================
     if (scheduleType === "immediate") {

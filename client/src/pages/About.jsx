@@ -319,7 +319,7 @@ export default function About() {
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
-                  to="/get-started"
+                  to="/login"
                   className="group bg-white text-black px-8 py-4 rounded-full font-semibold hover:bg-black hover:text-[#c2831f] border-2 border-white transition-all duration-300 hover:scale-105 hover:shadow-xl inline-flex items-center justify-center"
                 >
                   Start Free Trial
