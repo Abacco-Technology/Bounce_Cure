@@ -12,6 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.997.0",
     "@aws-sdk/client-ses": "^3.888.0",
     "@azure/msal-node": "^3.7.4",
     "@sendgrid/mail": "^8.1.5",

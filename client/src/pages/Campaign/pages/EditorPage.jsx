@@ -1,1978 +1,486 @@
-// EditorPage.jsx
-import React, { useState, useRef, useEffect } from "react";
-import { useLocation, useNavigate } from 'react-router-dom';
-import CanvasArea from "../Components/Editor/CanvasArea";
-import Toolbox from "../Components/Editor/Toolbox";
+/**
+ * EditorPage.jsx  — MAIN ORCHESTRATOR
+ * Dark Gold & Black luxury theme
+ * Imports: ToolsPanel, CanvasArea, PropertiesPanel
+ */
+import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import ToolsPanel     from "./../Components/Editor/Toolbox";
+import CanvasArea     from "../Components/Editor/CanvasArea";
 import PropertiesPanel from "../Components/Editor/PropertiesPanel";
+import SaveTemplateModal from "../Components/Editor/SaveTemplate";
 
-const EditorPage = () => {
+// ── Design tokens ──────────────────────────────────────────────────────────────
+export const T = {
+  bg:       "#0A0A0A",
+  surface:  "#111111",
+  panel:    "#161616",
+  border:   "#2A2200",
+  gold:     "#C9A84C",
+  goldBright:"#F0C040",
+  goldDim:  "#7A6020",
+  muted:    "#5A5040",
+  txt:      "#E8D8A0",
+  txtDim:   "#8A7850",
+  white:    "#F5EDD0",
+  danger:   "#C04020",
+  success:  "#40A060",
+};
+
+// ── Element factory ────────────────────────────────────────────────────────────
+export function makeEl(type, opts = {}) {
+  const base = {
+    id:       crypto.randomUUID(),
+    type,
+    x:        80 + Math.random() * 60,
+    y:        80 + Math.random() * 60,
+    rotation: 0,
+    opacity:  1,
+    zIndex:   Date.now(),
+    ...opts,
+  };
+  const defaults = {
+    heading:    { content:"Add a Heading",   width:380, height:60,  fontSize:36, fontWeight:"bold",   color:"#F0C040", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
+    subheading: { content:"Add a Subheading",width:320, height:48,  fontSize:24, fontWeight:"600",    color:"#E8D8A0", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
+    paragraph:  { content:"Add paragraph text here. Click to edit and start typing your content.", width:360, height:80, fontSize:15, fontWeight:"normal", color:"#C8B880", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.6 },
+    blockquote: { content:'"An inspiring quote goes here."', width:340, height:90, fontSize:19, fontWeight:"normal", fontStyle:"italic", color:"#C9A84C", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", lineHeight:1.5 },
+    button:     { content:"Click Me", width:160, height:48, fontSize:15, fontWeight:"700", color:"#0A0A0A", backgroundColor:"#C9A84C", borderRadius:6, fontFamily:"'Trebuchet MS'", textAlign:"center" },
+    rectangle:  { content:"", width:200, height:120, backgroundColor:"#C9A84C", borderRadius:6, borderColor:"transparent", borderWidth:0 },
+    circle:     { content:"", width:110, height:110, backgroundColor:"#7A6020" },
+    star:       { content:"", width:90,  height:90,  backgroundColor:"#F0C040" },
+    line:       { content:"", width:280, height:3,   strokeColor:"#C9A84C", strokeWidth:3 },
+    image:      { src: opts.src || "https://images.unsplash.com/photo-1557683316-973673baf926?w=400&h=260&fit=crop", width:300, height:190, borderRadius:4, objectFit:"cover" },
+    social:     { src:opts.src, width:44, height:44, platform:opts.platform, link:opts.link||"#" },
+    "lucide-icon": { iconName:opts.iconName||"star", iconColor:opts.iconColor||"#F0C040", width:opts.width||48, height:opts.height||48 },
+  };
+  return { ...base, ...(defaults[type] || { width:150, height:50 }) };
+}
+
+export const FONTS = ["Georgia","'Trebuchet MS'","'Times New Roman'","Verdana","'Palatino Linotype'","Impact","'Courier New'","'Comic Sans MS'"];
+export const COLORS = ["#F0C040","#C9A84C","#7A6020","#2A2200","#0A0A0A","#1A1A1A","#FFFFFF","#F5EDD0","#C04020","#204060","#406020","#602040","#C8B880","#E8D8A0","#5A5040","#8A7850"];
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+export default function TemplateEditorPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const template = location.state?.template;
 
-  // Shared state for pages
-  const [pages, setPages] = useState([{ id: 1, elements: [] }]);
-  const [activePage, setActivePage] = useState(0);
-  const [selectedElement, setSelectedElement] = useState(null);
-  const [zoomLevel, setZoomLevel] = useState(1);
-  const [showGrid, setShowGrid] = useState(true);
-  const [undoStack, setUndoStack] = useState([]);
-  const [redoStack, setRedoStack] = useState([]);
-  const [mousePosition, setMousePosition] = useState({ x: 100, y: 100 });
-  const canvasRef = useRef(null);
-  // Add state for canvas background color
-  const [canvasBackgroundColor, setCanvasBackgroundColor] = useState('#FFFFFF');
-
-  // Load template if provided
-//  useEffect(() => {
-//   if (template && template.elements) {
-//     const templateElements = Object.entries(template.elements).map(
-//       ([key, value], index) => {
-//         const fontSize =
-//           (typeof value === "object" && value.style?.fontSize) || 20;
-
-//         return {
-//           id: `${key}-${template.id || index}`,
-//           type: "heading",
-//           content: value || "",
-//           src: null,
-//           x: 80,
-//           y: 100 + index * (fontSize + 20), // ✅ space depends on font size
-//           width: 300,
-//           height: fontSize + 10,
-//           style: {
-//             fontSize,
-//             color: "#000000",
-//             backgroundColor: "transparent",
-//             ...(typeof value === "object" ? value.style : {}),
-//           },
-//           fontSize,
-//           color:
-//             (typeof value === "object" && value.style?.color) || "#000000",
-//           backgroundColor:
-//             (typeof value === "object" &&
-//               value.style?.backgroundColor) ||
-//             "transparent",
-//           fontFamily: "Arial",
-//           rotation: 0,
-//           opacity: 1,
-//         };
-//       }
-//     );
-
-//     const updatedPages = [...pages];
-//     updatedPages[0] = {
-//       ...updatedPages[0],
-//       elements: templateElements,
-//     };
-//     setPages(updatedPages);
-
-//     if (template.canvasBackgroundColor) {
-//       setCanvasBackgroundColor(template.canvasBackgroundColor);
-//     }
-//   }
-// }, [template]);
-
-
-//template page
-useEffect(() => {
-  if (template) {
-    // Handle new format (array of pre-formatted elements)
-    if (template.content && Array.isArray(template.content) && template.content[0]?.id) {
-      const updatedPages = [...pages];
-      updatedPages[0] = {
-        ...updatedPages[0],
-        elements: template.content,
-      };
-      setPages(updatedPages);
-
-      if (template.canvasBackgroundColor) {
-        setCanvasBackgroundColor(template.canvasBackgroundColor);
-      }
-      return;
-    }
-    
-    // Handle old format (needs conversion)
-    if (template.content && Array.isArray(template.content)) {
-      const templateElements = template.content.map((item, index) => {
-        const fontSize = item.style?.fontSize || 20;
-        let mappedType = item.type;
-        
-        if (item.type === "text") {
-          mappedType = "heading";
-        }
-
-        return {
-          id: crypto.randomUUID(),
-          type: mappedType,
-          content: mappedType === "image" ? "" : item.value || "",
-          src: mappedType === "image" ? item.value : null,
-          x: 80,
-          y: 100 + index * (fontSize + 30),
-          width: item.style?.width || (mappedType === "image" ? 400 : 300),
-          height: item.style?.height || (mappedType === "image" ? 200 : fontSize + 20),
-          fontSize,
-          color: item.style?.color || "#000000",
-          backgroundColor: item.style?.backgroundColor || "transparent",
-          fontFamily: item.style?.fontFamily || "Arial",
-          fontWeight: item.style?.fontWeight || "normal",
-          textAlign: item.style?.textAlign || "left",
-          rotation: 0,
-          opacity: 1,
-        };
-      });
-
-      const updatedPages = [...pages];
-      updatedPages[0] = {
-        ...updatedPages[0],
-        elements: templateElements,
-      };
-      setPages(updatedPages);
-    }
-
-    if (template.canvasBackgroundColor) {
-      setCanvasBackgroundColor(template.canvasBackgroundColor);
-    }
-  }
-}, [template]);
-
-  // ✅ Track mouse position on canvas
+  // Pages: each page = { id, elements[], bgColor }
+  const [pages,       setPages]       = useState([{ id: crypto.randomUUID(), elements:[], bgColor:"#ffffff" }]);
+  const [activePage,  setActivePage]  = useState(0);
+  const [selected,    setSelected]    = useState(null);   // element id
+  const [zoom,        setZoom]        = useState(1);
+  const [showGrid,    setShowGrid]    = useState(true);
+  const [undoStack,   setUndoStack]   = useState([]);
+  const [redoStack,   setRedoStack]   = useState([]);
+  const [toast,       setToast]       = useState(null);
+  const [showExit,    setShowExit]    = useState(false);
+  const [leftTab,     setLeftTab]     = useState("elements"); // "elements"|"photos"|"colors"
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [propOpen,    setPropOpen]    = useState(true);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const userId = localStorage.getItem("userId");
+  // Load template
   useEffect(() => {
-    const handleMouseMove = (e) => {
-      if (canvasRef.current) {
-        const rect = canvasRef.current.getBoundingClientRect();
-        setMousePosition({
-          x: (e.clientX - rect.left) / zoomLevel,
-          y: (e.clientY - rect.top) / zoomLevel
-        });
-      }
-    };
-
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.addEventListener('mousemove', handleMouseMove);
-      return () => canvas.removeEventListener('mousemove', handleMouseMove);
+    if (!template) return;
+    if (template.content && Array.isArray(template.content)) {
+      setPages([{ id: crypto.randomUUID(), elements: template.content, bgColor: template.canvasBackgroundColor || "#ffffff" }]);
     }
-  }, [zoomLevel]);
-// For AllTemplates page
-useEffect(() => {
-  if (template && template.content && Array.isArray(template.content)) {
-    const updatedPages = [...pages];
-    updatedPages[0] = {
-      ...updatedPages[0],
-      elements: template.content, // Direct assignment since it's already formatted
-    };
-    setPages(updatedPages);
+  }, [template]);
 
-    // Set canvas background if provided
-    if (template.canvasBackgroundColor) {
-      setCanvasBackgroundColor(template.canvasBackgroundColor);
-    }
-  }
-}, [template]);
+  // ── helpers ──
+  const activeElements = pages[activePage]?.elements || [];
+  const selectedEl     = activeElements.find(e => e.id === selected) || null;
 
-  // Add element from Toolbox
- const handleAddElement = (type, options = {}) => {
-    const newElement = {
-      id: crypto.randomUUID(),
-      type,
-      content: type === "heading" ? "Heading" : 
-               type === "subheading" ? "Subheading" :
-               type === "paragraph" ? "Paragraph text" : 
-               type === "blockquote" ? "Quote text" :
-               type === "button" ? "Click Me" : "",
-      src: type === "image" ? "https://images.unsplash.com/photo-1557683316-973673baf926?w=300&h=200&fit=crop" : 
-           type === "social" ? options.src : null,
-      // ✅ Use mouse position instead of random
-      x: mousePosition.x || 50,
-      y: mousePosition.y || 50,
-      width: type === "heading" || type === "paragraph" || type === "subheading" || type === "blockquote" ? 300 : 
-             type === "image" ? 250 : 
-             type === "social" ? (options.width || 32) :
-             type === "button" ? 150 : 120,
-      height: type === "heading" ? 50 : 
-              type === "subheading" ? 40 :
-              type === "paragraph" ? 60 : 
-              type === "blockquote" ? 80 :
-              type === "image" ? 150 : 
-              type === "social" ? (options.height || 32) :
-              type === "button" ? 45 : 
-              type === "line" ? 2 : 40,
-      fontSize: type === "heading" ? 28 : 
-                type === "subheading" ? 22 :
-                type === "paragraph" || type === "blockquote" ? 16 : 
-                type === "button" ? 16 : 16,
-      fontFamily: 'Arial',
-      color: type === "button" ? '#FFFFFF' : '#000000',
-      backgroundColor: type === "button" ? '#c2831f' : 
-                       type === "rectangle" ? '#4ECDC4' :
-                       type === "circle" ? '#FF6B6B' :
-                       type === "triangle" ? '#FF9F43' :
-                       type === "star" ? '#FFD93D' :
-                       type === "hexagon" ? '#6C5CE7' :
-                       'transparent',
-      borderColor: '#000000',
-      borderWidth: type === "rectangle" || type === "circle" ? 0 : 0,
-      borderRadius: type === "button" ? 6 : type === "rectangle" ? 4 : 0,
-      rotation: 0,
-      opacity: 1,
-      fontWeight: type === "heading" ? 'bold' : type === "subheading" ? '600' : 'normal',
-      fontStyle: 'normal',
-      textAlign: type === 'button' ? calculateInitialButtonAlignment(mousePosition.x || 50, 150) : 'left',      
-      textDecoration: 'none',
-      lineHeight: 1.4,
-      strokeColor: type === "line" ? '#ddd' : undefined,
-      strokeWidth: type === "line" ? 1 : undefined,
-      platform: type === "social" ? options.platform : undefined,
-      link: options.link || null,
-      ...options
-    };
-
-    const updatedPages = [...pages];
-    updatedPages[activePage].elements.push(newElement);
-    setPages(updatedPages);
-    setSelectedElement(newElement.id);
-    saveToUndoStack();
+  const showToast = (msg, type="gold") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 2000);
   };
 
-  // Helper to calculate button alignment on creation
-  const calculateInitialButtonAlignment = (x, width) => {
-    const center = x + width / 2;
-    if (center >= 200 && center <= 400) return "center";
-    if (center > 400) return "right";
-    return "left";
+  // ── page bg ──
+  const setPageBg = (color) => {
+    setPages(ps => ps.map((p,i) => i===activePage ? { ...p, bgColor:color } : p));
   };
 
-  // Add layout
-  const handleAddLayout = (layoutId) => {
-    // Define layout elements based on layoutId
-    let layoutElements = [];
+  // ── undo/redo ──
+  // pagesRef always holds the latest pages so saveUndo can snapshot without stale closure
+  const pagesRef = useRef(pages);
+  useEffect(() => { pagesRef.current = pages; }, [pages]);
 
-    switch (layoutId) {
-      case 1: // Header + Content - Campaign Newsletter
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 100,
-            backgroundColor: "#4ECDC4",
-            borderRadius: 0,
-            borderWidth: 0
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 100,
-            y: 30,
-            width: 600,
-            height: 50,
-            content: "Monthly Campaign Newsletter",
-            color: "#FFFFFF",
-            fontSize: 28,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 130,
-            width: 600,
-            height: 80,
-            content: "Dear valued customer, we're excited to share our latest campaign updates and exclusive offers with you!",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 100,
-            y: 230,
-            width: 300,
-            height: 40,
-            content: "Special Offers Inside:",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 280,
-            width: 600,
-            height: 100,
-            content: "• 30% off on all premium products\n• Free shipping on orders over $50\n• Exclusive early access to new collections\n• Limited time bonus gifts with purchase",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 400,
-            width: 200,
-            height: 50,
-            content: "Shop Now",
-            backgroundColor: "#FF6B6B",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 18,
-            fontWeight: "bold",
-            link: "https://example.com/shop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 480,
-            width: 600,
-            height: 60,
-            content: "Thank you for being part of our community. We appreciate your continued support!",
-            fontSize: 14,
-            fontStyle: "italic"
-          }
-        ];
-        break;
-
-      case 2: // Two Columns - Marketing Campaign
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 400,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 400,
-            y: 0,
-            width: 400,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 80,
-            y: 30,
-            width: 235,
-            height: 40,
-            content: "Campaign Highlights",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 456,
-            y: 30,
-            width: 200,
-            height: 40,
-            content: "Upcoming Events",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 45,
-            y: 90,
-            width: 300,
-            height: 180,
-            src: "https://images.unsplash.com/photo-1557683316-973673baf926?w=300&h=180&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 50,
-            y: 290,
-            width: 300,
-            height: 80,
-            content: "Our summer campaign is live! Enjoy exclusive discounts on all products. Limited time offer - don't miss out!",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 402,
-            y: 90,
-            width: 310,
-            height: 120,
-            content: "Join us for our virtual product launch event on June 15th. Be the first to see our new collection and get special launch discounts.",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 125,
-            y: 390,
-            width: 140,
-            height: 40,
-            content: "View Deals",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            link: "https://example.com/deals"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 470,
-            y: 200,
-            width: 140,
-            height: 40,
-            content: "RSVP Now",
-            backgroundColor: "#96CEB4",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            link: "https://example.com/rsvp"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 413,
-            y: 290,
-            width: 310,
-            height: 120,
-            content: "Thank you to all our customers who participated in our spring campaign. Your support helped us raise $10,000 for local charities!",
-            fontSize: 14
-          }
-        ];
-        break;
-
-      case 3: // Three Columns - Marketing Services
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 300,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 300,
-            y: 0,
-            width: 300,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 500,
-            y: 0,
-            width: 300,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 12,
-            y: 39,
-            width: 200,
-            height: 40,
-            content: "Our Services",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 271,
-            y: 41,
-            width: 200,
-            height: 40,
-            content: "Success Stories",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 508,
-            y: 36,
-            width: 200,
-            height: 40,
-            content: "Contact Us",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 35,
-            y: 90,
-            width: 200,
-            height: 120,
-            content: "• Email Marketing Campaigns\n• Social Media Management\n• Content Creation\n• SEO Optimization\n• Analytics & Reporting",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 281,
-            y: 95,
-            width: 200,
-            height: 160,
-            content: "\"Our email campaign with MarketingPro increased our open rates by 45% and conversions by 30%. Thank you for the excellent service!\" - Sarah T.",
-            fontSize: 14,
-            fontStyle: "italic"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 528,
-            y: 98,
-            width: 200,
-            height: 120,
-            content: "Email: info@marketingpro.com\nPhone: (555) 123-4567\nAddress: 123 Marketing St, Business City",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 60,
-            y: 244,
-            width: 100,
-            height: 35,
-            content: "Learn More",
-            backgroundColor: "#6C5CE7",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/services"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 320,
-            y: 244,
-            width: 100,
-            height: 35,
-            content: "View All",
-            backgroundColor: "#FF9F43",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/case-studies"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 560,
-            y: 244,
-            width: 100,
-            height: 35,
-            content: "Get Quote",
-            backgroundColor: "#00CEC9",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/contact"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 36,
-            y: 300,
-            width: 200,
-            height: 80,
-            content: "Thank you for considering our services. We look forward to helping your business grow!",
-            fontSize: 14,
-            fontStyle: "italic"
-          }
-        ];
-        break;
-
-      case 4: // Header + Two Columns - Thank You Letter
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 100,
-            backgroundColor: "#4ECDC4",
-            borderRadius: 0,
-            borderWidth: 0
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 168,
-            y: 7,
-            width: 400,
-            height: 50,
-            content: "Thank You for Your Purchase!",
-            color: "#FFFFFF",
-            fontSize: 28,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 100,
-            width: 400,
-            height: 500,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 400,
-            y: 100,
-            width: 400,
-            height: 500,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 56,
-            y: 140,
-            width: 300,
-            height: 45,
-            content: "Order Confirmation",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 447,
-            y: 137,
-            width: 200,
-            height: 40,
-            content: "What's Next?",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 55,
-            y: 207,
-            width: 300,
-            height: 120,
-            content: "Dear Customer,\n\nThank you for your recent purchase! Your order has been confirmed and will be processed within 1-2 business days.",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 408,
-            y: 204,
-            width: 300,
-            height: 160,
-            content: "• You'll receive a shipping confirmation email once your order has been dispatched.\n• Track your order using the link in the confirmation email.\n• Contact our support team if you have any questions.\n• Don't forget to check out our loyalty program for exclusive benefits!",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 50,
-            y: 350,
-            width: 300,
-            height: 80,
-            content: "We appreciate your business and hope you enjoy your purchase. Your support helps us continue to provide quality products and services.",
-            fontSize: 14,
-            fontStyle: "italic"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 445,
-            y: 360,
-            width: 200,
-            height: 120,
-            src: "https://images.unsplash.com/photo-1557683316-973673baf926?w=200&h=120&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 125,
-            y: 450,
-            width: 140,
-            height: 40,
-            content: "View Order",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            link: "https://example.com/order"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 470,
-            y: 504,
-            width: 140,
-            height: 40,
-            content: "Shop Again",
-            backgroundColor: "#FF6B6B",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            link: "https://example.com/shop"
-          }
-        ];
-        break;
-
-      case 5: // Sidebar + Content - Marketing Campaign
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 230,
-            height: 600,
-            backgroundColor: "#E9ECEF",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 210,
-            y: 0,
-            width: 600,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 0,
-            y: 30,
-            width: 200,
-            height: 40,
-            content: "Navigation",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 300,
-            y: 30,
-            width: 400,
-            height: 50,
-            content: "Summer Marketing Campaign",
-            color: "#000000",
-            fontSize: 24,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 50,
-            y: 90,
-            width: 100,
-            height: 35,
-            content: "Home",
-            backgroundColor: "#6C5CE7",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/home"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 50,
-            y: 140,
-            width: 100,
-            height: 35,
-            content: "Campaigns",
-            backgroundColor: "#6C5CE7",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/campaigns"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 50,
-            y: 190,
-            width: 100,
-            height: 35,
-            content: "Services",
-            backgroundColor: "#6C5CE7",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/services"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 50,
-            y: 240,
-            width: 100,
-            height: 35,
-            content: "Contact",
-            backgroundColor: "#6C5CE7",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/contact"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 305,
-            y: 100,
-            width: 400,
-            height: 200,
-            src: "https://images.unsplash.com/photo-1557683316-973673baf926?w=400&h=200&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 260,
-            y: 320,
-            width: 490,
-            height: 100,
-            content: "Join our exciting summer marketing campaign! We're offering exclusive deals, early access to new products, and special bonuses for our loyal customers.",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 260,
-            y: 400,
-            width: 200,
-            height: 40,
-            content: "Campaign Benefits:",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 260,
-            y: 450,
-            width: 490,
-            height: 60,
-            content: "• Up to 40% discount on selected items\n• Free shipping on all orders\n• Exclusive access to limited edition products\n• Double loyalty points on all purchases",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 405,
-            y: 520,
-            width: 200,
-            height: 40,
-            content: "Join Campaign",
-            backgroundColor: "#FF6B6B",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 18,
-            fontWeight: "bold",
-            link: "https://example.com/join-campaign"
-          }
-        ];
-        break;
-
-      case 6: // Hero Section - Product Launch
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 300,
-            backgroundColor: "#FF6B6B",
-            borderRadius: 0,
-            borderWidth: 0
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 100,
-            y: 80,
-            width: 600,
-            height: 60,
-            content: "New Product Launch Campaign",
-            color: "#FFFFFF",
-            fontSize: 36,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 160,
-            width: 600,
-            height: 40,
-            content: "Be the first to experience our revolutionary new product line",
-            color: "#FFFFFF",
-            fontSize: 18,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 220,
-            width: 200,
-            height: 50,
-            content: "Pre-Order Now",
-            backgroundColor: "#FFFFFF",
-            color: "#FF6B6B",
-            borderRadius: 6,
-            fontSize: 18,
-            fontWeight: "bold",
-            link: "https://example.com/preorder"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 300,
-            width: 800,
-            height: 300,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 200,
-            y: 350,
-            width: 400,
-            height: 40,
-            content: "Launch Event Details",
-            color: "#000000",
-            fontSize: 24,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 410,
-            width: 600,
-            height: 80,
-            content: "Join us for our virtual launch event on June 30th at 2:00 PM EST. Get exclusive insights, product demonstrations, and special launch-day discounts.",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 510,
-            width: 200,
-            height: 50,
-            content: "RSVP for Event",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 18,
-            fontWeight: "bold",
-            link: "https://example.com/rsvp"
-          }
-        ];
-        break;
-
-      case 7: // Card Layout - Product Showcase
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 150,
-            y: 30,
-            width: 500,
-            height: 40,
-            content: "Featured Campaign Products",
-            color: "#000000",
-            fontSize: 28,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 50,
-            y: 90,
-            width: 220,
-            height: 240,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 290,
-            y: 90,
-            width: 220,
-            height: 240,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 530,
-            y: 90,
-            width: 220,
-            height: 240,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 70,
-            y: 100,
-            width: 180,
-            height: 120,
-            src: "https://images.unsplash.com/photo-1557683316-973673baf926?w=180&h=120&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 60,
-            y: 230,
-            width: 200,
-            height: 30,
-            content: "Premium Headphones",
-            color: "#000000",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 90,
-            y: 260,
-            width: 140,
-            height: 20,
-            content: "$129.99",
-            color: "#FF6B6B",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 310,
-            y: 100,
-            width: 180,
-            height: 120,
-            src: "https://images.unsplash.com/photo-1520209759809-a9bcb6cb3241?w=180&h=120&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 330,
-            y: 230,
-            width: 140,
-            height: 20,
-            content: "Smart Watch",
-            color: "#000000",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 330,
-            y: 260,
-            width: 140,
-            height: 20,
-            content: "$199.99",
-            color: "#FF6B6B",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 550,
-            y: 100,
-            width: 180,
-            height: 120,
-            src: "https://images.unsplash.com/photo-1586953208448-b95a79798f07?w=180&h=120&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 540,
-            y: 230,
-            width: 200,
-            height: 30,
-            content: "Wireless Earbuds",
-            color: "#000000",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 570,
-            y: 260,
-            width: 140,
-            height: 20,
-            content: "$79.99",
-            color: "#FF6B6B",
-            fontSize: 16,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 110,
-            y: 290,
-            width: 100,
-            height: 30,
-            content: "Buy Now",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/product1"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 350,
-            y: 290,
-            width: 100,
-            height: 30,
-            content: "Buy Now",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/product2"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 590,
-            y: 290,
-            width: 100,
-            height: 30,
-            content: "Buy Now",
-            backgroundColor: "#45B7D1",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/product3"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 350,
-            width: 600,
-            height: 60,
-            content: "Thank you for supporting our campaign! All purchases during this event include a donation to our chosen charity.",
-            fontSize: 14,
-            fontStyle: "italic",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 430,
-            width: 200,
-            height: 40,
-            content: "View All Products",
-            backgroundColor: "#FF6B6B",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            fontWeight: "bold",
-            link: "https://example.com/all-products"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 490,
-            width: 200,
-            height: 40,
-            content: "Learn About Our Cause",
-            backgroundColor: "#96CEB4",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            fontWeight: "bold",
-            link: "https://example.com/charity"
-          }
-        ];
-        break;
-
-      case 8: // Newsletter - Marketing Signup
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 150,
-            backgroundColor: "#45B7D1",
-            borderRadius: 0,
-            borderWidth: 0
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 180,
-            y: 35,
-            width: 500,
-            height: 40,
-            content: "Join Our Marketing Community",
-            color: "#FFFFFF",
-            fontSize: 28,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 120,
-            width: 800,
-            height: 500,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 50,
-            y: 150,
-            width: 700,
-            height: 80,
-            content: "Subscribe to our newsletter and get exclusive marketing tips, campaign strategies, and special offers delivered straight to your inbox.",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 200,
-            y: 250,
-            width: 400,
-            height: 40,
-            content: "What You'll Receive:",
-            color: "#000000",
-            fontSize: 20,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 300,
-            width: 550,
-            height: 80,
-            content: "• Weekly marketing insights and trends\n• Exclusive campaign templates and resources\n• Early access to new tools and features\n• Special discounts on marketing services",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "input",
-            x: 200,
-            y: 400,
-            width: 400,
-            height: 40,
-            placeholder: "Enter your email address",
-            backgroundColor: "#FFFFFF",
-            borderColor: "#CED4DA",
-            borderRadius: 4
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 460,
-            width: 200,
-            height: 40,
-            content: "Subscribe Now",
-            backgroundColor: "#28A745",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            fontWeight: "bold",
-            link: "https://example.com/subscribe"
-          }
-        ];
-        break;
-
-      case 9: // Product Showcase - Campaign Special
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 500,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 420,
-            y: 0,
-            width: 380,
-            height: 600,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "image",
-            x: 50,
-            y: 50,
-            width: 300,
-            height: 300,
-            src: "https://images.unsplash.com/photo-1557683316-973673baf926?w=300&h=300&fit=crop"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 500,
-            y: 50,
-            width: 300,
-            height: 40,
-            content: "Campaign Special",
-            color: "#000000",
-            fontSize: 24,
-            fontWeight: "bold"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 440,
-            y: 110,
-            width: 340,
-            height: 80,
-            content: "Limited time offer on our premium marketing toolkit. Get everything you need to run successful campaigns at a special price!",
-            fontSize: 16
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 510,
-            y: 210,
-            width: 200,
-            height: 40,
-            content: "Only $99.99",
-            color: "#FF6B6B",
-            fontSize: 28,
-            fontWeight: "bold"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 440,
-            y: 270,
-            width: 340,
-            height: 100,
-            content: "• Email campaign templates\n• Social media content calendar\n• Analytics dashboard\n• Customer segmentation tools\n• A/B testing framework",
-            fontSize: 14
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 520,
-            y: 390,
-            width: 180,
-            height: 40,
-            content: "Get the Toolkit",
-            backgroundColor: "#007BFF",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            fontWeight: "bold",
-            link: "https://example.com/toolkit"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 520,
-            y: 450,
-            width: 180,
-            height: 35,
-            content: "View Demo",
-            backgroundColor: "#6C757D",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 14,
-            link: "https://example.com/demo"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 100,
-            y: 360,
-            width: 200,
-            height: 30,
-            content: "Customer Reviews",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 400,
-            width: 200,
-            height: 20,
-            content: "★★★★★ (4.9 out of 5)",
-            color: "#FFD700",
-            fontSize: 16,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 50,
-            y: 430,
-            width: 300,
-            height: 60,
-            content: "\"This toolkit transformed our marketing strategy. Thank you for creating such a valuable resource!\"",
-            fontSize: 12,
-            fontStyle: "italic",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 480,
-            width: 200,
-            height: 20,
-            content: "- Marketing Director, TechCorp",
-            fontSize: 12,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 50,
-            y: 520,
-            width: 300,
-            height: 40,
-            content: "Thank you for supporting our campaign! 10% of all proceeds go to marketing education programs.",
-            fontSize: 12,
-            fontStyle: "italic",
-            textAlign: "center"
-          }
-        ];
-        break;
-
-      case 10: // Testimonial - Customer Appreciation
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 0,
-            y: 0,
-            width: 800,
-            height: 600,
-            backgroundColor: "#F8F9FA",
-            borderRadius: 0,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 150,
-            y: 50,
-            width: 500,
-            height: 40,
-            content: "Customer Appreciation Campaign",
-            color: "#000000",
-            fontSize: 28,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 110,
-            width: 600,
-            height: 40,
-            content: "We're grateful for our amazing customers and their continued support!",
-            color: "#666666",
-            fontSize: 16,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 100,
-            y: 170,
-            width: 600,
-            height: 200,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 190,
-            width: 600,
-            height: 120,
-            content: "This campaign has been incredible! The results exceeded our expectations and the team's dedication was outstanding. Thank you for helping us achieve our marketing goals and for the exceptional service throughout the process.",
-            fontSize: 16,
-            fontStyle: "italic"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 300,
-            y: 270,
-            width: 200,
-            height: 30,
-            content: "Sarah Johnson",
-            color: "#000000",
-            fontSize: 18,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 300,
-            y: 300,
-            width: 200,
-            height: 20,
-            content: "Marketing Director, GrowthCo",
-            fontSize: 14,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 100,
-            y: 400,
-            width: 180,
-            height: 100,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 310,
-            y: 400,
-            width: 180,
-            height: 100,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "rectangle",
-            x: 520,
-            y: 400,
-            width: 180,
-            height: 100,
-            backgroundColor: "#FFFFFF",
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: "#DEE2E6"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 110,
-            y: 400,
-            width: 150,
-            height: 60,
-            content: "\"Outstanding results and professional service!\"",
-            fontSize: 12,
-            fontStyle: "italic",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 130,
-            y: 460,
-            width: 100,
-            height: 20,
-            content: "- Mike T.",
-            fontSize: 12,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 320,
-            y: 400,
-            width: 150,
-            height: 60,
-            content: "\"Exceeded all our expectations!\"",
-            fontSize: 12,
-            fontStyle: "italic",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 320,
-            y: 460,
-            width: 150,
-            height: 20,
-            content: "- Lisa K.",
-            fontSize: 12,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 530,
-            y: 400,
-            width: 150,
-            height: 60,
-            content: "\"Highly recommend their services!\"",
-            fontSize: 12,
-            fontStyle: "italic",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 560,
-            y: 460,
-            width: 100,
-            height: 20,
-            content: "- John D.",
-            fontSize: 12,
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "button",
-            x: 300,
-            y: 540,
-            width: 200,
-            height: 40,
-            content: "Start Your Campaign",
-            backgroundColor: "#FF6B6B",
-            color: "#FFFFFF",
-            borderRadius: 6,
-            fontSize: 16,
-            fontWeight: "bold",
-            link: "https://example.com/start-campaign"
-          }
-        ];
-        break;
-
-      default:
-        // Default to a simple layout
-        layoutElements = [
-          {
-            id: crypto.randomUUID(),
-            type: "heading",
-            x: 400,
-            y: 50,
-            width: 200,
-            height: 40,
-            content: "Marketing Campaign",
-            color: "#000000",
-            fontSize: 24,
-            fontWeight: "bold",
-            textAlign: "center"
-          },
-          {
-            id: crypto.randomUUID(),
-            type: "paragraph",
-            x: 100,
-            y: 150,
-            width: 600,
-            height: 80,
-            content: "Thank you for your interest in our marketing services. We look forward to helping you achieve your business goals.",
-            fontSize: 16
-          }
-        ];
-    }
-
-    const updatedPages = [...pages];
-    updatedPages[activePage].elements = [...updatedPages[activePage].elements, ...layoutElements];
-    setPages(updatedPages);
-    saveToUndoStack();
-  };
-
-  // Upload image
-  const handleUploadImage = (src) => {
-    const newElement = {
-      id: crypto.randomUUID(),
-      type: "image",
-      src,
-      x: 50 + Math.random() * 100,
-      y: 50 + Math.random() * 100,
-      width: 150,
-      height: 100,
-      rotation: 0,
-      opacity: 1,
-      borderRadius: 0
-    };
-
-    const updatedPages = [...pages];
-    updatedPages[activePage].elements.push(newElement);
-    setPages(updatedPages);
-    setSelectedElement(newElement.id);
-    saveToUndoStack();
-  };
-
-  // Update elements after drag/resize/edit
-  const handleUpdate = (updatedElements) => {
-    const updatedPages = [...pages];
-    updatedPages[activePage].elements = updatedElements;
-    setPages(updatedPages);
-  };
-
-  // Update single element
-  const updateElement = (id, updates) => {
-    const updatedPages = [...pages];
-    updatedPages[activePage].elements = updatedPages[activePage].elements.map(el =>
-      el.id === id ? { ...el, ...updates } : el
-    );
-    setPages(updatedPages);
-  };
-
-  // Undo/Redo functionality
-  const saveToUndoStack = () => {
-    setUndoStack(prev => [...prev.slice(-19), JSON.parse(JSON.stringify(pages))]);
+  // saveUndo — call AFTER a live update to snapshot the current state
+  const saveUndo = useCallback(() => {
+    setUndoStack(u => [...u.slice(-19), JSON.parse(JSON.stringify(pagesRef.current))]);
     setRedoStack([]);
+  }, []);
+
+  const commitPages = (newPages) => {
+    setUndoStack(u => [...u.slice(-19), JSON.parse(JSON.stringify(pagesRef.current))]);
+    setRedoStack([]);
+    setPages(newPages);
   };
 
   const undo = () => {
-    if (undoStack.length > 0) {
-      const previousState = undoStack[undoStack.length - 1];
-      setRedoStack(prev => [JSON.parse(JSON.stringify(pages)), ...prev.slice(0, 19)]);
-      setPages(previousState);
-      setUndoStack(prev => prev.slice(0, -1));
-      setSelectedElement(null);
-    }
+    if (!undoStack.length) return;
+    setRedoStack(r => [JSON.parse(JSON.stringify(pages)), ...r.slice(0,19)]);
+    setPages(undoStack[undoStack.length-1]);
+    setUndoStack(u => u.slice(0,-1));
+    setSelected(null);
   };
-
   const redo = () => {
-    if (redoStack.length > 0) {
-      const nextState = redoStack[0];
-      setUndoStack(prev => [...prev.slice(-19), JSON.parse(JSON.stringify(pages))]);
-      setPages(nextState);
-      setRedoStack(prev => prev.slice(1));
-      setSelectedElement(null);
-    }
+    if (!redoStack.length) return;
+    setUndoStack(u => [...u.slice(-19), JSON.parse(JSON.stringify(pages))]);
+    setPages(redoStack[0]);
+    setRedoStack(r => r.slice(1));
+    setSelected(null);
   };
 
-  // Delete selected element
-  const deleteElement = () => {
-    if (selectedElement) {
-      const updatedPages = [...pages];
-      updatedPages[activePage].elements = updatedPages[activePage].elements.filter(
-        el => el.id !== selectedElement
-      );
-      setPages(updatedPages);
-      setSelectedElement(null);
-      saveToUndoStack();
+  const getSpawnPos = () => {
+    // Try to get the center of the visible canvas area
+    if (typeof CanvasArea.getViewCenter === "function") {
+      const c = CanvasArea.getViewCenter();
+      if (c) return { x: c.x + Math.random() * 30 - 15, y: c.y + Math.random() * 30 - 15 };
     }
+    return { x: 80 + Math.random() * 60, y: 80 + Math.random() * 60 };
   };
 
-  // Duplicate element
-  const duplicateElement = () => {
-    if (selectedElement) {
-      const element = pages[activePage].elements.find(el => el.id === selectedElement);
-      if (element) {
-        const duplicated = {
-          ...element,
-          id: crypto.randomUUID(),
-          x: element.x + 20,
-          y: element.y + 20
-        };
-        const updatedPages = [...pages];
-        updatedPages[activePage].elements.push(duplicated);
-        setPages(updatedPages);
-        setSelectedElement(duplicated.id);
-        saveToUndoStack();
-      }
-    }
+  // ── element CRUD ──
+  const addElement = (type, opts={}) => {
+    const pos = getSpawnPos();
+    const el = type === "lucide-icon"
+      ? { id:crypto.randomUUID(), type:"lucide-icon", x:pos.x, y:pos.y, rotation:0, opacity:1, zIndex:Date.now(), iconName:opts.iconName||"star", iconColor:opts.iconColor||"#F0C040", width:opts.width||48, height:opts.height||48, ...opts }
+      : makeEl(type, { x: pos.x, y: pos.y, ...opts });
+    const np = pages.map((p,i) => i===activePage ? { ...p, elements:[...p.elements, el] } : p);
+    commitPages(np);
+    setSelected(el.id);
+    showToast(`${type} added ✦`);
   };
 
-  
-const handleSendCampaign = () => {
-    const currentElements = pages[activePage].elements;
-    
-    // ✅ Ensure all elements have proper numeric values
-    const normalizedElements = currentElements.map(el => ({
-      ...el,
-      x: Number(el.x) || 0,
-      y: Number(el.y) || 0,
-      width: Number(el.width) || (el.type === 'image' ? 250 : 300),
-      height: Number(el.height) || (el.type === 'paragraph' ? 40 : 80),
-      fontSize: Number(el.fontSize) || 16,
-      rotation: Number(el.rotation) || 0,
-      opacity: Number(el.opacity) || 1,
+  // addMultipleElements — used by card templates to drop a group of pre-built elements
+  const addMultipleElements = (els) => {
+    // Assign a shared groupId so the card can be moved as a group
+    const groupId = crypto.randomUUID();
+
+    // Offset the card to spawn near the current view center
+    const pos = getSpawnPos();
+    // Find the top-left of the card elements to use as reference
+    const minX = Math.min(...els.map(e => e.x));
+    const minY = Math.min(...els.map(e => e.y));
+    const offsetX = pos.x - minX;
+    const offsetY = pos.y - minY;
+
+    const tagged = els.map(e => ({
+      ...e,
+      groupId,
+      x: e.x + offsetX,
+      y: e.y + offsetY,
     }));
-    
-    navigate('/send-campaign', { 
-      state: { 
-        canvasData: normalizedElements,
-        subject: "",
-        canvasBackgroundColor: canvasBackgroundColor, // ✅ Pass background color
-        timestamp: Date.now()
-      } 
-    });
+    const np = pages.map((p,i) => i===activePage ? { ...p, elements:[...p.elements, ...tagged] } : p);
+    commitPages(np);
+    setSelected(tagged[0]?.id || null);
+    showToast("Card added ✦");
+  };
+
+  const updateEl = (id, updates) => {
+    setPages(ps => ps.map((p,i) => i!==activePage ? p : {
+      ...p, elements: p.elements.map(e => e.id===id ? { ...e, ...updates } : e)
+    }));
+  };
+
+  const updateMultiEl = (updates) => {
+    // updates: [{id, ...fields}, ...]
+    setPages(ps => ps.map((p,i) => i!==activePage ? p : {
+      ...p, elements: p.elements.map(e => {
+        const u = updates.find(x => x.id === e.id);
+        return u ? { ...e, ...u } : e;
+      })
+    }));
+  };
+
+  const deleteEl = (id) => {
+    const tid = id || selected;
+    if (!tid) return;
+    const np = pages.map((p,i) => i!==activePage ? p : { ...p, elements: p.elements.filter(e=>e.id!==tid) });
+    commitPages(np);
+    if (selected===tid) setSelected(null);
+    showToast("Removed", "danger");
+  };
+
+  const duplicateEl = (id) => {
+    const tid = id || selected;
+    const el = activeElements.find(e=>e.id===tid);
+    if (!el) return;
+    const dup = { ...JSON.parse(JSON.stringify(el)), id:crypto.randomUUID(), x:el.x+22, y:el.y+22, zIndex:Date.now() };
+    const np = pages.map((p,i) => i!==activePage ? p : { ...p, elements:[...p.elements, dup] });
+    commitPages(np);
+    setSelected(dup.id);
+    showToast("Duplicated ✦");
+  };
+
+  const clearPage = () => {
+    const np = pages.map((p,i) => i!==activePage ? p : { ...p, elements:[] });
+    commitPages(np);
+    setSelected(null);
+    showToast("Canvas cleared", "danger");
+  };
+
+  // ── z-order ──
+  const bringForward = () => {
+    const idx = activeElements.findIndex(e=>e.id===selected);
+    if (idx<activeElements.length-1) {
+      const a=[...activeElements]; [a[idx],a[idx+1]]=[a[idx+1],a[idx]];
+      setPages(ps=>ps.map((p,i)=>i!==activePage?p:{...p,elements:a}));
+    }
+  };
+  const sendBackward = () => {
+    const idx = activeElements.findIndex(e=>e.id===selected);
+    if (idx>0) {
+      const a=[...activeElements]; [a[idx],a[idx-1]]=[a[idx-1],a[idx]];
+      setPages(ps=>ps.map((p,i)=>i!==activePage?p:{...p,elements:a}));
+    }
+  };
+
+  // ── pages ──
+  const addPage = () => {
+    const np = [...pages, { id:crypto.randomUUID(), elements:[], bgColor:"#ffffff" }];
+    setPages(np);
+    setActivePage(np.length-1);
+    setSelected(null);
+    showToast(`Page ${np.length} added ✦`);
+  };
+  const removePage = (idx) => {
+    if (pages.length===1) return showToast("Can't remove last page","danger");
+    const np = pages.filter((_,i)=>i!==idx);
+    setPages(np);
+    setActivePage(Math.min(activePage, np.length-1));
+    setSelected(null);
+  };
+
+  // ── keyboard ──
+  useEffect(() => {
+    const h = (e) => {
+      if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
+      if ((e.metaKey||e.ctrlKey)&&e.key==="z") { e.preventDefault(); undo(); }
+      if ((e.metaKey||e.ctrlKey)&&e.key==="y") { e.preventDefault(); redo(); }
+      if ((e.metaKey||e.ctrlKey)&&e.key==="d") { e.preventDefault(); duplicateEl(); }
+      if (e.key==="Delete"||e.key==="Backspace") { e.preventDefault(); deleteEl(); }
+    };
+    window.addEventListener("keydown",h);
+    return ()=>window.removeEventListener("keydown",h);
+  });
+
+  // ── send campaign ──
+  const handleSend = () => {
+navigate("/send-campaign", {
+  state: { 
+    canvasData: activeElements,
+    canvasBackgroundColor: pages[activePage]?.bgColor,
+    subject: "",
+    timestamp: Date.now()
+  }
+});
+  };
+
+  // ── shared props passed down ──
+  const canvasProps = {
+    pages, activePage, setActivePage, selected, setSelected, zoom, showGrid,
+    updateEl, updateMultiEl, saveUndo, deleteEl, duplicateEl, bringForward, sendBackward,
+    clearPage, addPage, removePage,
+  };
+  const toolsProps = {
+    leftTab, setLeftTab,
+    addElement,
+    addMultipleElements,
+    zoom, setZoom,
+    showGrid, setShowGrid,
+    undoStack, redoStack, undo, redo,
+    pagesBg: pages[activePage]?.bgColor,
+    setPageBg,
+    selected, selectedEl,
+    deleteEl: ()=>deleteEl(),
+    duplicateEl: ()=>duplicateEl(),
+    clearPage,
+  };
+  const propProps = {
+    selectedEl,
+    updateEl,
+    bringForward, sendBackward,
+    deleteEl: ()=>deleteEl(),
+    duplicateEl: ()=>duplicateEl(),
   };
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white">
-      <Toolbox
-        onAddElement={handleAddElement}
-        onUploadImage={handleUploadImage}
-        onSelectStockImage={handleUploadImage}
-        selectedElement={selectedElement}
-        onUndo={undo}
-        onRedo={redo}
-        onDelete={deleteElement}
-        onDuplicate={duplicateElement}
-        canUndo={undoStack.length > 0}
-        canRedo={redoStack.length > 0}
-        zoomLevel={zoomLevel}
-        setZoomLevel={setZoomLevel}
-        showGrid={showGrid}
-        setShowGrid={setShowGrid}
-        canvasBackgroundColor={canvasBackgroundColor}
-        setCanvasBackgroundColor={setCanvasBackgroundColor}
-        onAddLayout={handleAddLayout}
-      />
+    <div style={{ display:"flex", flexDirection:"column", height:"100vh", background:T.bg, color:T.txt, fontFamily:"'Trebuchet MS', Georgia, serif", overflow:"hidden" }}>
 
-      <div className="flex-1 overflow-hidden">
-        <CanvasArea
-          ref={canvasRef} // ✅ Add ref for mouse tracking
-          pages={pages}
-          setPages={setPages}
-          activePage={activePage}
-          setActivePage={setActivePage}
-          onUpdate={handleUpdate}
-          selectedElement={selectedElement}
-          setSelectedElement={setSelectedElement}
-          updateElement={updateElement}
-          zoomLevel={zoomLevel}
-          showGrid={showGrid}
-          canvasBackgroundColor={canvasBackgroundColor}
-          onSendCampaign={handleSendCampaign}
+      {/* ── TOP NAV BAR ── */}
+      <nav style={{
+        height:52, display:"flex", alignItems:"center", justifyContent:"space-between",
+        padding:"0 14px", background:T.panel, borderBottom:`1px solid ${T.border}`,
+        flexShrink:0, gap:10, zIndex:50,
+        boxShadow:`0 1px 0 ${T.goldDim}44`,
+      }}>
+        {/* Logo */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+          <div style={{ width:30, height:30, borderRadius:7, background:`linear-gradient(135deg,${T.goldBright},${T.goldDim})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:15 }}>✦</div>
+          <span style={{ fontWeight:700, fontSize:15, color:T.gold, letterSpacing:".04em", fontFamily:"Georgia" }}>Template Studio</span>
+        </div>
+
+        {/* Centre toolbar */}
+        <div style={{ display:"flex", alignItems:"center", gap:4, flex:1, justifyContent:"center", flexWrap:"wrap" }}>
+          <TBtn title="Undo (Ctrl+Z)" disabled={!undoStack.length} onClick={undo}>↩</TBtn>
+          <TBtn title="Redo (Ctrl+Y)" disabled={!redoStack.length} onClick={redo}>↪</TBtn>
+          <Sep/>
+          <TBtn title="Toggle Grid" active={showGrid} onClick={()=>setShowGrid(g=>!g)}>⊞</TBtn>
+          <TBtn title="Clear Canvas" onClick={clearPage}>⊘</TBtn>
+          <Sep/>
+          <TBtn title="Zoom Out" onClick={()=>setZoom(z=>Math.max(.3,+(z-.1).toFixed(1)))}>−</TBtn>
+          <span style={{ fontSize:12, minWidth:38, textAlign:"center", color:T.txtDim }}>{Math.round(zoom*100)}%</span>
+          <TBtn title="Zoom In"  onClick={()=>setZoom(z=>Math.min(2,+(z+.1).toFixed(1)))}>+</TBtn>
+          <TBtn title="Reset zoom" onClick={()=>setZoom(1)} style={{fontSize:10}}>1:1</TBtn>
+          <Sep/>
+          {/* Panel toggles */}
+          <TBtn title="Toggle Tools" active={sidebarOpen} onClick={()=>setSidebarOpen(s=>!s)} style={{fontSize:11}}>☰</TBtn>
+          <TBtn title="Toggle Properties" active={propOpen} onClick={()=>setPropOpen(p=>!p)} style={{fontSize:11}}>⚙</TBtn>
+        </div>
+
+        {/* Right */}
+        <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+
+          <button
+            onClick={() => setShowSaveModal(true)}
+            style={{
+              ...outlineBtn,
+              borderColor: T.gold,
+              color: T.gold
+            }}
+          >
+            Save Templates
+          </button>
+
+          <button onClick={()=>setShowExit(true)} style={outlineBtn}>
+            Exit
+          </button>
+
+          <button onClick={handleSend} style={primaryBtn}>
+            Send →
+          </button>
+
+        </div>
+        {showSaveModal && (
+        // CORRECT ✅
+        <SaveTemplateModal
+          userId={userId}
+          canvasData={pages[activePage]?.elements}
+          canvasBackground={pages[activePage]?.bgColor}
+          onClose={() => setShowSaveModal(false)}
         />
+        )}
+      </nav>
+
+      {/* ── BODY ROW ── */}
+      <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
+
+        {/* LEFT: ToolsPanel */}
+        {sidebarOpen && (
+          <ToolsPanel {...toolsProps} />
+        )}
+
+        {/* CENTRE: Canvas + page tabs */}
+        <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <CanvasArea
+            {...canvasProps}
+            pages={pages}
+            activePage={activePage}
+            setActivePage={setActivePage}
+            addPage={addPage}
+            removePage={removePage}
+            zoom={zoom}
+            showGrid={showGrid}
+          />
+        </div>
+
+        {/* RIGHT: PropertiesPanel */}
+        {propOpen && (
+          <PropertiesPanel {...propProps} />
+        )}
       </div>
 
-      <PropertiesPanel
-        elements={pages[activePage].elements}
-        selectedElement={selectedElement}
-        setSelectedElement={setSelectedElement}
-        updateElement={updateElement}
-        setElements={(updatedElements) => handleUpdate(updatedElements)}
-      />
+      {/* ── TOAST ── */}
+      {toast && (
+        <div style={{
+          position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)",
+          padding:"9px 20px", borderRadius:8, fontWeight:600, fontSize:13, zIndex:9999,
+          background: toast.type==="danger" ? T.danger : toast.type==="gold" ? T.gold : T.gold,
+          color: toast.type==="danger" ? "#fff" : T.bg,
+          boxShadow:"0 4px 24px rgba(0,0,0,.6)",
+          border:`1px solid ${toast.type==="danger"?"#ff6040":T.goldBright}`,
+          animation:"toastIn .2s ease",
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* ── EXIT MODAL ── */}
+      {showExit && (
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,.75)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999 }}>
+          <div style={{ background:T.panel, border:`1px solid ${T.border}`, borderRadius:14, padding:32, width:320, textAlign:"center", boxShadow:`0 20px 60px rgba(0,0,0,.8), 0 0 0 1px ${T.goldDim}` }}>
+            <div style={{ fontSize:36, marginBottom:10 }}>✦</div>
+            <div style={{ fontSize:17, fontWeight:700, color:T.gold, marginBottom:6, fontFamily:"Georgia" }}>Leave the Editor?</div>
+            <div style={{ fontSize:13, color:T.txtDim, marginBottom:24 }}>Unsaved changes will be lost.</div>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setShowExit(false)} style={{ ...outlineBtn, flex:1, padding:"10px 0" }}>Stay</button>
+              <button onClick={()=>navigate("/email-campaign")} style={{ ...primaryBtn, flex:1, padding:"10px 0", background:T.danger, borderColor:T.danger }}>Leave</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(10px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+        *,:before,:after { box-sizing:border-box; }
+        ::-webkit-scrollbar { width:5px; height:5px; }
+        ::-webkit-scrollbar-track { background:${T.bg}; }
+        ::-webkit-scrollbar-thumb { background:${T.goldDim}; border-radius:99px; }
+        input[type=range] { accent-color:${T.gold}; cursor:pointer; }
+        input[type=color] { cursor:pointer; }
+      `}</style>
     </div>
   );
-};
+}
 
-export default EditorPage;
+// ── Shared tiny components exported for use in child files ──
+export function TBtn({ children, onClick, disabled, active, title, style }) {
+  return (
+    <button onClick={onClick} disabled={disabled} title={title}
+      style={{
+        width:30, height:30, borderRadius:6, border:`1px solid ${active?T.gold:T.border}`,
+        background: active ? `${T.gold}22` : "transparent",
+        color: active ? T.gold : disabled ? T.muted : T.txt,
+        cursor: disabled ? "not-allowed" : "pointer",
+        fontSize:14, display:"flex", alignItems:"center", justifyContent:"center",
+        opacity: disabled ? .4 : 1, flexShrink:0, transition:"all .12s", ...style,
+      }}
+      onMouseOver={e=>{ if(!disabled){ e.currentTarget.style.borderColor=T.gold; e.currentTarget.style.color=T.gold; } }}
+      onMouseOut={e=>{ e.currentTarget.style.borderColor=active?T.gold:T.border; e.currentTarget.style.color=active?T.gold:disabled?T.muted:T.txt; }}
+    >{children}</button>
+  );
+}
+export function Sep() { return <div style={{ width:1, height:22, background:T.border, margin:"0 2px" }} />; }
+export function SLabel({ children }) {
+  return <div style={{ fontSize:10, fontWeight:700, color:T.goldDim, letterSpacing:".1em", textTransform:"uppercase", marginBottom:7 }}>{children}</div>;
+}
+export function PRow({ label, children }) {
+  return (
+    <div style={{ marginBottom:11 }}>
+      <div style={{ fontSize:11, color:T.txtDim, marginBottom:3 }}>{label}</div>
+      {children}
+    </div>
+  );
+}
+export const inputStyle = {
+  width:"100%", padding:"7px 10px", borderRadius:7,
+  border:`1px solid ${T.border}`, background:T.surface,
+  fontSize:13, color:T.txt, outline:"none",
+};
+export const selectStyle = { ...{ width:"100%", padding:"7px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:T.surface, fontSize:13, color:T.txt, outline:"none" } };
+const primaryBtn = { padding:"7px 18px", borderRadius:7, border:`1px solid ${T.gold}`, background:`linear-gradient(135deg,${T.gold},${T.goldDim})`, color:T.bg, fontWeight:700, cursor:"pointer", fontSize:13, fontFamily:"inherit" };
+const outlineBtn = { padding:"7px 14px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.txtDim, cursor:"pointer", fontSize:13, fontFamily:"inherit" };
