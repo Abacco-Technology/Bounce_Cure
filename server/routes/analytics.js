@@ -1,39 +1,13 @@
 // server/routes/analytics.js
 import express from "express";
-import fetch from "node-fetch";
 import { prisma } from "../prisma/prismaClient.js";
 import { protect } from "../middleware/auth.js";
 
 const router = express.Router();
-const SENDGRID_API_KEY = process.env.SENDGRID_CMP_API_KEY;
 
-if (!SENDGRID_API_KEY) {
-  console.warn("SENDGRID_CMP_API_KEY not set - analytics will use database only");
-}
-
-// Simple in-memory cache for SendGrid API responses
-const cache = new Map();
-
-async function fetchWithCache(url, options, ttl = 600000) { // 10 minutes TTL
-  if (cache.has(url)) {
-    const cached = cache.get(url);
-    if (Date.now() - cached.timestamp < ttl) {
-      return cached.data;
-    }
-  }
-
-  const response = await fetch(url, options);
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Fetch failed (${response.status}): ${errText}`);
-  }
-
-  const data = await response.json();
-  cache.set(url, { data, timestamp: Date.now() });
-  return data;
-}
-
-// Test Route
+/* ==========================================================
+   🧪 Health Check
+========================================================== */
 router.get("/", (req, res) => {
   res.json({ message: "Analytics route working", timestamp: new Date().toISOString() });
 });
@@ -54,9 +28,7 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
           lte: new Date(endDate + "T23:59:59.999Z"),
         },
       },
-      include: {
-        events: true,
-      },
+      include: { events: true },
     });
 
     console.log(`📧 Found ${campaigns.length} campaigns with events`);
@@ -141,9 +113,7 @@ router.get("/sendgrid/campaigns", protect, async (req, res) => {
           lte: new Date(endDate + "T23:59:59.999Z"),
         },
       },
-      include: {
-        events: true,
-      },
+      include: { events: true },
       orderBy: { createdAt: "desc" },
     });
 
