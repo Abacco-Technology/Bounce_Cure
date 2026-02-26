@@ -1146,7 +1146,7 @@ useEffect(() => {
         tags: t.tags || ["custom", "saved"],
         rating: 4.5,
         likes: 0,
-        content: t.content
+        content: typeof t.content === 'string' ? JSON.parse(t.content) : t.content
       }));
 
       setUserCreatedTemplates(formatted);
@@ -1377,7 +1377,7 @@ useEffect(() => {
     const matchesSearch = 
       template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       template.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
+      (template.tags || []).some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     return matchesCategory && matchesSearch;
   });
 

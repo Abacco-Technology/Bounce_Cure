@@ -68,6 +68,11 @@ import smsRoutes from "./routes/smsCampaign.js";
 import savedTemplatesRouter from "./routes/savedTemplates.js";
 import chatRoutes from "./routes/chat.routes.js";
 
+// For uploading images from the editor
+import { router as uploadRouter } from "./routes/upload.js";
+import path from "path";
+import { fileURLToPath } from "url";
+
 // ENV setup
 import customRoutes from "./routes/customRoutes.js";
 import chatbotRouter from "./routes/chatbot.js";
@@ -76,6 +81,7 @@ import verifiFrontendRoutes from "./routes/verifiFrontend.js";
 import campaignUserMails from "./routes/campaignUserMails.js";
 import { startCampaignScheduler } from "./services/campaignScheduler.js";
 import userCredit from "./routes/userRoutes.js"
+import uploadRoutes from "./routes/uploadRoutes.js"
 dotenv.config();
 
 // Init
@@ -84,35 +90,57 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname  = path.dirname(__filename);
+
+// // Serve uploaded files as static assets (images + snapshots)
+// app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
+
+// // Mount upload routes
+// app.use("/api/upload", uploadRouter);
+
 // Allowed origins for CORS
 // ---------- CORS (update this block completely) ----------
 // ---------- ✅ CORS CONFIG (FINAL VERSION) ----------
 
 
+
+
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://www.bouncecure.com"
+  "https://www.bouncecure.com",
+  "https://bouncecure.com",
+  "https://bouncecure-ui.onrender.com"
 ];
-
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow requests with no origin (e.g. Postman, mobile apps)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      console.warn(`❌ Blocked by CORS: ${origin}`);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"], // ✅ key fix
+    origin: true,        // automatically reflect request origin
     credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// app.use(
+//   cors({
+//     origin(origin, callback) {
+//        if (!origin) return callback(null, true);
+//       if (allowedOrigins.includes(origin)) return callback(null, true);
+//       console.warn(`❌ Blocked by CORS: ${origin}`);
+//       return callback(new Error("Not allowed by CORS"));
+//     },
+//     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],  
+//     credentials: true,
+//     preflightContinue: false,
+//     optionsSuccessStatus: 204,
+//   })
+// );
+
 // ✅ Optional: explicitly handle OPTIONS requests
+
+
 app.options("*", cors());
 
 
@@ -242,6 +270,7 @@ app.get('/', (req, res) => {
 });
 
 
+app.use("/api/files", uploadRoutes);
 
 // Socket service
 initSocket(io);

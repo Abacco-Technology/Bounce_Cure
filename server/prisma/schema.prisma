@@ -63,6 +63,7 @@ model User {
   smsCampaigns      SmsCampaign[]
   AutomationLog     AutomationLog[]
   Conversation      Conversation?
+  uploads           UserUpload[]
 }
 
 model Content {
@@ -752,4 +753,18 @@ enum Sender {
   USER
   ADMIN
   BOT
+}
+
+model UserUpload {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  url       String // Public R2 URL
+  key       String // R2 object key (important for delete)
+  mimeType  String?
+  size      Int?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

@@ -41,7 +41,7 @@ export default function Features() {
                 Discover the comprehensive suite of tools designed to revolutionize your email verification process with unmatched accuracy and speed.
               </p>
               <Link
-                to="/get-started"
+                to="/login"
                 className="group inline-flex items-center bg-black text-[#c2831f] px-8 py-4 rounded-full font-medium hover:bg-black hover:text-white border-2 border-white transition-all duration-300 hover:scale-105 hover:shadow-2xl"
               >
                 Explore Features
@@ -396,7 +396,7 @@ console.log(result.status); // 'valid', 'invalid', 'risky'`}</code>
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
-                  to="/get-started"
+                  to="/login"
                   className="group bg-white text-black px-8 py-4 rounded-full font-semibold hover:bg-black hover:text-[#c2831f] border-2 border-white transition-all duration-300 hover:scale-105 hover:shadow-xl inline-flex items-center justify-center"
                 >
                   Start Free Trial

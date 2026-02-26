@@ -29,20 +29,17 @@ router.post("/sendgrid-events", express.json(), webhookLimiter, async (req, res)
 
     for (const event of events) {
       try {
-        console.log(`\n📧 Processing event: ${event.event} for ${event.email}`);
-        
-        // ✅ Extract campaignId from multiple possible locations
-        let campaignId = 
+        // ✅ Correct campaignId extraction (this is critical)
+        let campaignId =
           event.custom_args?.campaignId ||
           event.customArgs?.campaignId ||
           event.unique_args?.campaignId ||
           event.campaignId;
 
-        // ✅ Also try extracting from categories array
         if (!campaignId && Array.isArray(event.category)) {
-          const catWithId = event.category.find(c => c?.startsWith('campaign_'));
-          if (catWithId) {
-            campaignId = catWithId.replace('campaign_', '');
+          const cat = event.category.find((c) => c.startsWith("campaign_"));
+          if (cat) {
+            campaignId = cat.replace("campaign_", "");
           }
         }
 
@@ -97,13 +94,19 @@ router.post("/sendgrid-events", express.json(), webhookLimiter, async (req, res)
         let type = event.event;
         if (type === 'spam_report') type = 'spamreport';
 
-        // ✅ Only store useful events
-        const allowedEvents = ['delivered', 'open', 'click', 'bounce', 'spamreport', 'dropped', 'deferred'];
-        if (!allowedEvents.includes(type)) {
-          console.log(`⚠️ Skipping non-tracked event type: ${type}`);
-          skipped++;
-          continue;
-        }
+        // Only store useful events
+        const allowed = [
+          "processed",
+          "delivered",
+          "open",
+          "click",
+          "bounce",
+          "dropped",
+          "deferred",
+          "spamreport",
+        ];
+
+        if (!allowed.includes(type)) continue;
 
         // ✅ Save event to database
         const savedEvent = await prisma.campaignEvent.create({
