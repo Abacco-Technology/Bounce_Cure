@@ -65,6 +65,7 @@ export default function CanvasArea({
   const [dragging,    setDragging]   = useState(false);
   const [resizing,    setResizing]   = useState(false);
   const [pageHeights, setPageHeights]= useState({});
+  const [manualHeights, setManualHeights] = useState({}); // tracks pages where user manually resized
   const heightDragRef = useRef(null);
   const [heightDragging, setHeightDragging] = useState(false);
   const [ctxMenu,     setCtxMenu]    = useState(null);
@@ -72,7 +73,19 @@ export default function CanvasArea({
   const elements = pages[activePage]?.elements || [];
   const bgColor  = pages[activePage]?.bgColor  || "#ffffff";
   const pageId   = pages[activePage]?.id;
-  const canvasH  = pageHeights[pageId] || DEFAULT_H;
+
+  // Auto-calculate canvas height from element bounds (only if user hasn't manually resized this page)
+  const autoHeight = React.useMemo(() => {
+    if (!elements.length) return DEFAULT_H;
+    let maxBottom = DEFAULT_H;
+    elements.forEach(el => {
+      const bottom = (el.y || 0) + (el.height || 0);
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    return Math.max(MIN_H, maxBottom + 60); // 60px padding at bottom
+  }, [elements]);
+
+  const canvasH = manualHeights[pageId] !== undefined ? manualHeights[pageId] : autoHeight;
 
   const toCanvas = useCallback((clientX, clientY) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -114,9 +127,9 @@ export default function CanvasArea({
         updateEl(id, { x:nx, y:ny, width:nw, height:nh });
       }
       if (heightDragRef.current) {
-        const { startY, startH } = heightDragRef.current;
+        const { startY, startH, pageId: dragPageId } = heightDragRef.current;
         const newH = Math.max(MIN_H, startH + (e.clientY - startY));
-        setPageHeights(ph => ({ ...ph, [pageId]: newH }));
+        setManualHeights(mh => ({ ...mh, [dragPageId]: newH }));
       }
     };
 
