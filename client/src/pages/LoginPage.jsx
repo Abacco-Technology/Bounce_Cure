@@ -342,7 +342,8 @@ const ModernLogin = () => {
                             </div>
 
                             {/* Login Form */}
-                            <div className="space-y-4 sm:space-y-6">
+                            {/* Login Form */}
+                            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                                 <div className="relative group">
                                     <Mail className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'email' ? 'text-white' : 'text-gray-400'}`} />
                                     <input
@@ -357,7 +358,7 @@ const ModernLogin = () => {
                                     />
                                 </div>
 
-                                <div className="relative group" onSubmit={handleSubmit}>
+                                <div className="relative group">
                                     <Lock className={`absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 transition-colors duration-300 ${focusedField === 'password' ? 'text-white' : 'text-gray-400'}`} />
                                     <input
                                         type={showPassword ? 'text' : 'password'}
@@ -370,7 +371,7 @@ const ModernLogin = () => {
                                         className="w-full bg-white/5 backdrop-blur-sm border border-white/20 rounded-xl py-2 sm:py-3 pl-10 pr-12 text-white placeholder-gray-500 focus:outline-none focus:border-white focus:bg-white/10 transition-all duration-300"
                                     />
                                     <button
-                                        type="submit"
+                                        type="button"
                                         onClick={() => setShowPassword(!showPassword)}
                                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-white transition-colors duration-300"
                                     >
@@ -405,17 +406,15 @@ const ModernLogin = () => {
                                 </div>
 
                                 {/* Sign In Button */}
-                                {/* Sign In Button */}
                                 <button
                                     type="submit"
-                                    onClick={handleSubmit} // ✅ call handleSubmit
                                     className="w-full bg-[#c2831f] text-black font-bold py-2 sm:py-3 px-4 rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-white/25 hover:bg-gray-100 flex items-center justify-center gap-2 group"
                                 >
                                     <span>Sign In</span>
                                     <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
                                 </button>
 
-                            </div>
+                            </form>
 
                             {/* Sign Up Link */}
                             <p className="text-center text-gray-400 mt-6 text-sm sm:text-base">

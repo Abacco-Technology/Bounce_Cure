@@ -109,27 +109,38 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://www.bouncecure.com"
+  "https://www.bouncecure.com",
+  "https://bouncecure.com",
+  "https://bouncecure-ui.onrender.com"
 ];
-
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow requests with no origin (e.g. Postman, mobile apps)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      console.warn(`❌ Blocked by CORS: ${origin}`);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"], // ✅ key fix
+    origin: true,        // automatically reflect request origin
     credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// app.use(
+//   cors({
+//     origin(origin, callback) {
+//        if (!origin) return callback(null, true);
+//       if (allowedOrigins.includes(origin)) return callback(null, true);
+//       console.warn(`❌ Blocked by CORS: ${origin}`);
+//       return callback(new Error("Not allowed by CORS"));
+//     },
+//     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],  
+//     credentials: true,
+//     preflightContinue: false,
+//     optionsSuccessStatus: 204,
+//   })
+// );
+
 // ✅ Optional: explicitly handle OPTIONS requests
+
+
 app.options("*", cors());
 
 
