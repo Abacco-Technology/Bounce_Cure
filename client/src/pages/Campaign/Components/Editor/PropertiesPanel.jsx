@@ -178,10 +178,18 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
                       <input
                         type="email"
                         placeholder="example@email.com"
-                        value={selectedEl.email || ""}
-                        onChange={e => {
-                          u("email", e.target.value);
-                          if (e.target.value) u("link", "");
+                        value={selectedEl.link?.startsWith("mailto:")
+                          ? selectedEl.link.replace("mailto:", "")
+                          : ""}
+                        onChange={(e) => {
+                          let value = e.target.value.trim();
+
+                          if (!value) {
+                            u("link", "");
+                            return;
+                          }
+
+                          u("link", `mailto:${value}`);
                         }}
                         style={inputStyle}
                       />
