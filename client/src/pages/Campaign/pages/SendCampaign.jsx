@@ -9,7 +9,8 @@ import {
 import ShuffleSubjectModal from "../Components/ShuffleSubjectModal";
 import { Shuffle } from "lucide-react";
 
-const API_URL = import.meta.env.VITE_VRI_URL;
+// ✅ FIX: Was VITE_VRI_URL (typo) — now correctly VITE_API_URL
+const API_URL = import.meta.env.VITE_API_URL;
 
 const steps = [
   { id: "recipients", title: "To",       description: "Choose who to send to",  icon: Users    },
@@ -39,22 +40,7 @@ class ErrorBoundary extends React.Component {
 /* ─── Canvas dimensions ───────────────────────────────────── */
 const CANVAS_WIDTH = 800;
 
-/* ─── Lucide CDN helper ───────────────────────────────────── */
-const lucidePreviewSrc = (name) =>
-  `https://unpkg.com/lucide-static@latest/icons/${name}.svg`;
 
-/* ─── Hue from hex for icon CSS filter ───────────────────── */
-function hueFromHex(hex) {
-  try {
-    const r = parseInt(hex.slice(1,3),16)/255;
-    const g = parseInt(hex.slice(3,5),16)/255;
-    const b = parseInt(hex.slice(5,7),16)/255;
-    const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
-    if (d===0) return 0;
-    let h = max===r ? ((g-b)/d)%6 : max===g ? (b-r)/d+2 : (r-g)/d+4;
-    return Math.round(h*60+360)%360;
-  } catch { return 0; }
-}
 
 /* ─── Preview element renderer ───────────────────────────── */
 function renderPreviewElement(el) {
@@ -170,8 +156,6 @@ function renderPreviewElement(el) {
                            color:el.color||"#00CEC9" }}>→</div>;
 
       case "social": {
-      const iconName = el.iconName || el.platform || "star";
-
         return (
           <a
             href={el.link || "#"}
@@ -180,32 +164,23 @@ function renderPreviewElement(el) {
             style={{ display: "block", width: "100%", height: "100%" }}
           >
             <img
-              src={lucidePreviewSrc(iconName)}
-              alt={iconName}
-              crossOrigin="anonymous"
+              src={el.src || ""}
+              alt={el.platform || ""}
               style={{ width: "100%", height: "100%", objectFit: "contain" }}
             />
           </a>
         );
       }
 
-    /* ── Lucide icons rendered as CSS-filtered SVG from CDN ── */
-    case "lucide-icon": {
-      const iconName  = el.iconName  || "star";
-      const iconColor = el.iconColor || "#F0C040";
-      const hue = hueFromHex(iconColor);
-      // CSS filter: brightness(0) makes it pure black, then sepia+saturate+hue-rotate tints it
-      const iconFilter = `brightness(0) saturate(100%) invert(1) sepia(1) saturate(5) hue-rotate(${hue}deg)`;
+    /* ── Emoji icons ── */
+    case "emoji-icon": {
+      const emoji    = el.emoji    || "⭐";
+      const fSize    = el.fontSize || Math.min(el.width || 40, el.height || 40) * 0.7;
       return (
         <div style={{ width:"100%", height:"100%", display:"flex",
-                      alignItems:"center", justifyContent:"center" }}>
-          <img
-            src={lucidePreviewSrc(iconName)}
-            alt={iconName}
-            crossOrigin="anonymous"
-            style={{ width:"100%", height:"100%", objectFit:"contain",
-                     display:"block", filter:iconFilter }}
-          />
+                      alignItems:"center", justifyContent:"center",
+                      fontSize:`${fSize}px`, lineHeight:1, userSelect:"none" }}>
+          {emoji}
         </div>
       );
     }
@@ -663,6 +638,38 @@ export default function CampaignBuilder() {
         payload.recurringEndDate   = formData.recurringEndDate||null;
       }
 
+      // ✅ FIX: For large campaigns (>100 recipients), the backend sends emails
+      // asynchronously — navigating only after all emails are done would time out.
+      // Instead: create the campaign (status=sending), navigate immediately to
+      // Analytics so the user can watch live progress via the polling table.
+      const isLargeCampaign = recipientsList.length > 100;
+
+      if (formData.scheduleType === "immediate" && isLargeCampaign) {
+        // ── LARGE CAMPAIGN: fire-and-forget, navigate right away ──────────
+        setSendStatus({ success: true, message: "🚀 Campaign started! Redirecting to live progress…" });
+
+        // POST without awaiting completion — backend runs async
+        fetch(`${API_URL}/api/campaigns/send`, { method: "POST", headers, body: JSON.stringify(payload) })
+          .then(async (r) => {
+            if (r.ok) {
+              const d = await r.json().catch(() => ({}));
+              if (d.creditsRemaining !== undefined) {
+                setCredits(d.creditsRemaining);
+                localStorage.setItem("totalEmails", d.creditsRemaining);
+              }
+            }
+          })
+          .catch((e) => console.warn("Background campaign send error:", e));
+
+        // Navigate immediately — Analytics will poll and show live status
+        // We pass campaignId via query param so Analytics can highlight/track it
+        // We don't have the campaignId yet from a fire-and-forget call,
+        // so navigate to analytics and it will auto-load the newest campaign
+        setTimeout(() => navigate("/analytics"), 1500);
+        return;
+      }
+
+      // ── NORMAL SEND (small campaign or scheduled) ────────────────────
       const res  = await fetch(`${API_URL}/api/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
       let   data;
       try { data = await res.json(); } catch { data = null; }
@@ -688,7 +695,9 @@ export default function CampaignBuilder() {
           setCredits(data.creditsRemaining);
           localStorage.setItem("totalEmails", data.creditsRemaining);
         }
-        setTimeout(()=>navigate("/analytics"), 3000);
+        // ✅ Navigate with campaignId so Analytics can highlight the new campaign
+        const cid = data.campaignId || "";
+        setTimeout(() => navigate(`/analytics${cid ? `?campaignId=${cid}` : ""}`), 1500);
       } else {
         setSendStatus({
           success: true,

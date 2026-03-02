@@ -25,7 +25,7 @@ import sendCampaignsRoutes from "./routes/CampaignRoutes.js";
 import taskRoutes from "./routes/tasks.js";
 import dealsRoutes from "./routes/deals.js";
 import { router as campaignContactsRoutes } from './routes/contacts.js';
-import { router as campaignsRoutes } from './routes/campaigns.js';
+import { router as campaignsRoutes, resumeStuckCampaigns } from './routes/campaigns.js';
 import leadsRouter from "./routes/leads.js";
 import listRoutes from "./routes/listRoutes.js";
 import orderRoutes from "./routes/ordersRoutes.js";
@@ -86,6 +86,10 @@ dotenv.config();
 
 // Init
 startEmailScheduler();
+
+// ✅ On every server restart, resume any campaign stuck mid-send
+// 3s delay ensures Prisma/DB is fully connected first
+setTimeout(() => resumeStuckCampaigns(), 3000);
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -349,5 +353,3 @@ import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
 // After all your routes are set up and before app.listen():
 // Start the scheduled campaign cron job
 startScheduledCampaignCron();
-
- 

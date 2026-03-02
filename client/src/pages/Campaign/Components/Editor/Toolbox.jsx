@@ -38,34 +38,17 @@ const HEADING_TAGS = [
   { tag:"H6", fontSize:15, fontWeight:"600", hint:"Smallest heading / label" },
 ];
 
-// ─── Lucide icon list (commonly used — all work via lucide CDN SVG URL) ───────
-const LUCIDE_ICONS = [
-  "home","user","settings","mail","phone","search","bell","bookmark",
-  "calendar","camera","check","check-circle","chevron-right","clock",
-  "cloud","code","credit-card","download","edit","eye","file","file-text",
-  "filter","flag","folder","globe","grid","heart","help-circle","image",
-  "info","key","layers","layout","link","list","lock","log-in","log-out",
-  "map","map-pin","menu","message-circle","message-square","minus","monitor",
-  "moon","more-horizontal","more-vertical","music","package","pause",
-  "pen-tool","play","plus","plus-circle","power","printer","refresh-cw",
-  "rss","save","send","share","shield","shopping-bag","shopping-cart","slash",
-  "sliders","smartphone","smile","star","sun","tag","thumbs-up","trash",
-  "trash-2","trending-up","truck","type","unlock","upload","user-check",
-  "video","wifi","x","x-circle","zap","zoom-in","zoom-out","arrow-right",
-  "arrow-left","arrow-up","arrow-down","alert-circle","alert-triangle",
-  "activity","award","bar-chart","bar-chart-2","battery","bold","briefcase",
-  "cast","clipboard","columns","compass","copy","cpu","database","disc",
-  "divide","dollar-sign","droplet","external-link","feather","film",
-  "hash","headphones","inbox","italic","maximize","minimize","navigation",
-  "paperclip","percent","pie-chart","radio","repeat","rotate-cw","scissors",
-  "sidebar","skip-back","skip-forward","speaker","square","terminal","toggle-left",
-  "tool","underline","volume","volume-2","watch","wind","anchor","aperture",
+// ─── Emoji icon list ───────────────────────────────────────────────────────────────
+const EMOJI_CATEGORIES = [
+  { label: "Common",   emojis: ["⭐","❤️","✅","❌","⚡","🔥","💡","🎯","🚀","💬","📢","🔔","🎁","🏆","💎","🌟","✨","🎉","👍","👎"] },
+  { label: "UI / Web", emojis: ["🏠","👤","⚙️","📧","📞","🔍","📅","📷","🔒","🔓","🔗","📌","📋","💾","✏️","🗑️","📤","📥","🖥️","📱"] },
+  { label: "Business", emojis: ["💼","📊","📈","📉","💰","💳","🧾","📝","📁","📂","🗂️","📄","🔐","🏷️","🤝","🎓","🏢","📦","🚚","🛒"] },
+  { label: "Nature",   emojis: ["🌍","🌈","⛅","🌙","☀️","❄️","🌊","🌿","🌸","🍀","🦋","🐾","🌺","🍃","💧","🌻","🍁","🦅","🌵","🏔️"] },
+  { label: "Food",     emojis: ["☕","🍕","🍔","🎂","🍎","🥗","🍷","🧁","🍰","🥂","🫖","🍫","🍓","🥑","🧄","🍜","🧃","🍹","🫙","🧊"] },
+  { label: "Symbols",  emojis: ["➕","➖","✖️","➗","♾️","◀️","▶️","⏸️","⏩","⏪","🔀","🔁","🔃","ℹ️","⚠️","🚫","✔️","🔵","🟡","🟢"] },
 ];
 
-// ─── Lucide CDN SVG URL helper ────────────────────────────────────────────────
-// We render lucide icons as <img> using the unpkg CDN SVG endpoint
-const lucideSrc = (name) =>
-  `https://unpkg.com/lucide-static@latest/icons/${name}.svg`;
+const ALL_EMOJIS = EMOJI_CATEGORIES.flatMap(c => c.emojis);
 
 // ─── Card templates ───────────────────────────────────────────────────────────
 const CARD_TEMPLATES = [
@@ -107,7 +90,7 @@ const CARD_TEMPLATES = [
     build:(x,y)=>[
       { id:crypto.randomUUID(), type:"rectangle", x, y, width:260, height:200, backgroundColor:"#161616", borderRadius:10, borderColor:"#2A2200", borderWidth:1, zIndex:Date.now()+1 },
       { id:crypto.randomUUID(), type:"circle", x:x+14, y:y+18, width:52, height:52, backgroundColor:"#C9A84C22", zIndex:Date.now()+2 },
-      { id:crypto.randomUUID(), type:"lucide-icon", x:x+25, y:y+29, width:30, height:30, iconName:"zap", iconColor:"#000", zIndex:Date.now()+3 },
+      { id:crypto.randomUUID(), type:"emoji-icon", x:x+25, y:y+29, width:30, height:30, emoji:"⚡", fontSize:20, zIndex:Date.now()+3 },
       { id:crypto.randomUUID(), type:"heading", x:x+76, y:y+22, width:172, height:40, content:"Feature Name", fontSize:18, fontWeight:"700", color:"#F0C040", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", rotation:0, opacity:1, zIndex:Date.now()+4 },
       { id:crypto.randomUUID(), type:"paragraph", x:x+14, y:y+86, width:232, height:96, content:"Describe this feature here. Explain the key benefit to the user in 2–3 sentences.", fontSize:13, color:"#C8B880", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.6, rotation:0, opacity:1, zIndex:Date.now()+5 },
     ],
@@ -272,15 +255,15 @@ export default function ToolsPanel({
   const [headingOpen,   setHeadingOpen]   = useState(false);
   const [socialUrl,     setSocialUrl]     = useState("");
   const [socialLabel,   setSocialLabel]   = useState("");
-  const [iconSearch,    setIconSearch]    = useState("");
-  const [customIcon,    setCustomIcon]    = useState("");
-  const [iconColor,     setIconColor]     = useState("#000000");
+  const [emojiSearch,   setEmojiSearch]   = useState("");
+  const [emojiCat,      setEmojiCat]      = useState("Common");
 
-  // ── filtered lucide icons ──
-  const filteredIcons = useMemo(() => {
-    const q = iconSearch.toLowerCase().trim();
-    return q ? LUCIDE_ICONS.filter(i => i.includes(q)) : LUCIDE_ICONS;
-  }, [iconSearch]);
+  // ── filtered emojis ──
+  const displayEmojis = useMemo(() => {
+    const q = emojiSearch.trim();
+    if (!q) return EMOJI_CATEGORIES.find(c => c.label === emojiCat)?.emojis || ALL_EMOJIS;
+    return ALL_EMOJIS.filter(e => e.includes(q));
+  }, [emojiSearch, emojiCat]);
 
   // ── handlers ──
   const handleFileUpload = (e) => {
@@ -313,18 +296,13 @@ export default function ToolsPanel({
     setHeadingOpen(false);
   };
 
-  const handleAddLucideIcon = (name) => {
-    addElement("lucide-icon", {
-      iconName:  name,
-      iconColor: iconColor,
-      width:     48,
-      height:    48,
+  const handleAddEmoji = (emoji) => {
+    addElement("emoji-icon", {
+      emoji,
+      fontSize: 32,
+      width:    48,
+      height:   48,
     });
-  };
-
-  const handleCustomIconAdd = () => {
-    const name = customIcon.trim().toLowerCase().replace(/[<>/\s]/g,"");
-    if (name) { handleAddLucideIcon(name); setCustomIcon(""); }
   };
 
   const handleSocialUrlAdd = () => {
@@ -444,74 +422,57 @@ export default function ToolsPanel({
               </div>
             </div>
 
-            {/* ── Lucide Icons ── */}
+            {/* ── Emoji Icons ── */}
             <div style={{ marginBottom:16 }}>
-              <SLabel>🔷  Icons (Lucide)</SLabel>
+              <SLabel>😄  Emoji Icons</SLabel>
               <div style={{ fontSize:10, color:T.muted, marginBottom:6, lineHeight:1.5 }}>
-                Click any icon to add it, or type any icon name below.
-                <br/>Only used icons are listed. All lucide names work.
-              </div>
-
-              {/* Icon color picker */}
-              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:8 }}>
-                <span style={{ fontSize:10, color:T.txtDim, flexShrink:0 }}>Color:</span>
-                <input type="color" value={iconColor} onChange={e => setIconColor(e.target.value)}
-                  style={{ width:26, height:22, borderRadius:4, border:`1px solid ${T.border}`, padding:0, background:"none", cursor:"pointer" }} />
-                <span style={{ fontSize:11, color:T.muted }}>{iconColor}</span>
+                Click any emoji to add it to your canvas.
               </div>
 
               {/* Search */}
               <input
-                type="text" value={iconSearch} onChange={e => setIconSearch(e.target.value)}
-                placeholder="Search icon name…"
+                type="text" value={emojiSearch} onChange={e => setEmojiSearch(e.target.value)}
+                placeholder="Search emoji…"
                 style={{ ...inputStyle, fontSize:11, padding:"6px 8px", marginBottom:8, width:"100%" }}
               />
 
-              {/* Custom icon name input */}
-              <div style={{ display:"flex", gap:5, marginBottom:8 }}>
-                <input
-                  type="text" value={customIcon} onChange={e => setCustomIcon(e.target.value)}
-                  placeholder='Type any name e.g. "home"'
-                  style={{ ...inputStyle, fontSize:11, padding:"6px 8px", flex:1 }}
-                  onKeyDown={e => e.key==="Enter" && handleCustomIconAdd()}
-                />
-                <button onClick={handleCustomIconAdd}
-                  style={{ padding:"6px 10px", borderRadius:7, border:`1px solid ${T.gold}`, background:`${T.gold}22`, color:T.gold, cursor:"pointer", fontSize:12, fontFamily:"inherit", flexShrink:0 }}>
-                  +Add
-                </button>
-              </div>
+              {/* Category tabs */}
+              {!emojiSearch && (
+                <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginBottom:8 }}>
+                  {EMOJI_CATEGORIES.map(cat => (
+                    <button key={cat.label} onClick={() => setEmojiCat(cat.label)}
+                      style={{
+                        padding:"3px 8px", borderRadius:12, fontSize:10, fontWeight:600, cursor:"pointer", fontFamily:"inherit",
+                        border:`1px solid ${emojiCat===cat.label ? T.gold : T.border}`,
+                        background: emojiCat===cat.label ? `${T.gold}22` : T.surface,
+                        color: emojiCat===cat.label ? T.gold : T.muted,
+                      }}>
+                      {cat.label}
+                    </button>
+                  ))}
+                </div>
+              )}
 
-              {/* Icon grid */}
-              <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:5, maxHeight:180, overflowY:"auto" }}>
-                {filteredIcons.slice(0, 60).map(name => (
+              {/* Emoji grid */}
+              <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:5, maxHeight:200, overflowY:"auto" }}>
+                {displayEmojis.map((emoji, i) => (
                   <button
-                    key={name}
-                    onClick={() => handleAddLucideIcon(name)}
-                    title={name}
+                    key={i}
+                    onClick={() => handleAddEmoji(emoji)}
+                    title={emoji}
                     style={{
                       padding:6, borderRadius:6, border:`1px solid ${T.border}`,
                       background:T.surface, cursor:"pointer",
                       display:"flex", alignItems:"center", justifyContent:"center",
-                      transition:"all .12s",
+                      fontSize:20, lineHeight:1, transition:"all .12s",
                     }}
                     onMouseOver={e => { e.currentTarget.style.borderColor=T.gold; e.currentTarget.style.background=`${T.gold}14`; }}
                     onMouseOut={e  => { e.currentTarget.style.borderColor=T.border; e.currentTarget.style.background=T.surface; }}
                   >
-                    <img
-                      src={lucideSrc(name)}
-                      alt={name}
-                      width={18} height={18}
-                      style={{ filter:`invert(1) sepia(1) saturate(3) hue-rotate(20deg)`, opacity:.9, pointerEvents:"none" }}
-                      onError={e => { e.currentTarget.style.display="none"; e.currentTarget.parentNode.innerHTML=`<span style="font-size:9px;color:${T.muted}">${name.slice(0,4)}</span>`; }}
-                    />
+                    {emoji}
                   </button>
                 ))}
               </div>
-              {filteredIcons.length > 60 && (
-                <div style={{ fontSize:10, color:T.muted, marginTop:5, textAlign:"center" }}>
-                  +{filteredIcons.length - 60} more — type in search to filter
-                </div>
-              )}
             </div>
 
             {/* ── Social Icons ── */}
@@ -729,6 +690,3 @@ function ActionChip({ children, onClick, danger, title }) {
     >{children}</button>
   );
 }
-
-// Export lucide src helper for use in CanvasArea renderer
-export { lucideSrc };
