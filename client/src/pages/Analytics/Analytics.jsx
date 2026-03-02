@@ -172,8 +172,8 @@ export default function Analytics() {
               <thead className="border-b border-gray-700 text-gray-400">
                 <tr>
                   <th className="py-2">Campaign</th>
-                  <th>Sent</th>
                   <th>Pending</th>
+                  <th>Sent</th>
                   <th>Status</th>
                   <th>Delete</th>
                 </tr>
@@ -186,14 +186,12 @@ export default function Analytics() {
                     className="border-b border-gray-800 hover:bg-gray-900"
                   >
                     <td className="py-2">{c.name}</td>
-
-                    <td>{c.sentCount}</td>
-
                     <td>
                       {c.pending !== null && c.pending !== undefined
                         ? c.pending
                         : "-"}
                     </td>
+                    <td>{c.sentCount}</td>
 
                     <td>
                       {["sending", "processing"].includes(c.status) && (

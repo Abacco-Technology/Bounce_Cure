@@ -46,7 +46,7 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
   const isImage  = selectedEl && selectedEl.type==="image";
   const isSocial = selectedEl && selectedEl.type==="social";
   const isButton = selectedEl && selectedEl.type==="button";
-  const isLucide = selectedEl && selectedEl.type==="lucide-icon";
+  const isEmoji  = selectedEl && selectedEl.type==="emoji-icon";
 
   // ── Image upload state ──────────────────────────────────────
   const [uploading, setUploading]     = useState(false);
@@ -464,35 +464,23 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
               </div>
             )}
 
-            {/* ── LUCIDE ICON PROPERTIES ── */}
-            {isLucide && (
+            {/* ── EMOJI ICON PROPERTIES ── */}
+            {isEmoji && (
               <div>
-                <SLabel>Lucide Icon</SLabel>
-                <div style={{ fontSize:11, color:T.muted, marginBottom:8 }}>
-                  Current: <strong style={{color:T.gold}}>{selectedEl.iconName}</strong>
-                </div>
-                <PRow label="Icon Name">
-                  <div style={{ display:"flex", gap:5 }}>
-                    <input
-                      type="text"
-                      defaultValue={selectedEl.iconName||"star"}
-                      onBlur={e=>u("iconName",e.target.value.trim().toLowerCase())}
-                      onKeyDown={e=>{ if(e.key==="Enter") u("iconName",e.target.value.trim().toLowerCase()); }}
-                      placeholder="e.g. home, star, zap"
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div style={{ fontSize:9, color:T.muted, marginTop:3 }}>
-                    Any lucide icon name works. See lucide.dev for full list.
-                  </div>
+                <SLabel>Emoji Icon</SLabel>
+                <div style={{ fontSize:32, textAlign:"center", marginBottom:8 }}>{selectedEl.emoji||"⭐"}</div>
+                <PRow label="Emoji">
+                  <input
+                    type="text"
+                    value={selectedEl.emoji||"⭐"}
+                    onChange={e=>u("emoji", e.target.value)}
+                    placeholder="Paste any emoji e.g. 🔥"
+                    style={{ ...inputStyle, fontSize:18, textAlign:"center" }}
+                  />
                 </PRow>
-                <PRow label="Icon Color">
-                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
-                    <input type="color" value={selectedEl.iconColor||"#000"} onChange={e=>u("iconColor",e.target.value)}
-                      style={{ width:30, height:26, borderRadius:5, border:"1px solid #2A2200", padding:0, background:"none", cursor:"pointer" }} />
-                    <input type="text" value={selectedEl.iconColor||"#F0C040"} onChange={e=>u("iconColor",e.target.value)}
-                      style={{ ...inputStyle, flex:1, fontSize:11, padding:"5px 8px" }} />
-                  </div>
+                <PRow label="Font Size">
+                  <input type="number" value={selectedEl.fontSize||32} onChange={e=>u("fontSize",+e.target.value)}
+                    style={inputStyle} min={8} max={200} />
                 </PRow>
               </div>
             )}
