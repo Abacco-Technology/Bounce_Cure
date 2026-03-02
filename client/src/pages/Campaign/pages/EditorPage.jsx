@@ -51,7 +51,7 @@ export function makeEl(type, opts = {}) {
     line:       { content:"", width:280, height:3,   strokeColor:"#C9A84C", strokeWidth:3 },
     image:      { src: opts.src || "https://images.unsplash.com/photo-1557683316-973673baf926?w=400&h=260&fit=crop", width:300, height:190, borderRadius:4, objectFit:"cover" },
     social:     { src:opts.src, width:44, height:44, platform:opts.platform, link:opts.link||"#" },
-    "lucide-icon": { iconName:opts.iconName||"star", iconColor:opts.iconColor||"#F0C040", width:opts.width||48, height:opts.height||48 },
+    "emoji-icon": { emoji:opts.emoji||"⭐", fontSize:opts.fontSize||32, width:opts.width||48, height:opts.height||48 },
   };
   return { ...base, ...(defaults[type] || { width:150, height:50 }) };
 }
@@ -146,8 +146,8 @@ export default function TemplateEditorPage() {
   // ── element CRUD ──
   const addElement = (type, opts={}) => {
     const pos = getSpawnPos();
-    const el = type === "lucide-icon"
-      ? { id:crypto.randomUUID(), type:"lucide-icon", x:pos.x, y:pos.y, rotation:0, opacity:1, zIndex:Date.now(), iconName:opts.iconName||"star", iconColor:opts.iconColor||"#F0C040", width:opts.width||48, height:opts.height||48, ...opts }
+    const el = type === "emoji-icon"
+      ? { id:crypto.randomUUID(), type:"emoji-icon", x:pos.x, y:pos.y, rotation:0, opacity:1, zIndex:Date.now(), emoji:opts.emoji||"⭐", fontSize:opts.fontSize||32, width:opts.width||48, height:opts.height||48, ...opts }
       : makeEl(type, { x: pos.x, y: pos.y, ...opts });
     const np = pages.map((p,i) => i===activePage ? { ...p, elements:[...p.elements, el] } : p);
     commitPages(np);

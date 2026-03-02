@@ -7,6 +7,88 @@ import { protect } from "../middleware/authMiddleware.js";
 const router = express.Router();
 router.use(protect);
 
+// ================================================================
+// ✅ RESUME ENGINE — call once from server.js on startup:
+//    import { resumeStuckCampaigns } from "./routes/campaigns.js";
+//    setTimeout(() => resumeStuckCampaigns(), 3000);
+// ================================================================
+export async function resumeStuckCampaigns() {
+  try {
+    const stuck = await prisma.campaign.findMany({
+      where: { status: { in: ["sending", "processing"] } },
+    });
+
+    if (stuck.length === 0) {
+      console.log("✅ Startup: no stuck campaigns");
+      return;
+    }
+
+    console.log(`🔄 Startup: resuming ${stuck.length} stuck campaign(s)`);
+
+    for (const c of stuck) {
+      console.log(`▶️  Campaign ${c.id} "${c.name}" — already sent: ${c.sentCount}, will resume from there`);
+      _resumeSend(c).catch((e) =>
+        console.error(`❌ Resume error campaign ${c.id}:`, e.message)
+      );
+    }
+  } catch (e) {
+    console.error("❌ resumeStuckCampaigns:", e.message);
+  }
+}
+
+async function _resumeSend(campaign) {
+  if (!process.env.SENDGRID_API_KEY) return;
+  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
+  let recipients = [];
+  try { recipients = JSON.parse(campaign.recipientsJson || "[]"); } catch { return; }
+
+  const startFrom = campaign.sentCount || 0;
+  let count = startFrom;
+  console.log(`▶️  _resumeSend: campaign ${campaign.id} starting at index ${startFrom}/${recipients.length}`);
+
+  for (let i = startFrom; i < recipients.length; i++) {
+    const r = recipients[i];
+    const toEmail = typeof r === "string" ? r : r?.email;
+    if (!toEmail) continue;
+
+    try {
+      await sgMail.send({
+        to: toEmail,
+        from: { name: campaign.fromName, email: campaign.fromEmail },
+        replyTo: campaign.replyToEmail || campaign.fromEmail,
+        subject: campaign.subject,
+        html: `<p>${campaign.subject}</p>`,
+        trackingSettings: { clickTracking: { enable: true }, openTracking: { enable: true } },
+        customArgs: { campaignId: campaign.id.toString() },
+        categories: [`campaign_${campaign.id}`],
+      });
+      count++;
+    } catch (e) {
+      console.error(`❌ Resume send ${toEmail}:`, e.message);
+    }
+
+    // Save every 10
+    if (count % 10 === 0) {
+      await prisma.campaign.update({
+        where: { id: campaign.id },
+        data: { sentCount: count },
+      });
+    }
+    await new Promise((r) => setTimeout(r, 200));
+  }
+
+  await prisma.campaign.update({
+    where: { id: campaign.id },
+    data: {
+      sentCount: count,
+      status: count >= recipients.length ? "completed" : "failed",
+    },
+  });
+  console.log(`✅ Campaign ${campaign.id} resume complete: ${count}/${recipients.length} sent`);
+}
+
+
 
 const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail, bgColorOverride) => {
 
@@ -153,14 +235,11 @@ function align(el, inCard, forceLeft) {
         return `<div style="display:inline-block;width:0;height:0;border-left:${Math.round(w / 2)}px solid transparent;border-right:${Math.round(w / 2)}px solid transparent;border-bottom:${h}px solid ${el.backgroundColor || '#FF9F43'};vertical-align:middle;"></div>`;
       }
 
-      case 'lucide-icon': {
-        // jsDelivr with pinned version — most reliable CDN for Gmail
-        const name = (el.iconName || 'star').toLowerCase().replace(/\s+/g, '-');
-        const sz = Math.min(sc(el.width) || 28, sc(el.height) || 28, 44);
-        const url = `https://cdn.jsdelivr.net/npm/lucide-static@0.263.1/icons/${name}.svg`;
-        // Unicode fallbacks so text shows if image blocked
-        const fb = { star: '★', heart: '♥', mail: '✉', check: '✓', home: '⌂', zap: '⚡', lock: '🔒', bookmark: '🔖', filter: '▽', search: '🔍', phone: '📞', camera: '📷', user: '👤', settings: '⚙', bell: '🔔', info: 'ℹ', warning: '⚠', download: '↓', upload: '↑', edit: '✏', trash: '🗑', share: '↗', twitter: '🐦', instagram: '📷', facebook: 'f', linkedin: 'in', arrow: '→', eye: '👁', tag: '🏷', calendar: '📅', clock: '🕐', map: '🗺', pin: '📍', flag: '🚩', globe: '🌐', image: '🖼', video: '▶', music: '♪', file: '📄', folder: '📁', plus: '+', minus: '-', x: '✕', refresh: '↻', link: '🔗', shield: '🛡', award: '🏆', gift: '🎁', truck: '🚚', box: '📦', tool: '🔧', cpu: '💻', wifi: '📶', battery: '🔋', power: '⚡', sun: '☀', moon: '🌙', cloud: '☁', wind: '💨', fire: '🔥', drop: '💧' }[name] || '●';
-        return `<img src="${url}" width="${sz}" height="${sz}" alt="${fb}" title="${name}" style="display:inline-block;width:${sz}px;height:${sz}px;vertical-align:middle;border:0;"/>`;
+      case 'emoji-icon': {
+        const emoji = el.emoji || '⭐';
+        const sz = Math.min(sc(el.width) || 32, sc(el.height) || 32, 48);
+        const fSize = el.fontSize || Math.round(sz * 0.75);
+        return `<div style="display:inline-block;width:${sz}px;height:${sz}px;line-height:${sz}px;text-align:center;font-size:${fSize}px;vertical-align:middle;">${emoji}</div>`;
       }
 
       case 'social': {
@@ -282,7 +361,7 @@ function align(el, inCard, forceLeft) {
       for (const band of bands) {
         const bandEls = band.map(b => b.el);
         const iconEls = bandEls.filter(e =>
-          ['circle','lucide-icon','star'].includes(e.type) ||
+          ['circle','emoji-icon','star'].includes(e.type) ||
           (e.type === 'paragraph' && e.width <= 50)
         );
         const textEls = bandEls.filter(e =>
@@ -291,7 +370,7 @@ function align(el, inCard, forceLeft) {
         if (iconEls.length > 0 && textEls.length > 0) {
           const emojiEl  = iconEls.find(e => e.type === 'paragraph');
           const circleEl = iconEls.find(e => e.type === 'circle');
-          const lucideEl = iconEls.find(e => e.type === 'lucide-icon');
+          const emojiIconEl = iconEls.find(e => e.type === 'emoji-icon');
           const starEl   = iconEls.find(e => e.type === 'star');
 
           let iconHtml = '';
@@ -309,8 +388,12 @@ function align(el, inCard, forceLeft) {
             const emoji  = emojiEl.content || '';
             const fSize  = emojiEl.fontSize || 18;
             iconHtml = `<span style="display:inline-block;font-size:${fSize}px;line-height:1;vertical-align:middle;">${emoji}</span>`;
-          } else if (lucideEl || starEl) {
-            iconHtml = renderEl(lucideEl || starEl, true);
+          } else if (emojiIconEl) {
+            const eEmoji = emojiIconEl.emoji || '⭐';
+            const eFSize = emojiIconEl.fontSize || 24;
+            iconHtml = `<span style="display:inline-block;font-size:${eFSize}px;line-height:1;vertical-align:middle;">${eEmoji}</span>`;
+          } else if (starEl) {
+            iconHtml = renderEl(starEl, true);
           } else if (circleEl) {
             iconHtml = renderEl(circleEl, true);
           }
@@ -398,7 +481,7 @@ function align(el, inCard, forceLeft) {
 
     // Icon+heading inline pair detection
     let iconEl = null, headEl = null;
-    const iIdx = rest.findIndex(k => ['lucide-icon', 'circle', 'star'].includes(k.type));
+    const iIdx = rest.findIndex(k => ['emoji-icon', 'circle', 'star'].includes(k.type));
     if (iIdx !== -1) {
       const ic = rest[iIdx];
       const hIdx = rest.findIndex((k, i) => i !== iIdx
@@ -961,11 +1044,16 @@ router.post("/send", async (req, res) => {
     );
 
     const results = { success: [], failed: [] };
-    let actualSentCount = 0;
 
-    console.log(`📤 Sending immediate campaign to ${recipients.length} recipients`);
+    // ✅ FIX 1: Resume from where we stopped — read sentCount already saved in DB
+    const alreadySent = campaign.sentCount || 0;
+    let actualSentCount = alreadySent;
 
-    for (const r of recipients) {
+    console.log(`📤 Campaign ${campaign.id}: sending to ${recipients.length} recipients, resuming from index ${alreadySent}`);
+
+    // ✅ FIX 2: Start loop from alreadySent index — skip emails already sent
+    for (let i = alreadySent; i < recipients.length; i++) {
+      const r = recipients[i];
       const toEmail = typeof r === "string" ? r : r.email;
       if (!toEmail) continue;
       if (actualSentCount >= availableCredits) {
@@ -1014,6 +1102,16 @@ router.post("/send", async (req, res) => {
         if (response[0].statusCode >= 200 && response[0].statusCode < 300) {
           results.success.push({ email: toEmail });
           actualSentCount++;
+
+          // ✅ FIX 3: Save progress every 10 emails so restart always resumes correctly
+          if (actualSentCount % 10 === 0) {
+            await prisma.campaign.update({
+              where: { id: campaign.id },
+              data: { sentCount: actualSentCount },
+            });
+            console.log(`💾 Campaign ${campaign.id} progress saved: ${actualSentCount}/${recipients.length}`);
+          }
+
         } else {
           results.failed.push({ email: toEmail, error: `SendGrid status ${response[0].statusCode}` });
         }
