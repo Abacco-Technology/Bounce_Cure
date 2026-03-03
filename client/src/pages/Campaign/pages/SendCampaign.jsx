@@ -317,7 +317,7 @@ export default function CampaignBuilder() {
   const [canvasActivePage,         setCanvasActivePage]         = useState(0);
   const [canvasZoomLevel,          setCanvasZoomLevel]          = useState(0.6);
   const [authError,                setAuthError]                = useState(false);
-  const [batchProgress,            setBatchProgress]            = useState({ current:0, total:0 });
+  // const [batchProgress,            setBatchProgress]            = useState({ current:0, total:0 });
   const [credits,                  setCredits]                  = useState(0);
   const [recipientError,           setRecipientError]           = useState("");
   const [isCheckingEmail,          setIsCheckingEmail]          = useState(false);
@@ -329,6 +329,50 @@ export default function CampaignBuilder() {
   const [isDragging,               setIsDragging]               = useState(false);
 
   const getAuthToken = () => localStorage.getItem("token");
+  const [batchProgress, setBatchProgress] = useState({
+    campaignId: null,
+    batchCurrent: 0,
+    batchTotal: 0,
+    sentCount: 0,
+    totalRecipients: 0,
+    percentComplete: 0,
+    estimatedMinutesRemaining: 0,
+    status: null,
+  });
+
+  // ── Poll batch progress when a campaign is running ───────────
+useEffect(() => {
+  if (!batchProgress.campaignId) return;
+  if (batchProgress.status === "completed" || batchProgress.status === "failed") return;
+
+  const interval = setInterval(async () => {
+    try {
+      const res  = await fetch(`${API_URL}/campaigns/${batchProgress.campaignId}/batch-progress`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.success) return;
+
+      setBatchProgress((prev) => ({
+        ...prev,
+        batchCurrent:              data.batchCurrent,
+        batchTotal:                data.batchTotal,
+        sentCount:                 data.sentCount,
+        totalRecipients:           data.totalRecipients,
+        percentComplete:           data.percentComplete,
+        estimatedMinutesRemaining: data.estimatedMinutesRemaining,
+        status:                    data.status,
+      }));
+
+      if (data.status === "completed" || data.status === "failed") {
+        clearInterval(interval);
+      }
+    } catch { /* ignore polling errors */ }
+  }, 10000); // poll every 10 s
+
+  return () => clearInterval(interval);
+}, [batchProgress.campaignId, batchProgress.status]);
 
   /* ── draggable preview panel ────────────────────────────── */
   useEffect(() => {
@@ -382,7 +426,7 @@ export default function CampaignBuilder() {
       const token   = getAuthToken();
       const headers = { "Content-Type":"application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
+      const res = await fetch(`${API_URL}/campaigncontacts`, { headers });
       if (res.status === 401) { setAuthError(true); return; }
       if (res.ok) setContacts(await res.json());
     } catch (err) { console.error("fetchContacts error:", err); }
@@ -392,7 +436,7 @@ export default function CampaignBuilder() {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(`${API_URL}/api/campaigns/credits`, {
+        const res  = await fetch(`${API_URL}/campaigns/credits`, {
           headers: { Authorization: `Bearer ${getAuthToken()}` },
         });
         if (!res.ok) { setCredits(0); return; }
@@ -444,7 +488,7 @@ export default function CampaignBuilder() {
     if (!email?.includes("@")) { setEmailVerificationStatus(null); return; }
     setIsCheckingEmail(true); setEmailVerificationStatus(null);
     try {
-      const res  = await fetch(`${API_URL}/api/campaigns/verify-email`, {
+      const res  = await fetch(`${API_URL}/campaigns/verify-email`, {
         method:"POST",
         headers:{ "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body: JSON.stringify({ email }),
@@ -544,7 +588,7 @@ export default function CampaignBuilder() {
   /* ── upload snapshot to server ──────────────────────────── */
   const uploadSnapshot = async (base64) => {
     try {
-      const res  = await fetch(`${API_URL}/api/upload/snapshot`, {
+      const res  = await fetch(`${API_URL}/upload/snapshot`, {
         method:  "POST",
         headers: { "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body:    JSON.stringify({ imageBase64: base64 }),
@@ -570,7 +614,7 @@ export default function CampaignBuilder() {
       }
 
       // ── fetch recipients ─────────────────────────────────
-      const cRes = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
+      const cRes = await fetch(`${API_URL}/campaigncontacts`, { headers });
       if (!cRes.ok) throw new Error("Failed to fetch contacts");
       const allContacts = await cRes.json();
 
@@ -644,33 +688,62 @@ export default function CampaignBuilder() {
       // Analytics so the user can watch live progress via the polling table.
       const isLargeCampaign = recipientsList.length > 100;
 
-      if (formData.scheduleType === "immediate" && isLargeCampaign) {
-        // ── LARGE CAMPAIGN: fire-and-forget, navigate right away ──────────
-        setSendStatus({ success: true, message: "🚀 Campaign started! Redirecting to live progress…" });
+     if (formData.scheduleType === "immediate") {
+        // All immediate sends now respond instantly (batch or not)
+        // POST and capture the campaignId immediately
+        setSendStatus({ success: true, message: "🚀 Launching campaign…" });
 
-        // POST without awaiting completion — backend runs async
-        fetch(`${API_URL}/api/campaigns/send`, { method: "POST", headers, body: JSON.stringify(payload) })
-          .then(async (r) => {
-            if (r.ok) {
-              const d = await r.json().catch(() => ({}));
-              if (d.creditsRemaining !== undefined) {
-                setCredits(d.creditsRemaining);
-                localStorage.setItem("totalEmails", d.creditsRemaining);
-              }
+        try {
+          const r    = await fetch(`${API_URL}/campaigns/send`, { method: "POST", headers, body: JSON.stringify(payload) });
+          const data = await r.json().catch(() => ({}));
+
+          if (!r.ok) {
+            const msg = data?.error || data?.message || `Server error ${r.status}`;
+            if (data?.creditLimitReached || r.status === 403) {
+              setSendStatus({ success: false, message: `⚠️ ${msg}. Please upgrade.` });
+              setCredits(data?.available ?? 0);
+            } else {
+              setSendStatus({ success: false, message: `❌ ${msg}` });
             }
-          })
-          .catch((e) => console.warn("Background campaign send error:", e));
+            setIsSending(false);
+            return;
+          }
 
-        // Navigate immediately — Analytics will poll and show live status
-        // We pass campaignId via query param so Analytics can highlight/track it
-        // We don't have the campaignId yet from a fire-and-forget call,
-        // so navigate to analytics and it will auto-load the newest campaign
-        setTimeout(() => navigate("/analytics"), 1500);
+          const cid          = data.campaignId;
+          const batchTotal   = data.batchTotal   || 1;
+          const batchSize    = data.batchSize    || 2000;
+          const estMinutes   = data.estimatedMinutes || 0;
+          const total        = data.recipientCount || recipientsList.length;
+
+          // Seed batch progress for the polling hook
+          setBatchProgress({
+            campaignId:                cid,
+            batchCurrent:              1,
+            batchTotal,
+            sentCount:                 0,
+            totalRecipients:           total,
+            percentComplete:           0,
+            estimatedMinutesRemaining: estMinutes,
+            status:                    "sending",
+          });
+
+          const msg = batchTotal > 1
+            ? `🚀 ${total.toLocaleString()} emails split into ${batchTotal} batch(es) of ${batchSize.toLocaleString()}. ` +
+              `Estimated ~${estMinutes} min. Redirecting to live progress…`
+            : `🚀 Campaign started! Sending ${total.toLocaleString()} emails. Redirecting…`;
+
+          setSendStatus({ success: true, message: msg });
+          setTimeout(() => navigate(`/analytics${cid ? `?campaignId=${cid}` : ""}`), 2000);
+
+        } catch (fetchErr) {
+          setSendStatus({ success: false, message: `❌ ${fetchErr.message}` });
+          setIsSending(false);
+        }
         return;
       }
 
       // ── NORMAL SEND (small campaign or scheduled) ────────────────────
-      const res  = await fetch(`${API_URL}/api/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
+      const res  = await fetch(`${API_URL}/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
       let   data;
       try { data = await res.json(); } catch { data = null; }
 
@@ -1216,13 +1289,65 @@ export default function CampaignBuilder() {
                             </div>
                           )}
 
-                          {batchProgress.total>0 && (
-                            <div className="mt-2">
-                              <div className="w-full bg-gray-700 rounded-full h-2">
-                                <div className="bg-[#c2831f] h-2 rounded-full transition-all"
-                                     style={{ width:`${(batchProgress.current/batchProgress.total)*100}%` }}/>
+                         {/* ── Batch Progress Panel ── */}
+                          {batchProgress.batchTotal > 0 && batchProgress.status === "sending" && (
+                            <div className="mt-4 p-4 rounded-lg bg-gray-800 border border-gray-700 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm font-semibold text-[#d99c2b]">
+                                  📦 Batch {batchProgress.batchCurrent} of {batchProgress.batchTotal}
+                                </span>
+                                <span className="text-xs text-gray-400">
+                                  {batchProgress.estimatedMinutesRemaining > 0
+                                    ? `~${batchProgress.estimatedMinutesRemaining} min remaining`
+                                    : "Finishing up…"}
+                                </span>
                               </div>
-                              <p className="text-xs text-gray-400 mt-1">Batch {batchProgress.current} of {batchProgress.total}</p>
+
+                              {/* Overall progress bar */}
+                              <div>
+                                <div className="flex justify-between text-xs text-gray-400 mb-1">
+                                  <span>{batchProgress.sentCount.toLocaleString()} sent</span>
+                                  <span>{batchProgress.totalRecipients.toLocaleString()} total</span>
+                                </div>
+                                <div className="w-full bg-gray-700 rounded-full h-2.5">
+                                  <div
+                                    className="bg-[#c2831f] h-2.5 rounded-full transition-all duration-500"
+                                    style={{ width: `${batchProgress.percentComplete}%` }}
+                                  />
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1 text-right">{batchProgress.percentComplete}% complete</p>
+                              </div>
+
+                              {/* Batch strip */}
+                              <div className="flex gap-1 flex-wrap">
+                                {Array.from({ length: batchProgress.batchTotal }, (_, i) => {
+                                  const n         = i + 1;
+                                  const isDone    = n < batchProgress.batchCurrent;
+                                  const isActive  = n === batchProgress.batchCurrent;
+                                  return (
+                                    <div
+                                      key={n}
+                                      title={`Batch ${n}`}
+                                      className={`h-2 flex-1 min-w-[8px] rounded-sm transition-all duration-300 ${
+                                        isDone   ? "bg-green-500" :
+                                        isActive ? "bg-[#c2831f] animate-pulse" :
+                                                  "bg-gray-600"
+                                      }`}
+                                    />
+                                  );
+                                })}
+                              </div>
+
+                              <p className="text-xs text-gray-500">
+                                Each batch of 2,000 emails is spread evenly over 30 minutes to protect deliverability.
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Completed banner */}
+                          {batchProgress.batchTotal > 0 && batchProgress.status === "completed" && (
+                            <div className="mt-4 p-3 rounded bg-green-900/30 text-green-400 text-sm">
+                              ✅ All {batchProgress.batchTotal} batch(es) complete — {batchProgress.sentCount.toLocaleString()} emails delivered!
                             </div>
                           )}
                         </div>
