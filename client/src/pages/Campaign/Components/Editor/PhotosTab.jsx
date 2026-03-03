@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef } from "react";
 import { T, SLabel } from "../../pages/EditorPage";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 
 export default function PhotosTab({ addElement }) {
   const [urlInput, setUrlInput] = useState("");
@@ -15,7 +15,7 @@ export default function PhotosTab({ addElement }) {
   // ---------------- FETCH IMAGES ----------------
   const fetchImages = async () => {
     try {
-      const res = await fetch(`${API_URL}/files/images`, {
+      const res = await fetch(`${API_URL}/api/files/images`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -50,7 +50,7 @@ export default function PhotosTab({ addElement }) {
     try {
       setLoading(true);
 
-      const res = await fetch(`${API_URL}/files/upload`, {
+      const res = await fetch(`${API_URL}/api/files/upload`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${token}`,

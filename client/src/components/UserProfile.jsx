@@ -9,7 +9,7 @@ import { User, Mail, Camera, Upload, Edit3, Check } from "lucide-react";
 import { UserContext } from "./UserContext"; // 👈 import context
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 
 const UserProfile = () => {
   const { user, setUser } = useContext(UserContext); // 👈 use context
@@ -61,7 +61,7 @@ const UserProfile = () => {
         const imageSrc = data.profileImage
           ? data.profileImage.startsWith("data:image")
             ? data.profileImage // ✅ base64 from backend
-            : `${API_URL}/auth/profile-image/${data.id}?ts=${Date.now()}` // ✅ normal URL
+            : `${API_URL}/api/auth/profile-image/${data.id}?ts=${Date.now()}` // ✅ normal URL
           : "";
 
         setUser({
