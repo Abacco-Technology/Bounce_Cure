@@ -1520,64 +1520,108 @@ router.post("/send-shuffled", async (req, res) => {
     // ==========================================================
     // 💰 STEP 7: Deduct Credits (ONLY for immediate sends)
     // ==========================================================
-    if (scheduleType === "immediate") {
-      console.log("💰 Deducting credits after shuffled campaign...");
-      let remainingToDeduct = actualSentCount;
+    // if (scheduleType === "immediate") {
+    //   console.log("💰 Deducting credits after shuffled campaign...");
+    //   let remainingToDeduct = actualSentCount;
 
-      // Deduct from payments first (FIFO)
-      const succeededPayments = await prisma.payment.findMany({
-        where: { userId: req.user.id, status: "succeeded" },
-        orderBy: { paymentDate: "asc" },
-        select: { id: true, emailSendCredits: true },
-      });
+    //   // Deduct from payments first (FIFO)
+    //   const succeededPayments = await prisma.payment.findMany({
+    //     where: { userId: req.user.id, status: "succeeded" },
+    //     orderBy: { paymentDate: "asc" },
+    //     select: { id: true, emailSendCredits: true },
+    //   });
 
-      for (const p of succeededPayments) {
-        if (remainingToDeduct <= 0) break;
-        const current = p.emailSendCredits || 0;
-        const deduct = Math.min(current, remainingToDeduct);
-        const newCredit = Math.max(0, current - deduct);
+    //   for (const p of succeededPayments) {
+    //     if (remainingToDeduct <= 0) break;
+    //     const current = p.emailSendCredits || 0;
+    //     const deduct = Math.min(current, remainingToDeduct);
+    //     const newCredit = Math.max(0, current - deduct);
 
-        await prisma.payment.update({
-          where: { id: p.id },
-          data: { emailSendCredits: newCredit },
-        });
+    //     await prisma.payment.update({
+    //       where: { id: p.id },
+    //       data: { emailSendCredits: newCredit },
+    //     });
 
-        remainingToDeduct -= deduct;
-        console.log(`💳 Deducted ${deduct} from payment ${p.id}, remaining: ${remainingToDeduct}`);
-      }
+    //     remainingToDeduct -= deduct;
+    //     console.log(`💳 Deducted ${deduct} from payment ${p.id}, remaining: ${remainingToDeduct}`);
+    //   }
 
-      // Deduct remaining from user.emailLimit
-      const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
+    //   // Deduct remaining from user.emailLimit
+    //   const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
 
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { emailLimit: finalUserEmailLimit },
-      });
+    //   await prisma.user.update({
+    //     where: { id: req.user.id },
+    //     data: { emailLimit: finalUserEmailLimit },
+    //   });
 
-      console.log(`✅ Credits updated – user.emailLimit now ${finalUserEmailLimit}`);
+    //   console.log(`✅ Credits updated – user.emailLimit now ${finalUserEmailLimit}`);
 
-      // Calculate total remaining credits
-      const updatedPayments = await prisma.payment.findMany({
-        where: { userId: req.user.id, status: "succeeded" },
-        select: { emailSendCredits: true },
-      });
-      const remainingPaymentCredits = updatedPayments.reduce((sum, p) => sum + (p.emailSendCredits || 0), 0);
-      const totalRemainingCredits = remainingPaymentCredits + finalUserEmailLimit;
+    //   // Calculate total remaining credits
+    //   const updatedPayments = await prisma.payment.findMany({
+    //     where: { userId: req.user.id, status: "succeeded" },
+    //     select: { emailSendCredits: true },
+    //   });
+    //   const remainingPaymentCredits = updatedPayments.reduce((sum, p) => sum + (p.emailSendCredits || 0), 0);
+    //   const totalRemainingCredits = remainingPaymentCredits + finalUserEmailLimit;
 
-      // ==========================================================
-      // 📤 STEP 8: Response for IMMEDIATE send
-      // ==========================================================
-      console.log(`✅ Shuffled campaign complete - Success: ${results.success.length}, Failed: ${results.failed.length}`);
+    //   // ==========================================================
+    //   // 📤 STEP 8: Response for IMMEDIATE send
+    //   // ==========================================================
+    //   console.log(`✅ Shuffled campaign complete - Success: ${results.success.length}, Failed: ${results.failed.length}`);
 
-      return res.status(200).json({
-        success: true,
-        message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
-        results,
-        distribution: distributionResults,
-        creditsUsed: actualSentCount,
-        creditsRemaining: totalRemainingCredits,
-      });
-    }
+    //   return res.status(200).json({
+    //     success: true,
+    //     message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
+    //     results,
+    //     distribution: distributionResults,
+    //     creditsUsed: actualSentCount,
+    //     creditsRemaining: totalRemainingCredits,
+    //   });
+    // }
+    // Only deduct credits if this was immediate send
+if (scheduleType === "immediate") {
+
+  let remainingToDeduct = actualSentCount;
+
+  const succeededPayments = await prisma.payment.findMany({
+    where: { userId: req.user.id, status: "succeeded" },
+    select: { emailSendCredits: true },
+  });
+
+  const remainingPaymentCredits = succeededPayments.reduce(
+    (sum, p) => sum + (p.emailSendCredits || 0),
+    0
+  );
+
+  const finalUserEmailLimit = Math.max(
+    0,
+    (user.emailLimit ?? 0) - remainingToDeduct
+  );
+
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { emailLimit: finalUserEmailLimit },
+  });
+
+  const totalRemainingCredits =
+    remainingPaymentCredits + finalUserEmailLimit;
+
+  return res.status(200).json({
+    success: true,
+    message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
+    results,
+    distribution: distributionResults,
+    creditsUsed: actualSentCount,
+    creditsRemaining: totalRemainingCredits,
+  });
+}
+
+// If scheduled
+return res.status(200).json({
+  success: true,
+  message: "Shuffled campaign scheduled successfully",
+  distribution: distributionResults,
+});
     // Deduct remaining from user.emailLimit
     const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
 
