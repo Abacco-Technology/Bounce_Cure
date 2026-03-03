@@ -5,7 +5,7 @@ import { UserContext } from '../../components/UserContext';
 import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Zap, Users, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const Signin = () => {
@@ -56,7 +56,7 @@ const Signin = () => {
         setError('');
 
         try {
-            const res = await fetch(`${API_URL}/auth/login`, {
+            const res = await fetch(`${API_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData)
@@ -139,7 +139,7 @@ const Signin = () => {
         }
 
         try {
-            const res = await fetch(`${API_URL}/auth/google`, {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",

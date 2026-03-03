@@ -4,7 +4,7 @@ import PageLayout from '../../components/PageLayout';
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const ModernSignup = () => {
@@ -72,7 +72,7 @@ const ModernSignup = () => {
             const idToken = response.credential;
             if (!idToken) return toast.error("Google sign-up failed: no token");
 
-            const res = await fetch(`${API_URL}/auth/google`, {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ idToken }),
@@ -102,7 +102,7 @@ const ModernSignup = () => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         try {
-            const res = await fetch(`${API_URL}/auth/signup`, {
+            const res = await fetch(`${API_URL}/api/auth/signup`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(formData)

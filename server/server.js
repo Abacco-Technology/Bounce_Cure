@@ -203,8 +203,8 @@ app.use("/api/auth", passwordRoutes); // Optional, combine with authRoutes if de
 app.use("/api/saved-templates", savedTemplatesRouter);
 
 // Dashboard & verification
-app.use("/dashboard", dashboardCRM);
-app.use("/verification", protect, verificationRoutes);
+app.use("/api/dashboard", dashboardCRM);
+app.use("/api/verification", protect, verificationRoutes);
 app.use("/api", dashboardRoutes);
 app.use("/api/webhooks", webhookRoutes);
 
@@ -227,13 +227,13 @@ app.use("/api/automation", protect, campaignsAutoRouter);
 app.use('/api/sendContacts', protect, sendContactsRoutes);
 app.use('/api/sendCampaigns', protect, sendCampaignsRoutes);
 app.use('/api/multimedia', protect, multimediaRoutes);
-app.use("/tasks", protect, taskRoutes);
-app.use("/deals", protect, dealsRoutes);
+app.use("/api/tasks", protect, taskRoutes);
+app.use("/api/deals", protect, dealsRoutes);
 app.use("/api/leads", protect, leadsRouter);
-app.use("/lists", protect, listRoutes);
-app.use("/contact", protect, contactCRMRoutes);
-app.use("/orders", protect, orderRoutes);
-app.use("/stats", protect, crmDashRoutes);
+app.use("/api/lists", protect, listRoutes);
+app.use("/api/contact", protect, contactCRMRoutes);
+app.use("/api/orders", protect, orderRoutes);
+app.use("/api/stats", protect, crmDashRoutes);
 app.use("/api/emails", protect, emailsRouter);
 app.use("/api/accounts", protect, accountsRouter);
 app.use("/api/auth", accountsAuthRoutes);

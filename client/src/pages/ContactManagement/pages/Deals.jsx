@@ -59,7 +59,7 @@ function Deals() {
       let res;
       if (editingId) {
         // Update existing deal
-        res = await fetch(`${API_URL}/deals/${editingId}`, {
+        res = await fetch(`${API_URL}/api/deals/${editingId}`, {
           method: "PUT",
           headers,
           body: JSON.stringify({
@@ -81,7 +81,7 @@ function Deals() {
         setEditingId(null);
       } else {
         // Add new deal
-        res = await fetch(`${API_URL}/deals`, {
+        res = await fetch(`${API_URL}/api/deals`, {
           method: "POST",
           headers,
           body: JSON.stringify({
@@ -130,7 +130,7 @@ function Deals() {
   //   if (!newDeal.name.trim() || !newDeal.client.trim()) return;
 
   //   try {
-  //     const res = await fetch(`${API_URL}/deals`, {
+  //     const res = await fetch(`${API_URL}/api/deals`, {
   //       method: "POST",
   //       headers: {
   //         "Content-Type": "application/json",
@@ -164,7 +164,7 @@ function Deals() {
     try {
       const token = localStorage.getItem("token");
 
-      const res = await fetch(`${API_URL}/deals/${id}`, {
+      const res = await fetch(`${API_URL}/api/deals/${id}`, {
         method: "DELETE",
         headers: {
           ...(token && { Authorization: `Bearer ${token}` }),
@@ -208,7 +208,7 @@ function Deals() {
           return;
         }
 
-        const res = await fetch(`${API_URL}/deals`, {
+        const res = await fetch(`${API_URL}/api/deals`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },
