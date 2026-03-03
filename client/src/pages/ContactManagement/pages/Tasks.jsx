@@ -55,7 +55,7 @@ function Tasks() {
     try {
       if (editingId) {
         // EDIT existing task (PUT)
-        const res = await fetch(`${API_URL}/tasks/${editingId}`, {
+        const res = await fetch(`${API_URL}/api/tasks/${editingId}`, {
           method: "PUT",
           headers: {
             ...getAuthHeaders(),
@@ -74,7 +74,7 @@ function Tasks() {
         setEditingId(null);
       } else {
         // ADD new task (POST)
-        const res = await fetch(`${API_URL}/tasks`, {
+        const res = await fetch(`${API_URL}/api/tasks`, {
           method: "POST",
           headers: {
             ...getAuthHeaders(),
@@ -112,7 +112,7 @@ function Tasks() {
     if (!window.confirm("Are you sure you want to delete this task?")) return;
 
     try {
-      const res = await fetch(`${API_URL}/tasks/${id}`, {
+      const res = await fetch(`${API_URL}/api/tasks/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders()
       });
@@ -249,7 +249,7 @@ function Tasks() {
       setError(null);
       
       try {
-        const res = await fetch(`${API_URL}/tasks`, {
+        const res = await fetch(`${API_URL}/api/tasks`, {
           headers: getAuthHeaders()
         });
         

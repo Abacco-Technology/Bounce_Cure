@@ -15,13 +15,13 @@ export default function ResetPasswordPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const API_URL = import.meta.env.VITE_API_URL;
+  const API_URL = import.meta.env.VITE_VRI_URL;
 
   // Check if token is valid on page load
   useEffect(() => {
     const verifyToken = async () => {
       try {
-        const res = await fetch(`${API_URL}/auth/reset-password/${token}`);
+        const res = await fetch(`${API_URL}/api/auth/reset-password/${token}`);
         const data = await res.json();
 
         if (res.ok) {
@@ -50,7 +50,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
 
     try {
-      const res = await fetch(`${API_URL}/auth/reset-password/${token}`, {
+      const res = await fetch(`${API_URL}/api/auth/reset-password/${token}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),

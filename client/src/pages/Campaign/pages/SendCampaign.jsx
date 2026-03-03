@@ -10,7 +10,7 @@ import ShuffleSubjectModal from "../Components/ShuffleSubjectModal";
 import { Shuffle } from "lucide-react";
 
 // ✅ FIX: Was VITE_VRI_URL (typo) — now correctly VITE_API_URL
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 
 const steps = [
   { id: "recipients", title: "To",       description: "Choose who to send to",  icon: Users    },
@@ -347,7 +347,7 @@ useEffect(() => {
 
   const interval = setInterval(async () => {
     try {
-      const res  = await fetch(`${API_URL}/campaigns/${batchProgress.campaignId}/batch-progress`, {
+      const res  = await fetch(`${API_URL}/api/campaigns/${batchProgress.campaignId}/batch-progress`, {
         headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       if (!res.ok) return;
@@ -694,7 +694,7 @@ useEffect(() => {
         setSendStatus({ success: true, message: "🚀 Launching campaign…" });
 
         try {
-          const r    = await fetch(`${API_URL}/campaigns/send`, { method: "POST", headers, body: JSON.stringify(payload) });
+          const r    = await fetch(`${API_URL}/api/campaigns/send`, { method: "POST", headers, body: JSON.stringify(payload) });
           const data = await r.json().catch(() => ({}));
 
           if (!r.ok) {

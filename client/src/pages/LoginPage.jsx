@@ -4,7 +4,9 @@ import { Mail, Lock, Eye, EyeOff, ArrowRight, Shield, Zap, Users, CheckCircle } 
 import PageLayout from '../components/PageLayout';
 import { useNavigate } from "react-router-dom";
 import toast from 'react-hot-toast';
-const API_URL = import.meta.env.VITE_API_URL;
+
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 const ModernLogin = () => {
@@ -55,7 +57,7 @@ const ModernLogin = () => {
         }
 
         try {
-            const res = await fetch(`${API_URL}/auth/google`, {
+            const res = await fetch(`${API_URL}/api/auth/google`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
@@ -77,7 +79,7 @@ const ModernLogin = () => {
                 if (data.user?.id) {
                     console.log("🔍 Fetching plan for Google user:", data.user.id);
                     try {
-                        const planRes = await fetch(`${API_URL}/user/${data.user.id}/plan`);
+                        const planRes = await fetch(`${API_URL}/api/user/${data.user.id}/plan`);
                         const planData = await planRes.json();
                         console.log("📊 Google user plan fetched:", planData);
 
@@ -126,7 +128,7 @@ const ModernLogin = () => {
         console.log("🚀 Login submitted:", formData);
 
         try {
-            const res = await fetch(`${API_URL}/auth/login`, {
+            const res = await fetch(`${API_URL}/api/auth/login`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(formData),
@@ -153,7 +155,7 @@ const ModernLogin = () => {
                 if (data.user?.id) {
                     console.log("🔍 Fetching plan for user ID:", data.user.id);
                     try {
-                        const planRes = await fetch(`${API_URL}/user/${data.user.id}/plan`);
+                        const planRes = await fetch(`${API_URL}/api/user/${data.user.id}/plan`);
                         const planData = await planRes.json();
                         console.log("📊 User plan fetched:", planData);
 

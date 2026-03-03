@@ -349,7 +349,7 @@ export default function Analytics() {
   const fetchCampaigns = async () => {
     try {
       const token = localStorage.getItem("token");
-      const res   = await fetch(`${API_URL}/campaigns`, {
+      const res   = await fetch(`${API_URL}/api/campaigns`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
