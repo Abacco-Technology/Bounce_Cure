@@ -426,7 +426,7 @@ useEffect(() => {
       const token   = getAuthToken();
       const headers = { "Content-Type":"application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
+      const res = await fetch(`${API_URL}/campaigncontacts`, { headers });
       if (res.status === 401) { setAuthError(true); return; }
       if (res.ok) setContacts(await res.json());
     } catch (err) { console.error("fetchContacts error:", err); }
@@ -436,7 +436,7 @@ useEffect(() => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(`${API_URL}/api/campaigns/credits`, {
+        const res  = await fetch(`${API_URL}/campaigns/credits`, {
           headers: { Authorization: `Bearer ${getAuthToken()}` },
         });
         if (!res.ok) { setCredits(0); return; }
@@ -488,7 +488,7 @@ useEffect(() => {
     if (!email?.includes("@")) { setEmailVerificationStatus(null); return; }
     setIsCheckingEmail(true); setEmailVerificationStatus(null);
     try {
-      const res  = await fetch(`${API_URL}/api/campaigns/verify-email`, {
+      const res  = await fetch(`${API_URL}/campaigns/verify-email`, {
         method:"POST",
         headers:{ "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body: JSON.stringify({ email }),
@@ -588,7 +588,7 @@ useEffect(() => {
   /* ── upload snapshot to server ──────────────────────────── */
   const uploadSnapshot = async (base64) => {
     try {
-      const res  = await fetch(`${API_URL}/api/upload/snapshot`, {
+      const res  = await fetch(`${API_URL}/upload/snapshot`, {
         method:  "POST",
         headers: { "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body:    JSON.stringify({ imageBase64: base64 }),
@@ -614,7 +614,7 @@ useEffect(() => {
       }
 
       // ── fetch recipients ─────────────────────────────────
-      const cRes = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
+      const cRes = await fetch(`${API_URL}/campaigncontacts`, { headers });
       if (!cRes.ok) throw new Error("Failed to fetch contacts");
       const allContacts = await cRes.json();
 
@@ -743,7 +743,7 @@ useEffect(() => {
       }
 
       // ── NORMAL SEND (small campaign or scheduled) ────────────────────
-      const res  = await fetch(`${API_URL}/api/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
+      const res  = await fetch(`${API_URL}/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
       let   data;
       try { data = await res.json(); } catch { data = null; }
 
