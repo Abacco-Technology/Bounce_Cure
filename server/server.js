@@ -25,7 +25,7 @@ import sendCampaignsRoutes from "./routes/CampaignRoutes.js";
 import taskRoutes from "./routes/tasks.js";
 import dealsRoutes from "./routes/deals.js";
 import { router as campaignContactsRoutes } from './routes/contacts.js';
-import { router as campaignsRoutes } from './routes/campaigns.js';
+import { router as campaignsRoutes, resumeStuckCampaigns } from './routes/campaigns.js';
 import leadsRouter from "./routes/leads.js";
 import listRoutes from "./routes/listRoutes.js";
 import orderRoutes from "./routes/ordersRoutes.js";
@@ -88,6 +88,10 @@ dotenv.config();
 
 // Init
 startEmailScheduler();
+
+// ✅ On every server restart, resume any campaign stuck mid-send
+// 3s delay ensures Prisma/DB is fully connected first
+setTimeout(() => resumeStuckCampaigns(), 3000);
 const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -113,25 +117,34 @@ const allowedOrigins = [
   "http://localhost:5174",
   "https://www.bouncecure.com",
 ];
-
 app.use(
   cors({
-    origin(origin, callback) {
-      // Allow requests with no origin (e.g. Postman, mobile apps)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.includes(origin)) return callback(null, true);
-      console.warn(`❌ Blocked by CORS: ${origin}`);
-      return callback(new Error("Not allowed by CORS"));
-    },
-    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"], // ✅ key fix
+    origin: true,        // automatically reflect request origin
     credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
+// app.use(
+//   cors({
+//     origin(origin, callback) {
+//        if (!origin) return callback(null, true);
+//       if (allowedOrigins.includes(origin)) return callback(null, true);
+//       console.warn(`❌ Blocked by CORS: ${origin}`);
+//       return callback(new Error("Not allowed by CORS"));
+//     },
+//     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+//     allowedHeaders: ["Content-Type", "Authorization"],  
+//     credentials: true,
+//     preflightContinue: false,
+//     optionsSuccessStatus: 204,
+//   })
+// );
+
 // ✅ Optional: explicitly handle OPTIONS requests
+
+
 app.options("*", cors());
 
 
@@ -190,8 +203,8 @@ app.use("/api/auth", passwordRoutes); // Optional, combine with authRoutes if de
 app.use("/api/saved-templates", savedTemplatesRouter);
 
 // Dashboard & verification
-app.use("/dashboard", dashboardCRM);
-app.use("/verification", protect, verificationRoutes);
+app.use("/api/dashboard", dashboardCRM);
+app.use("/api/verification", protect, verificationRoutes);
 app.use("/api", dashboardRoutes);
 app.use("/api/webhooks", webhookRoutes);
 
@@ -214,13 +227,13 @@ app.use("/api/automation", protect, campaignsAutoRouter);
 app.use('/api/sendContacts', protect, sendContactsRoutes);
 app.use('/api/sendCampaigns', protect, sendCampaignsRoutes);
 app.use('/api/multimedia', protect, multimediaRoutes);
-app.use("/tasks", protect, taskRoutes);
-app.use("/deals", protect, dealsRoutes);
+app.use("/api/tasks", protect, taskRoutes);
+app.use("/api/deals", protect, dealsRoutes);
 app.use("/api/leads", protect, leadsRouter);
-app.use("/lists", protect, listRoutes);
-app.use("/contact", protect, contactCRMRoutes);
-app.use("/orders", protect, orderRoutes);
-app.use("/stats", protect, crmDashRoutes);
+app.use("/api/lists", protect, listRoutes);
+app.use("/api/contact", protect, contactCRMRoutes);
+app.use("/api/orders", protect, orderRoutes);
+app.use("/api/stats", protect, crmDashRoutes);
 app.use("/api/emails", protect, emailsRouter);
 app.use("/api/accounts", protect, accountsRouter);
 app.use("/api/auth", accountsAuthRoutes);

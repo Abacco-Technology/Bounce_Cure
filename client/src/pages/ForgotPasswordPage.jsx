@@ -3,7 +3,7 @@ import { Mail, ArrowRight, Shield, Clock, CheckCircle, ArrowLeft, RefreshCw, Loc
 import PageLayout from '../components/PageLayout';
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_API_URL; 
+const API_URL = import.meta.env.VITE_VRI_URL; 
 
 const ModernForgotPassword = () => {
     const [email, setEmail] = useState('');
@@ -30,7 +30,7 @@ const ModernForgotPassword = () => {
         setError('');
 
         try {
-            const res = await fetch(`${API_URL}/auth/forgot-password`, {
+            const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
@@ -59,7 +59,7 @@ const ModernForgotPassword = () => {
         setError('');
 
         try {
-            const res = await fetch(`${API_URL}/auth/forgot-password`, {
+            const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),

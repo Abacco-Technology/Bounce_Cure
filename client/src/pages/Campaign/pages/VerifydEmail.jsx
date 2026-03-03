@@ -29,7 +29,7 @@ function VerifyEmail() {
       console.log("🔍 Starting verification process...");
       console.log("📩 Token from URL:", token);
 
-      const response = await fetch(`${API_URL}/verified-emails/verify/${token}`, {
+      const response = await fetch(`${API_URL}/api/verified-emails/verify/${token}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -64,7 +64,7 @@ function VerifyEmail() {
     if (!email) return alert('Please enter your email address');
 
     try {
-      const response = await fetch(`${API_URL}/verified-emails/send-verification`, {
+      const response = await fetch(`${API_URL}/api/verified-emails/send-verification`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })

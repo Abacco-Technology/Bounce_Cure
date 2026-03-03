@@ -10,7 +10,6 @@
  */
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { T } from "../../pages/EditorPage";
-import { lucideSrc } from "./Toolbox";
 
 const TEXT_TYPES = ["heading","subheading","paragraph","blockquote","button"];
 
@@ -65,6 +64,7 @@ export default function CanvasArea({
   const [dragging,    setDragging]   = useState(false);
   const [resizing,    setResizing]   = useState(false);
   const [pageHeights, setPageHeights]= useState({});
+  const [manualHeights, setManualHeights] = useState({}); // tracks pages where user manually resized
   const heightDragRef = useRef(null);
   const [heightDragging, setHeightDragging] = useState(false);
   const [ctxMenu,     setCtxMenu]    = useState(null);
@@ -72,7 +72,19 @@ export default function CanvasArea({
   const elements = pages[activePage]?.elements || [];
   const bgColor  = pages[activePage]?.bgColor  || "#ffffff";
   const pageId   = pages[activePage]?.id;
-  const canvasH  = pageHeights[pageId] || DEFAULT_H;
+
+  // Auto-calculate canvas height from element bounds (only if user hasn't manually resized this page)
+  const autoHeight = React.useMemo(() => {
+    if (!elements.length) return DEFAULT_H;
+    let maxBottom = DEFAULT_H;
+    elements.forEach(el => {
+      const bottom = (el.y || 0) + (el.height || 0);
+      if (bottom > maxBottom) maxBottom = bottom;
+    });
+    return Math.max(MIN_H, maxBottom + 60); // 60px padding at bottom
+  }, [elements]);
+
+  const canvasH = manualHeights[pageId] !== undefined ? manualHeights[pageId] : autoHeight;
 
   const toCanvas = useCallback((clientX, clientY) => {
     const rect = canvasRef.current?.getBoundingClientRect();
@@ -114,9 +126,9 @@ export default function CanvasArea({
         updateEl(id, { x:nx, y:ny, width:nw, height:nh });
       }
       if (heightDragRef.current) {
-        const { startY, startH } = heightDragRef.current;
+        const { startY, startH, pageId: dragPageId } = heightDragRef.current;
         const newH = Math.max(MIN_H, startH + (e.clientY - startY));
-        setPageHeights(ph => ({ ...ph, [pageId]: newH }));
+        setManualHeights(mh => ({ ...mh, [dragPageId]: newH }));
       }
     };
 
@@ -391,32 +403,7 @@ function HeightGrip({ onMouseDown, active }) {
   );
 }
 
-// ── Converts hex color to accurate CSS filter so lucide SVG icons tint correctly ─
-function hexToFilter(hex) {
-  try {
-    if (!hex || hex === "#000" || hex === "#000000") return "none";
-    const r = parseInt(hex.slice(1,3),16)/255;
-    const g = parseInt(hex.slice(3,5),16)/255;
-    const b = parseInt(hex.slice(5,7),16)/255;
 
-    // Convert RGB → HSL
-    const max=Math.max(r,g,b), min=Math.min(r,g,b), d=max-min;
-    let h=0, s=0;
-    const l=(max+min)/2;
-    if (d!==0) {
-      s = l>0.5 ? d/(2-max-min) : d/(max+min);
-      h = max===r ? ((g-b)/d + (g<b?6:0))/6
-        : max===g ? ((b-r)/d + 2)/6
-        : ((r-g)/d + 4)/6;
-    }
-    const hDeg = Math.round(h*360);
-    const sPct = Math.round(s*100);
-    const lPct = Math.round(l*100);
-
-    // Start from black (SVG default), invert to white, then sepia+saturate+hue+brightness to hit target color
-    return `invert(${lPct<50?1:0}) sepia(1) saturate(${Math.max(sPct*2,100)}%) hue-rotate(${hDeg}deg) brightness(${lPct<50?0.6+lPct/100:0.8+lPct/200})`;
-  } catch { return "none"; }
-}
 
 // ── Single canvas element ─────────────────────────────────────────────────────
 function CanvasEl({ el, selected, editing, editText, onEditChange, onEditBlur, onMouseDown, onDblClick, onHandleDown, onRightClick }) {
@@ -498,16 +485,14 @@ function CanvasEl({ el, selected, editing, editText, onEditChange, onEditBlur, o
         <img src={el.src} alt={el.platform} draggable={false}
           style={{ width:"100%", height:"100%", objectFit:"contain", display:"block", pointerEvents:"none" }} />
       )}
-      {!editing && el.type==="lucide-icon" && (
-        <img
-          src={lucideSrc(el.iconName||"star")}
-          alt={el.iconName}
-          draggable={false}
-          style={{
-            width:"100%", height:"100%", display:"block", pointerEvents:"none",
-            filter: hexToFilter(el.iconColor),
-          }}
-        />
+      {!editing && el.type==="emoji-icon" && (
+        <div style={{
+          width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center",
+          fontSize: el.fontSize || Math.min(el.width, el.height) * 0.7,
+          lineHeight:1, pointerEvents:"none", userSelect:"none",
+        }}>
+          {el.emoji || "⭐"}
+        </div>
       )}
       {!editing && el.type==="line" && (
         <div style={{ position:"absolute", top:"50%", left:0, transform:"translateY(-50%)", width:"100%", height:el.strokeWidth||3, background:el.strokeColor||T.gold, borderRadius:999 }} />
