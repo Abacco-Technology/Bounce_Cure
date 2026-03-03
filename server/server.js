@@ -82,6 +82,8 @@ import campaignUserMails from "./routes/campaignUserMails.js";
 import { startCampaignScheduler } from "./services/campaignScheduler.js";
 import userCredit from "./routes/userRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
+import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
+
 dotenv.config();
 
 // Init
@@ -114,8 +116,6 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "https://www.bouncecure.com",
-  "https://bouncecure.com",
-  "https://bouncecure-ui.onrender.com"
 ];
 app.use(
   cors({
@@ -279,10 +279,6 @@ app.use("/api/files", uploadRoutes);
 // Socket service
 initSocket(io);
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`✅ Server started on port ${PORT}`);
-});
 
 // Email verification route
 app.get('/verify-email', async (req, res) => {
@@ -348,8 +344,23 @@ app.get('/verify-email', async (req, res) => {
 });
 
 
-import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
 
 // After all your routes are set up and before app.listen():
 // Start the scheduled campaign cron job
 startScheduledCampaignCron();
+
+// 🔥 Global crash protection
+process.on("uncaughtException", (err) => {
+  console.error("🔥 UNCAUGHT EXCEPTION:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("🔥 UNHANDLED REJECTION:", err);
+});
+
+// Start server
+server.listen(PORT, () => {
+  console.log(`✅ Server started on port ${PORT}`);
+});
+
+ 
