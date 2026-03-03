@@ -8,26 +8,20 @@ const router = express.Router();
 router.use(protect);
 
 // ================================================================
-// ✅ RESUME ENGINE — call once from server.js on startup:
-//    import { resumeStuckCampaigns } from "./routes/campaigns.js";
-//    setTimeout(() => resumeStuckCampaigns(), 3000);
+// 📦 BATCH CONFIGURATION
 // ================================================================
+const BATCH_SIZE        = 2000;           // emails per batch
+const BATCH_DURATION_MS = 30 * 60 * 1000; // 30 minutes per batch
+
 export async function resumeStuckCampaigns() {
   try {
     const stuck = await prisma.campaign.findMany({
       where: { status: { in: ["sending", "processing"] } },
     });
-
-    if (stuck.length === 0) {
-      console.log("✅ Startup: no stuck campaigns");
-      return;
-    }
-
+    if (stuck.length === 0) { console.log("✅ Startup: no stuck campaigns"); return; }
     console.log(`🔄 Startup: resuming ${stuck.length} stuck campaign(s)`);
-
     for (const c of stuck) {
-      console.log(`▶️  Campaign ${c.id} "${c.name}" — already sent: ${c.sentCount}, will resume from there`);
-      _resumeSend(c).catch((e) =>
+      _sendInBatches(c, null).catch((e) =>
         console.error(`❌ Resume error campaign ${c.id}:`, e.message)
       );
     }
@@ -36,60 +30,137 @@ export async function resumeStuckCampaigns() {
   }
 }
 
-async function _resumeSend(campaign) {
+async function _sendInBatches(campaign, buildMessage) {
   if (!process.env.SENDGRID_API_KEY) return;
   sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
   let recipients = [];
   try { recipients = JSON.parse(campaign.recipientsJson || "[]"); } catch { return; }
 
-  const startFrom = campaign.sentCount || 0;
-  let count = startFrom;
-  console.log(`▶️  _resumeSend: campaign ${campaign.id} starting at index ${startFrom}/${recipients.length}`);
+  const totalRecipients = recipients.length;
+  const totalBatches    = Math.ceil(totalRecipients / BATCH_SIZE);
 
-  for (let i = startFrom; i < recipients.length; i++) {
-    const r = recipients[i];
-    const toEmail = typeof r === "string" ? r : r?.email;
-    if (!toEmail) continue;
+  // Resume from batch in DB — default to 1 (not 0) since batches are 1-indexed
+  const startBatch = Math.max(1, campaign.currentBatch || 1);
+  let   totalSent  = campaign.sentCount || 0;
 
-    try {
-      await sgMail.send({
-        to: toEmail,
-        from: { name: campaign.fromName, email: campaign.fromEmail },
-        replyTo: campaign.replyToEmail || campaign.fromEmail,
-        subject: campaign.subject,
-        html: `<p>${campaign.subject}</p>`,
-        trackingSettings: { clickTracking: { enable: true }, openTracking: { enable: true } },
-        customArgs: { campaignId: campaign.id.toString() },
-        categories: [`campaign_${campaign.id}`],
-      });
-      count++;
-    } catch (e) {
-      console.error(`❌ Resume send ${toEmail}:`, e.message);
-    }
+  console.log(`🚀 Campaign ${campaign.id} | ${totalRecipients} recipients | ${totalBatches} batches | Starting at batch ${startBatch}`);
 
-    // Save every 10
-    if (count % 10 === 0) {
-      await prisma.campaign.update({
-        where: { id: campaign.id },
-        data: { sentCount: count },
-      });
-    }
-    await new Promise((r) => setTimeout(r, 200));
-  }
-
+  // ── Initialize batch metadata in DB ───────────────────────────
   await prisma.campaign.update({
     where: { id: campaign.id },
     data: {
-      sentCount: count,
-      status: count >= recipients.length ? "completed" : "failed",
+      totalBatches: totalBatches,
+      currentBatch: startBatch, 
+      pending:      totalRecipients - totalSent,  // ✅ use pending field
+      status:       "sending",
     },
   });
-  console.log(`✅ Campaign ${campaign.id} resume complete: ${count}/${recipients.length} sent`);
+
+  for (let batchNum = startBatch; batchNum <= totalBatches; batchNum++) {
+    const batchStart  = (batchNum - 1) * BATCH_SIZE;
+    const batchEnd    = Math.min(batchStart + BATCH_SIZE, totalRecipients);
+    const batchEmails = recipients.slice(batchStart, batchEnd);
+    const batchCount  = batchEmails.length;
+
+    // ✅ Spread batchCount emails evenly over 30 minutes
+    // 2000 emails → 900ms delay each = exactly 30 min
+    //  500 emails → 3600ms delay each = exactly 30 min
+    const delayPerEmail = Math.floor(BATCH_DURATION_MS / batchCount);
+
+    console.log(`\n📦 Batch ${batchNum}/${totalBatches} | emails ${batchStart + 1}–${batchEnd} | delay: ${delayPerEmail}ms/email`);
+
+    // Update currentBatch so Analytics shows live progress
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data:  { currentBatch: batchNum },
+    });
+
+    let batchSent   = 0;
+    let batchFailed = 0;
+
+    for (let i = 0; i < batchEmails.length; i++) {
+      const r       = batchEmails[i];
+      const toEmail = typeof r === "string" ? r : r?.email;
+      if (!toEmail) continue;
+
+      const msg = buildMessage
+        ? buildMessage(toEmail)
+        : {
+            to:      toEmail,
+            from:    { name: campaign.fromName, email: campaign.fromEmail },
+            replyTo: campaign.replyToEmail || campaign.fromEmail,
+            subject: campaign.subject,
+            html:    `<p>${campaign.subject}</p>`,
+            trackingSettings: {
+              clickTracking: { enable: true },
+              openTracking:  { enable: true },
+            },
+            customArgs: { campaignId: campaign.id.toString() },
+            categories: [`campaign_${campaign.id}`],
+          };
+
+      try {
+        const response = await sgMail.send(msg);
+        if (response[0].statusCode >= 200 && response[0].statusCode < 300) {
+          batchSent++;
+          totalSent++;
+        } else {
+          batchFailed++;
+          console.error(`⚠️  Status ${response[0].statusCode} for ${toEmail}`);
+        }
+      } catch (e) {
+        batchFailed++;
+        console.error(`❌ ${toEmail}:`, e.response?.body?.errors?.[0]?.message || e.message);
+      }
+
+      // ✅ Save progress + update pending every 50 emails
+      if ((i + 1) % 50 === 0) {
+        await prisma.campaign.update({
+          where: { id: campaign.id },
+          data: {
+            sentCount: totalSent,
+            pending:   totalRecipients - totalSent,  // ✅ keep pending in sync
+          },
+        });
+        console.log(`   💾 batch ${batchNum} | ${i + 1}/${batchCount} | totalSent: ${totalSent} | pending: ${totalRecipients - totalSent}`);
+      }
+
+      // ✅ THE CRITICAL THROTTLE — spaces emails over 30 minutes
+      await new Promise((resolve) => setTimeout(resolve, delayPerEmail));
+    }
+
+    // Save after each batch finishes
+    await prisma.campaign.update({
+      where: { id: campaign.id },
+      data: {
+        sentCount: totalSent,
+        pending:   totalRecipients - totalSent,  // ✅
+      },
+    });
+
+    console.log(`✅ Batch ${batchNum}/${totalBatches} done | sent: ${batchSent} | failed: ${batchFailed} | totalSent: ${totalSent}`);
+
+    // 5s pause between batches
+    if (batchNum < totalBatches) {
+      console.log(`⏸  Pausing 5s before batch ${batchNum + 1}…`);
+      await new Promise((r) => setTimeout(r, 5000));
+    }
+  }
+
+  // ── Mark campaign fully complete ───────────────────────────────
+  await prisma.campaign.update({
+    where: { id: campaign.id },
+    data: {
+      sentCount:    totalSent,
+      currentBatch: totalBatches,
+      pending:      0,             // ✅ zero out pending when done
+      status:       totalSent > 0 ? "completed" : "failed",
+    },
+  });
+
+  console.log(`🎉 Campaign ${campaign.id} COMPLETE | ${totalSent}/${totalRecipients} sent across ${totalBatches} batch(es)`);
 }
-
-
-
 const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail, bgColorOverride) => {
 
   /* ── EMPTY FALLBACK ─────────────────────────────────────────── */
@@ -758,12 +829,6 @@ function align(el, inCard, forceLeft) {
   return html;
 };
 
-
-
-
-/* ==========================================================
-   HTML + Plain Text Generators
-========================================================== */
 const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, replyToEmail) => {
   let plainText = `${subject}\n\n`;
   if (!canvasData || canvasData.length === 0) {
@@ -792,9 +857,6 @@ const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, r
   return plainText;
 };
 
-/* ==========================================================
-   ✅ GET USER CREDITS (Accumulated from all payments)
-========================================================== */
 router.get("/credits", async (req, res) => {
   try {
     console.log("📊 Fetching accumulated credits for user:", req.user.id);
@@ -825,11 +887,11 @@ router.get("/credits", async (req, res) => {
   }
 });
 
-
 router.post("/send", async (req, res) => {
   try {
     console.log("📨 /api/campaigns/send called by user:", req.user?.id);
 
+    // ✅ STEP 0: Destructure FIRST before using any variables
     const {
       recipients,
       fromEmail,
@@ -865,8 +927,13 @@ router.post("/send", async (req, res) => {
       return res.status(400).json({ error: "Sender address is required" });
     }
 
-
     const emailSubject = subject?.trim() || "Untitled Campaign";
+
+    // ✅ Now safe to compute batch info (recipients is defined)
+    const BATCH_SIZE    = 2000;
+    const BATCH_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+    const totalBatches  = Math.ceil(recipients.length / BATCH_SIZE);
+    const estimatedMinutes = totalBatches * (BATCH_DURATION_MS / 60000);
 
     // ==========================================================
     // 🧮 STEP 1: Credit Validation
@@ -884,7 +951,7 @@ router.post("/send", async (req, res) => {
     });
 
     const availableCredits = (user?.emailLimit ?? 0) + totalPaymentCredits;
-    const requiredCredits = recipients.length;
+    const requiredCredits  = recipients.length;
 
     console.log(`📊 Credits check - Available: ${availableCredits}, Required: ${requiredCredits}`);
 
@@ -922,40 +989,42 @@ router.post("/send", async (req, res) => {
     }
 
     // ==========================================================
-    // 💾 STEP 4: Create Campaign Record
+    // 💾 STEP 4: Create Campaign Record (with batch fields)
     // ==========================================================
     const campaign = await prisma.campaign.create({
       data: {
-        userId: req.user.id,
-        name: emailSubject,
-        subject: emailSubject,
+        userId:            req.user.id,
+        name:              emailSubject,
+        subject:           emailSubject,
         fromEmail,
         fromName,
         replyToEmail,
         fromAddress,
         scheduleType,
-        designJson: JSON.stringify(canvasData || []),
-        recipientsJson: JSON.stringify(recipients),
-        scheduledAt: scheduledDateTime,
+        designJson:        JSON.stringify(canvasData || []),
+        recipientsJson:    JSON.stringify(recipients),
+        scheduledAt:       scheduledDateTime,
         recurringFrequency: scheduleType === "recurring" ? recurringFrequency : null,
-        recurringDays: scheduleType === "recurring" ? JSON.stringify(recurringDays || []) : null,
-        recurringEndDate: scheduleType === "recurring" && recurringEndDate ? new Date(recurringEndDate) : null,
-        status: scheduleType === "immediate" ? "sending" : "scheduled",
+        recurringDays:     scheduleType === "recurring" ? JSON.stringify(recurringDays || []) : null,
+        recurringEndDate:  scheduleType === "recurring" && recurringEndDate ? new Date(recurringEndDate) : null,
+        status:            scheduleType === "immediate" ? "sending" : "scheduled",
+        totalBatches: totalBatches,
+        currentBatch: 1,
       },
     });
 
-    console.log(`✅ Campaign ${campaign.id} created with scheduleType: ${scheduleType}`);
+    console.log(`✅ Campaign ${campaign.id} created | recipients: ${recipients.length} | batches: ${totalBatches} | scheduleType: ${scheduleType}`);
 
     // ==========================================================
-    // 🕒 STEP 5: If scheduled or recurring → Save only
+    // 🕒 STEP 5: If scheduled or recurring → Save & return early
     // ==========================================================
     if (scheduleType === "scheduled" || scheduleType === "recurring") {
       await prisma.automationLog.create({
         data: {
-          userId: req.user.id,
-          campaignId: campaign.id,
+          userId:       req.user.id,
+          campaignId:   campaign.id,
           campaignName: emailSubject,
-          status: "scheduled",
+          status:       "scheduled",
           message:
             scheduleType === "scheduled"
               ? `Campaign scheduled for ${scheduledDateTime.toLocaleString()}`
@@ -963,7 +1032,6 @@ router.post("/send", async (req, res) => {
         },
       });
 
-      // 📝 Enhanced console logging for debugging
       console.log(`✅ Campaign ${campaign.id} scheduled:`);
       console.log(`   📧 Subject: ${emailSubject}`);
       console.log(`   📅 Date: ${scheduledDate} ${scheduledTime}`);
@@ -979,25 +1047,23 @@ router.post("/send", async (req, res) => {
           scheduleType === "scheduled"
             ? `✅ Campaign scheduled for ${scheduledDate} at ${scheduledTime}.`
             : `✅ Recurring campaign created (${recurringFrequency}).`,
-        campaignId: campaign.id,
-        scheduledAt: scheduledDateTime,
+        campaignId:    campaign.id,
+        scheduledAt:   scheduledDateTime,
         recipientCount: recipients.length,
         scheduleInfo: {
-          date: scheduledDate,
-          time: scheduledTime,
+          date:     scheduledDate,
+          time:     scheduledTime,
           timezone: timezone,
-          type: scheduleType,
+          type:     scheduleType,
         },
       });
     }
 
     // ==========================================================
-    // 🚀 STEP 6: Immediate Send
+    // 🚀 STEP 6: Immediate Send — build HTML once, batch in background
     // ==========================================================
 
-    // ✅ If a pixel-perfect snapshot was uploaded, use it as the email body.
-    // This ensures the inbox rendering matches the canvas editor exactly,
-    // avoiding all HTML layout/alignment issues across email clients.
+    // Build email HTML content once — reused for every recipient in every batch
     let htmlContent;
     if (snapshotUrl) {
       const emailBg = _bg || '#ffffff';
@@ -1043,164 +1109,111 @@ router.post("/send", async (req, res) => {
       replyToEmail
     );
 
-    const results = { success: [], failed: [] };
-
-    // ✅ FIX 1: Resume from where we stopped — read sentCount already saved in DB
-    const alreadySent = campaign.sentCount || 0;
-    let actualSentCount = alreadySent;
-
-    console.log(`📤 Campaign ${campaign.id}: sending to ${recipients.length} recipients, resuming from index ${alreadySent}`);
-
-    // ✅ FIX 2: Start loop from alreadySent index — skip emails already sent
-    for (let i = alreadySent; i < recipients.length; i++) {
-      const r = recipients[i];
-      const toEmail = typeof r === "string" ? r : r.email;
-      if (!toEmail) continue;
-      if (actualSentCount >= availableCredits) {
-        results.failed.push({ email: toEmail, error: "Credit limit reached" });
-        break;
-      }
-
-      // const msg = {
-      //   to: toEmail,
-      //   from: { name: fromName, email: fromEmail },
-      //   replyTo: replyToEmail || fromEmail,
-      //   subject: emailSubject,
-      //   text: plainTextContent,
-      //   html: htmlContent,
-      //   customArgs: {
-      //     campaignId: campaign.id,
-      //   },
-      // };
-
-      const msg = {
-        to: toEmail,
-        from: { name: fromName, email: fromEmail },
-        replyTo: replyToEmail || fromEmail,
-        subject: emailSubject,
-        text: plainTextContent,
-        html: htmlContent,
-
-        // 🔑 CRITICAL
-        trackingSettings: {
-          clickTracking: { enable: true },
-          openTracking: { enable: true },
-        },
-
-        // 🔑 CRITICAL
-        customArgs: {
-          campaignId: campaign.id.toString(),
-        },
-
-        // 🔑 OPTIONAL BUT RECOMMENDED
-        categories: [`campaign_${campaign.id}`],
-      };
-
-
-      try {
-        const response = await sgMail.send(msg);
-        if (response[0].statusCode >= 200 && response[0].statusCode < 300) {
-          results.success.push({ email: toEmail });
-          actualSentCount++;
-
-          // ✅ FIX 3: Save progress every 10 emails so restart always resumes correctly
-          if (actualSentCount % 10 === 0) {
-            await prisma.campaign.update({
-              where: { id: campaign.id },
-              data: { sentCount: actualSentCount },
-            });
-            console.log(`💾 Campaign ${campaign.id} progress saved: ${actualSentCount}/${recipients.length}`);
-          }
-
-        } else {
-          results.failed.push({ email: toEmail, error: `SendGrid status ${response[0].statusCode}` });
-        }
-      } catch (err) {
-        const msgErr = err.response?.body?.errors?.[0]?.message || err.message || "Unknown error";
-        console.error(`❌ Failed to send to ${toEmail}:`, msgErr);
-        results.failed.push({ email: toEmail, error: msgErr });
-      }
-
-      await new Promise((r) => setTimeout(r, 200));
-    }
-
-    // ==========================================================
-    // 💰 STEP 7: Deduct Credits (updated)
-    // ==========================================================
-    console.log("💰 Deducting credits after campaign send...");
-    let remainingToDeduct = actualSentCount;
-
-    // 1️⃣ Deduct from payments first (FIFO)
-    const succeededPayments = await prisma.payment.findMany({
-      where: { userId: req.user.id, status: "succeeded" },
-      orderBy: { paymentDate: "asc" },
-      select: { id: true, emailSendCredits: true },
+    // ── Respond immediately so client can navigate to Analytics ──
+    // The batch engine runs fully in the background after this response.
+    res.status(200).json({
+      success:         true,
+      message:         totalBatches > 1
+        ? `🚀 Campaign started! ${recipients.length.toLocaleString()} emails split into ${totalBatches} batch(es) of ${BATCH_SIZE.toLocaleString()}. Estimated ~${estimatedMinutes} min total.`
+        : `🚀 Campaign started! Sending ${recipients.length.toLocaleString()} emails now…`,
+      campaignId:      campaign.id,
+      recipientCount:  recipients.length,
+      batchTotal:      totalBatches,
+      batchSize:       BATCH_SIZE,
+      estimatedMinutes,
     });
 
-    for (const p of succeededPayments) {
-      if (remainingToDeduct <= 0) break;
-      const current = p.emailSendCredits || 0;
-      const deduct = Math.min(current, remainingToDeduct);
-      const newCredit = Math.max(0, current - deduct);
+    // ── Message factory — called per recipient inside the batch engine ──
+    const buildMessage = (toEmail) => ({
+      to:        toEmail,
+      from:      { name: fromName, email: fromEmail },
+      replyTo:   replyToEmail || fromEmail,
+      subject:   emailSubject,
+      text:      plainTextContent,
+      html:      htmlContent,
+      trackingSettings: {
+        clickTracking:        { enable: true, enableText: false },
+        openTracking:         { enable: true, substitutionTag: '%open-track%' },
+        subscriptionTracking: { enable: false },
+      },
+      mailSettings: {
+        bypassListManagement: { enable: false },
+      },
+      customArgs:  { campaignId: campaign.id.toString() },
+      categories:  [`campaign_${campaign.id}`],
+    });
 
-      await prisma.payment.update({
-        where: { id: p.id },
-        data: { emailSendCredits: newCredit },
+    // ── Launch batch engine in background (non-blocking) ────────
+    _sendInBatches(campaign, buildMessage)
+      .then(async () => {
+        // =======================================================
+        // 💰 STEP 7: Deduct credits once ALL batches complete
+        // =======================================================
+        console.log("💰 Deducting credits after all batches complete...");
+
+        const finalCampaign = await prisma.campaign.findUnique({
+          where:  { id: campaign.id },
+          select: { sentCount: true },
+        });
+        let remainingToDeduct = finalCampaign?.sentCount || 0;
+
+        // 1️⃣ Deduct from payments first (FIFO)
+        const succeededPayments = await prisma.payment.findMany({
+          where:   { userId: req.user.id, status: "succeeded" },
+          orderBy: { paymentDate: "asc" },
+          select:  { id: true, emailSendCredits: true },
+        });
+
+        for (const p of succeededPayments) {
+          if (remainingToDeduct <= 0) break;
+          const current   = p.emailSendCredits || 0;
+          const deduct    = Math.min(current, remainingToDeduct);
+          const newCredit = Math.max(0, current - deduct);
+
+          await prisma.payment.update({
+            where: { id: p.id },
+            data:  { emailSendCredits: newCredit },
+          });
+
+          remainingToDeduct -= deduct;
+          console.log(`🧾 Deducted ${deduct} from payment ${p.id}, remaining: ${remainingToDeduct}`);
+        }
+
+        // 2️⃣ Deduct any remainder from user.emailLimit
+        const currentUser = await prisma.user.findUnique({
+          where:  { id: req.user.id },
+          select: { emailLimit: true },
+        });
+        const finalUserEmailLimit = Math.max(0, (currentUser?.emailLimit ?? 0) - remainingToDeduct);
+
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data:  { emailLimit: finalUserEmailLimit },
+        });
+
+        console.log(`✅ Credits updated — user.emailLimit now ${finalUserEmailLimit}`);
+
+        // 3️⃣ Log completion
+        await prisma.automationLog.create({
+          data: {
+            userId:       req.user.id,
+            campaignId:   campaign.id,
+            campaignName: emailSubject,
+            status:       "completed",
+            message:      `Batched campaign complete: ${finalCampaign?.sentCount || 0} sent across ${totalBatches} batch(es)`,
+            error:        null,
+          },
+        });
+      })
+      .catch((err) => {
+        console.error(`❌ Batch engine error for campaign ${campaign.id}:`, err.message);
+        // Mark failed in DB so resumeStuckCampaigns can skip it
+        prisma.campaign.update({
+          where: { id: campaign.id },
+          data:  { status: "failed" },
+        }).catch(() => {});
       });
 
-      remainingToDeduct -= deduct;
-      console.log(`🧾 Deducted ${deduct} from payment ${p.id}, remaining: ${remainingToDeduct}`);
-    }
-
-    // 2️⃣ Deduct any remaining from user.emailLimit
-    const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
-
-    await prisma.user.update({
-      where: { id: req.user.id },
-      data: { emailLimit: finalUserEmailLimit },
-    });
-
-    console.log(`✅ Credits updated — user.emailLimit now ${finalUserEmailLimit}`);
-
-    // 3️⃣ Calculate remaining credits total
-    const remainingPaymentCredits = succeededPayments.reduce((sum, p) => sum + (p.emailSendCredits || 0), 0);
-    const totalRemainingCredits = remainingPaymentCredits + finalUserEmailLimit;
-
-    // ==========================================================
-    // ✅ Update campaign + logs
-    // ==========================================================
-    await prisma.campaign.update({
-      where: { id: campaign.id },
-      data: {
-        sentCount: actualSentCount,
-        status: results.failed.length === 0 ? "completed" : "failed",
-      },
-    });
-
-    await prisma.automationLog.create({
-      data: {
-        userId: req.user.id,
-        campaignId: campaign.id,
-        campaignName: emailSubject,
-        status: results.failed.length === 0 ? "completed" : "failed",
-        message: `Campaign sent: ${results.success.length} success, ${results.failed.length} failed`,
-        error: results.failed.length > 0 ? `${results.failed.length} emails failed` : null,
-      },
-    });
-
-    console.log(`✅ Immediate campaign sent - Success: ${results.success.length}, Failed: ${results.failed.length}`);
-
-    // ==========================================================
-    // 📤 STEP 8: Response
-    // ==========================================================
-    res.status(200).json({
-      success: true,
-      message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
-      campaignId: campaign.id,
-      results,
-      creditsUsed: actualSentCount,
-      creditsRemaining: totalRemainingCredits,
-    });
   } catch (err) {
     console.error("❌ Campaign send error:", err);
     res.status(500).json({
@@ -1209,7 +1222,6 @@ router.post("/send", async (req, res) => {
     });
   }
 });
-
 
 
 router.get("/", async (req, res) => {
@@ -1252,9 +1264,6 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
-/* ==========================================================
-   ✅ VERIFY EMAIL IN SENDGRID (Check if sender is verified)
-========================================================== */
 router.post("/verify-email", async (req, res) => {
   try {
     const { email } = req.body;
@@ -1321,17 +1330,6 @@ router.post("/verify-email", async (req, res) => {
   }
 });
 
-
-// Add this route to server/routes/campaigns.js after the /send route
-
-/* ==========================================================
-   📧 SEND SHUFFLED CAMPAIGN WITH MULTIPLE SUBJECT LINES
-   Distributes emails across multiple subject lines
-========================================================== */
-/* ==========================================================
-   📧 SEND SHUFFLED CAMPAIGN WITH MULTIPLE SUBJECT LINES
-   Supports both immediate and scheduled sending
-========================================================== */
 router.post("/send-shuffled", async (req, res) => {
   try {
     console.log("🔀 /api/campaigns/send-shuffled called by user:", req.user?.id);
@@ -1466,6 +1464,10 @@ router.post("/send-shuffled", async (req, res) => {
           recipientsJson: JSON.stringify(item.emails),
           scheduledAt: scheduledDateTime,
           status: scheduleType === "immediate" ? "sending" : "scheduled",
+          totalBatches:      totalBatches,           // ✅
+          currentBatch:      1,                      // ✅ start at 1, not 0
+          pending:           recipients.length,      // ✅ all emails pending at start
+          snapshotUrl:       snapshotUrl || null,     // ✅ save snapshot URL to DB
         },
       });
       campaignIds.push(campaign.id);
@@ -1709,6 +1711,53 @@ router.post("/send-shuffled", async (req, res) => {
       success: false,
       error: err.message || "Failed to process shuffled campaign",
     });
+  }
+});
+
+
+router.get("/:id/batch-progress", async (req, res) => {
+  try {
+    const campaign = await prisma.campaign.findFirst({
+      where:  { id: parseInt(req.params.id), userId: req.user.id },
+      select: {
+        id:            true,
+        status:        true,
+        sentCount:     true,
+        pending:       true,     // ✅
+        currentBatch:  true,
+        totalBatches:  true,
+        recipientsJson: true,
+      },
+    });
+    if (!campaign) return res.status(404).json({ error: "Campaign not found" });
+
+    let totalRecipients = 0;
+    try { totalRecipients = JSON.parse(campaign.recipientsJson || "[]").length; } catch {}
+
+    const batchTotal      = campaign.totalBatches  || Math.ceil(totalRecipients / BATCH_SIZE);
+    const batchCurrent    = campaign.currentBatch  || 1;
+    const sentCount       = campaign.sentCount     || 0;
+    const pendingCount    = campaign.pending       ?? (totalRecipients - sentCount);
+    const batchesLeft     = Math.max(0, batchTotal - batchCurrent);
+
+    res.json({
+      success:                   true,
+      status:                    campaign.status,
+      sentCount,
+      pendingCount,                                        // ✅
+      totalRecipients,
+      batchCurrent,
+      batchTotal,
+      batchSizeLimit:            BATCH_SIZE,
+      batchDurationMin:          BATCH_DURATION_MS / 60000,
+      estimatedMinutesRemaining: batchesLeft * (BATCH_DURATION_MS / 60000),
+      percentComplete:           totalRecipients > 0
+        ? Math.round((sentCount / totalRecipients) * 100)
+        : 0,
+    });
+  } catch (err) {
+    console.error("❌ batch-progress error:", err);
+    res.status(500).json({ error: "Failed to fetch batch progress" });
   }
 });
 

@@ -533,18 +533,24 @@ model Campaign {
   replyToEmail       String?
   scheduleType       String    @default("immediate") // "immediate", "scheduled", "recurring"
   designJson         String?   @db.Text
-  recipientsJson     String?   @db.Text // ✅ NEW: Store recipients for scheduled/recurring
+  recipientsJson     String?   @db.Text
   scheduledAt        DateTime?
-  recurringFrequency String? // "daily", "weekly", "monthly"
-  recurringDays      String? // JSON array of days for weekly
+  recurringFrequency String?
+  recurringDays      String?
   recurringEndDate   DateTime?
-  lastSentAt         DateTime? // ✅ NEW: Track last send time for recurring
+  lastSentAt         DateTime?
   sentCount          Int       @default(0)
   openCount          Int       @default(0)
   clickCount         Int       @default(0)
   status             String
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+
+  // ✅ Batch sending fields
+  totalBatches Int?    @default(0) // Total number of batches (e.g. 5 for 10,000 emails)
+  currentBatch Int?    @default(0) // Which batch is currently sending
+  pending      Int?    @default(0) // Emails not yet sent
+  snapshotUrl  String? @db.Text // Pixel-perfect email snapshot URL
 
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   events        CampaignEvent[]
