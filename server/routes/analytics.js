@@ -130,16 +130,22 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
     // ===============================
     // 9️⃣ UNIQUE BOUNCES
     // ===============================
-    const bounceRows = await prisma.campaignEvent.findMany({
+    // Count unique emails that had a bounce/dropped/blocked event
+    // BUT exclude emails that were successfully delivered in ANY campaign
+    // (same email can be in multiple campaigns — delivered in one, bounced in another)
+    const bounceEmailRows = await prisma.campaignEvent.groupBy({
+      by: ["email"],
       where: {
         campaignId: { in: campaignIds },
-        type: "bounce"
-      },
-      distinct: ["email"],
-      select: { email: true }
+        type: { in: ["bounce", "dropped", "blocked"] }
+      }
     });
+    const bouncedEmails = bounceEmailRows.map(r => r.email);
 
-    const bounces = bounceRows.length;
+    // Remove emails that were also delivered (cross-campaign overlap fix)
+    const deliveredEmailSet = new Set(deliveredRows.map(r => r.email));
+    const trueBounces = bouncedEmails.filter(email => !deliveredEmailSet.has(email));
+    const bounces = trueBounces.length;
 
     // ===============================
     // 🔟 SPAM REPORTS

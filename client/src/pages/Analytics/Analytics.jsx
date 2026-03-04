@@ -324,6 +324,7 @@ export default function Analytics() {
   const [campaigns,          setCampaigns]          = useState([]);
   const [sgSummary,          setSgSummary]          = useState(null);
   const [loading,            setLoading]            = useState(true);
+  const [refreshing,         setRefreshing]         = useState(false);
   const [error,              setError]              = useState("");
   const [pdfLoading,         setPdfLoading]         = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("all");
@@ -336,29 +337,6 @@ export default function Analytics() {
       if (stored) setUser(JSON.parse(stored));
     } catch {}
   }, []);
-
-  useEffect(() => {
-    fetchCampaigns();
-
-    pollingRef.current = setInterval(() => {
-      fetchCampaigns();   // Always refresh
-    }, 15000);
-
-    return () => clearInterval(pollingRef.current);
-  }, []);
-  const fetchCampaigns = async () => {
-    try {
-      const token = localStorage.getItem("token");
-      const res   = await fetch(`${API_URL}/api/campaigns`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      setCampaigns(data);
-    } catch (err) {
-      console.error("fetchCampaigns error:", err);
-    }
-  };
 
   const fetchData = useCallback(async () => {
     try {
@@ -386,6 +364,12 @@ export default function Analytics() {
     const interval = setInterval(() => { if (!document.hidden) fetchData(); }, REFRESH_INTERVAL);
     return () => clearInterval(interval);
   }, [fetchData]);
+
+  const handleManualRefresh = async () => {
+    setRefreshing(true);
+    await fetchData();
+    setRefreshing(false);
+  };
 
   const deleteCampaign = async (id) => {
     if (!window.confirm("Are you sure you want to delete this campaign?")) return;
@@ -492,6 +476,28 @@ export default function Analytics() {
             </select>
 
             <button
+              onClick={handleManualRefresh}
+              disabled={loading || refreshing}
+              className={[
+                "flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm border transition-all duration-200",
+                loading || refreshing
+                  ? "border-gray-700 text-gray-600 bg-gray-900 cursor-not-allowed"
+                  : "border-gray-600 text-gray-300 bg-transparent hover:bg-gray-800 hover:text-white cursor-pointer"
+              ].join(" ")}
+              title="Refresh data"
+            >
+              <svg
+                className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+              >
+                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              </svg>
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+
+            <button
               onClick={handleDownloadPDF}
               disabled={pdfLoading || loading}
               className={[
@@ -572,9 +578,7 @@ export default function Analytics() {
               <tbody>
                 {campaigns.map((c) => {
                   const bp = getBatchProgress(c);
-                  const totalMails = c.recipientsJson
-                  ? JSON.parse(c.recipientsJson).length
-                  : (c.sentCount || 0) + (c.pending || 0);
+                  const totalMails = c.totalRecipients || (c.sentCount || 0) + (c.pending || 0);
                   return (
                     <tr key={c.id} className="border-b border-gray-800 hover:bg-gray-900">
                       <td className="py-2 pr-4 max-w-[180px] truncate">{c.name}</td>

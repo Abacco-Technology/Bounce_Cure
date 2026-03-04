@@ -578,13 +578,13 @@ model CampaignEvent {
   campaignId Int
   userId     Int
   email      String
-  type       String // "delivered", "open", "click", "bounce", "failed", etc.
+  type       String
   timestamp  DateTime @default(now())
-  metadata   String? // ✅ JSON string for additional data
-  url        String? // For click events
+  metadata   String?
+  url        String?
   userAgent  String?
   ip         String?
-  sgEventId  String?  @unique // Prevent duplicate events
+  sgEventId  String?  @unique
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -592,6 +592,9 @@ model CampaignEvent {
   @@index([campaignId, type])
   @@index([email])
   @@index([sgEventId])
+  // ✅ ADD THESE
+  @@index([campaignId, email])
+  @@index([campaignId, type, email])
 }
 
 model CampaignVerifiedEmail {
