@@ -19,6 +19,9 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
 
   try {
 
+    // ===============================
+    // 1️⃣ Get campaigns for user
+    // ===============================
     const campaigns = await prisma.campaign.findMany({
       where: {
         userId: req.user.id,
@@ -27,12 +30,17 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
           lte: new Date(endDate + "T23:59:59.999Z"),
         },
       },
-      select: { id: true, sentCount: true }
+      select: {
+        id: true,
+        sentCount: true
+      }
     });
 
     const campaignIds = campaigns.map(c => c.id);
 
-    // ✅ If no campaigns return empty stats
+    // ===============================
+    // 2️⃣ If no campaigns
+    // ===============================
     if (campaignIds.length === 0) {
       return res.json({
         source: "db",
@@ -52,32 +60,38 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
       });
     }
 
+    // ===============================
+    // 3️⃣ Total emails sent
+    // ===============================
     const processed = campaigns.reduce((sum, c) => sum + (c.sentCount || 0), 0);
 
-    // ✅ Aggregate event counts
-    const events = await prisma.campaignEvent.groupBy({
-      by: ["type"],
+    // ===============================
+    // 4️⃣ UNIQUE DELIVERED
+    // ===============================
+    const deliveredRows = await prisma.campaignEvent.findMany({
       where: {
-        campaignId: { in: campaignIds }
+        campaignId: { in: campaignIds },
+        type: "delivered"
       },
-      _count: { type: true }
+      distinct: ["email"],
+      select: { email: true }
     });
 
-    let delivered = 0;
-    let opens = 0;
-    let clicks = 0;
-    let bounces = 0;
-    let spam = 0;
+    const delivered = deliveredRows.length;
 
-    for (const e of events) {
-      if (e.type === "delivered") delivered = e._count.type;
-      if (e.type === "open") opens = e._count.type;
-      if (e.type === "click") clicks = e._count.type;
-      if (e.type === "bounce") bounces = e._count.type;
-      if (e.type === "spamreport") spam = e._count.type;
-    }
+    // ===============================
+    // 5️⃣ TOTAL OPENS
+    // ===============================
+    const opens = await prisma.campaignEvent.count({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "open"
+      }
+    });
 
-    // ✅ Unique Opens
+    // ===============================
+    // 6️⃣ UNIQUE OPENS
+    // ===============================
     const uniqueOpenRows = await prisma.campaignEvent.findMany({
       where: {
         campaignId: { in: campaignIds },
@@ -89,7 +103,19 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
 
     const uniqueOpens = uniqueOpenRows.length;
 
-    // ✅ Unique Clicks
+    // ===============================
+    // 7️⃣ TOTAL CLICKS
+    // ===============================
+    const clicks = await prisma.campaignEvent.count({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "click"
+      }
+    });
+
+    // ===============================
+    // 8️⃣ UNIQUE CLICKS
+    // ===============================
     const uniqueClickRows = await prisma.campaignEvent.findMany({
       where: {
         campaignId: { in: campaignIds },
@@ -101,13 +127,42 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
 
     const uniqueClicks = uniqueClickRows.length;
 
-    // ✅ Calculate rates
+    // ===============================
+    // 9️⃣ UNIQUE BOUNCES
+    // ===============================
+    const bounceRows = await prisma.campaignEvent.findMany({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "bounce"
+      },
+      distinct: ["email"],
+      select: { email: true }
+    });
+
+    const bounces = bounceRows.length;
+
+    // ===============================
+    // 🔟 SPAM REPORTS
+    // ===============================
+    const spam = await prisma.campaignEvent.count({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "spamreport"
+      }
+    });
+
+    // ===============================
+    // 11️⃣ Calculate rates
+    // ===============================
     const openRate = delivered > 0 ? Math.round((uniqueOpens / delivered) * 100) : 0;
     const clickRate = delivered > 0 ? Math.round((uniqueClicks / delivered) * 100) : 0;
     const deliveryRate = processed > 0 ? Math.round((delivered / processed) * 100) : 0;
     const bounceRate = processed > 0 ? Math.round((bounces / processed) * 100) : 0;
     const spamRate = delivered > 0 ? Math.round((spam / delivered) * 100) : 0;
 
+    // ===============================
+    // 12️⃣ Return analytics
+    // ===============================
     res.json({
       source: "db",
       processed,
