@@ -1722,6 +1722,7 @@ return res.status(200).json({
   message: "Shuffled campaign scheduled successfully",
   distribution: distributionResults,
 });
+
     // Deduct remaining from user.emailLimit
     const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
 
