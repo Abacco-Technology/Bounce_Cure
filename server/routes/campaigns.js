@@ -1224,11 +1224,44 @@ router.post("/send", async (req, res) => {
 });
 
 
+// router.get("/", async (req, res) => {
+//   try {
+//     const campaigns = await prisma.campaign.findMany({
+//       where: { userId: req.user.id },
+//       include: { events: true },
+//       orderBy: { createdAt: "desc" },
+//     });
+//     res.json(campaigns);
+//   } catch {
+//     res.status(500).json({ error: "Failed to fetch campaigns" });
+//   }
+// });
+
 router.get("/", async (req, res) => {
   try {
     const campaigns = await prisma.campaign.findMany({
       where: { userId: req.user.id },
-      include: { events: true },
+      select: {
+        id: true,
+        name: true,
+        subject: true,
+        status: true,
+        sentCount: true,
+        pending: true,
+        currentBatch: true,
+        totalBatches: true,
+        createdAt: true,
+        fromEmail: true,
+        fromName: true,
+        fromAddress: true,
+        replyToEmail: true,
+        scheduleType: true,
+        scheduledAt: true,
+        // ❌ NO recipientsJson
+        // ❌ NO designJson
+        // ❌ NO snapshotUrl
+        // ❌ NO events  ← REMOVE THIS TOO
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(campaigns);
@@ -1236,7 +1269,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch campaigns" });
   }
 });
-
 router.get("/:id", async (req, res) => {
   try {
     const campaign = await prisma.campaign.findFirst({
