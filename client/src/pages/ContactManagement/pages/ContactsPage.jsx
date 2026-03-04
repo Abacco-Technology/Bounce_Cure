@@ -102,7 +102,7 @@ function ContactsPage() {
     e.preventDefault();
     const formData = new FormData(e.target);
     try {
-      const res = await fetch(`${API_URL}/contact/import`, {
+      const res = await fetch(`${API_URL}/api/contact/import`, {
         method: "POST",
         headers: getAuthHeaders(),
         body: formData,
@@ -123,7 +123,7 @@ function ContactsPage() {
   const addContact = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/contact`, {
+      const res = await fetch(`${API_URL}/api/contact`, {
         method: "POST",
         headers: {
           ...getAuthHeaders(),
@@ -146,7 +146,7 @@ function ContactsPage() {
   const updatePriority = async (id) => {
     const newVal = editPriority[id];
     try {
-      const res = await fetch(`${API_URL}/contact/${id}`, {
+      const res = await fetch(`${API_URL}/api/contact/${id}`, {
         method: "PUT",
         headers: {
           ...getAuthHeaders(),
@@ -174,7 +174,7 @@ function ContactsPage() {
   const deleteContact = async (id) => {
     if (!window.confirm("Are you sure you want to delete this contact?")) return;
     try {
-      const res = await fetch(`${API_URL}/contact/${id}`, {
+      const res = await fetch(`${API_URL}/api/contact/${id}`, {
         method: "DELETE",
         headers: getAuthHeaders(),
       });
@@ -188,7 +188,7 @@ function ContactsPage() {
 
   const fetchAllContacts = async () => {
     try {
-      const res = await fetch(`${API_URL}/contact?all=true`, {
+      const res = await fetch(`${API_URL}/api/contact?all=true`, {
         headers: getAuthHeaders()
       });
       if (!res.ok) throw new Error("Failed to fetch all contacts");
@@ -207,7 +207,7 @@ function ContactsPage() {
       
       try {
         // Fetch paginated contacts
-        const res = await fetch(`${API_URL}/contact?page=${page}&search=${search}`, {
+        const res = await fetch(`${API_URL}/api/contact?page=${page}&search=${search}`, {
           headers: getAuthHeaders()
         });
         

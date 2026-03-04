@@ -19,7 +19,7 @@ const CreateListModal = ({ onClose, onListCreated }) => {
     const formData = new FormData(e.target);
 
     try {
-      const response = await fetch(`${API_URL}/lists`, {
+      const response = await fetch(`${API_URL}/api/lists`, {
         method: "POST",
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -99,7 +99,7 @@ const Lists = () => {
         throw new Error("Authentication token not found. Please log in again.");
       }
       
-      const res = await fetch(`${API_URL}/lists`, {
+      const res = await fetch(`${API_URL}/api/lists`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -144,7 +144,7 @@ const Lists = () => {
         throw new Error("Authentication token not found. Please log in again.");
       }
       
-      const res = await fetch(`${API_URL}/lists/${id}`, { 
+      const res = await fetch(`${API_URL}/api/lists/${id}`, { 
         method: "DELETE",
         headers: {
           'Authorization': `Bearer ${token}`
@@ -173,7 +173,7 @@ const Lists = () => {
         throw new Error("Authentication token not found. Please log in again.");
       }
       
-      const res = await fetch(`${API_URL}/lists/files/${list.id}`, {
+      const res = await fetch(`${API_URL}/api/lists/files/${list.id}`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }

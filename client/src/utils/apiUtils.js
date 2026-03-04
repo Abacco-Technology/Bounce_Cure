@@ -1,5 +1,5 @@
 // client/src/utils/apiUtils.js
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_VRI_URL;
 
 // Get token from localStorage
 export const getToken = () => {
@@ -123,7 +123,7 @@ export const api = {
 // Login helper
 export const loginUser = async (credentials) => {
     try {
-        const response = await fetch(`${API_URL}/auth/login`, {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -148,7 +148,7 @@ export const loginUser = async (credentials) => {
 // Signup helper
 export const signupUser = async (userData) => {
     try {
-        const response = await fetch(`${API_URL}/auth/signup`, {
+        const response = await fetch(`${API_URL}/api/auth/signup`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
