@@ -17,9 +17,8 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
   const startDate = req.query.startDate || "2024-01-01";
   const endDate = req.query.endDate || new Date().toISOString().split("T")[0];
 
-  console.log(`📊 Fetching analytics summary for user ${req.user.id} from ${startDate} to ${endDate}`);
-
   try {
+
     const campaigns = await prisma.campaign.findMany({
       where: {
         userId: req.user.id,
@@ -28,50 +27,88 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
           lte: new Date(endDate + "T23:59:59.999Z"),
         },
       },
-      include: { events: true },
+      select: { id: true, sentCount: true }
     });
 
-    console.log(`📧 Found ${campaigns.length} campaigns with events`);
+    const campaignIds = campaigns.map(c => c.id);
 
-    let processed = 0;
+    // ✅ If no campaigns return empty stats
+    if (campaignIds.length === 0) {
+      return res.json({
+        source: "db",
+        processed: 0,
+        delivered: 0,
+        opens: 0,
+        uniqueOpens: 0,
+        clicks: 0,
+        uniqueClicks: 0,
+        bounces: 0,
+        spam: 0,
+        openRate: 0,
+        clickRate: 0,
+        deliveryRate: 0,
+        bounceRate: 0,
+        spamRate: 0
+      });
+    }
+
+    const processed = campaigns.reduce((sum, c) => sum + (c.sentCount || 0), 0);
+
+    // ✅ Aggregate event counts
+    const events = await prisma.campaignEvent.groupBy({
+      by: ["type"],
+      where: {
+        campaignId: { in: campaignIds }
+      },
+      _count: { type: true }
+    });
+
     let delivered = 0;
     let opens = 0;
-    let uniqueOpens = 0;
     let clicks = 0;
-    let uniqueClicks = 0;
     let bounces = 0;
     let spam = 0;
 
-    for (const c of campaigns) {
-      const events = c.events || [];
-
-      processed += c.sentCount || 0;
-
-      // Count all events
-      delivered += events.filter(e => e.type === "delivered").length;
-      bounces += events.filter(e => e.type === "bounce").length;
-      spam += events.filter(e => e.type === "spamreport").length;
-
-      // For opens and clicks, count both total and unique
-      const openEvents = events.filter(e => e.type === "open");
-      opens += openEvents.length;
-      uniqueOpens += new Set(openEvents.map(e => e.email)).size;
-
-      const clickEvents = events.filter(e => e.type === "click");
-      clicks += clickEvents.length;
-      uniqueClicks += new Set(clickEvents.map(e => e.email)).size;
+    for (const e of events) {
+      if (e.type === "delivered") delivered = e._count.type;
+      if (e.type === "open") opens = e._count.type;
+      if (e.type === "click") clicks = e._count.type;
+      if (e.type === "bounce") bounces = e._count.type;
+      if (e.type === "spamreport") spam = e._count.type;
     }
 
-    // Calculate rates
+    // ✅ Unique Opens
+    const uniqueOpenRows = await prisma.campaignEvent.findMany({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "open"
+      },
+      distinct: ["email"],
+      select: { email: true }
+    });
+
+    const uniqueOpens = uniqueOpenRows.length;
+
+    // ✅ Unique Clicks
+    const uniqueClickRows = await prisma.campaignEvent.findMany({
+      where: {
+        campaignId: { in: campaignIds },
+        type: "click"
+      },
+      distinct: ["email"],
+      select: { email: true }
+    });
+
+    const uniqueClicks = uniqueClickRows.length;
+
+    // ✅ Calculate rates
     const openRate = delivered > 0 ? Math.round((uniqueOpens / delivered) * 100) : 0;
     const clickRate = delivered > 0 ? Math.round((uniqueClicks / delivered) * 100) : 0;
     const deliveryRate = processed > 0 ? Math.round((delivered / processed) * 100) : 0;
     const bounceRate = processed > 0 ? Math.round((bounces / processed) * 100) : 0;
     const spamRate = delivered > 0 ? Math.round((spam / delivered) * 100) : 0;
 
-    console.log(`✅ Summary calculated: ${processed} processed, ${delivered} delivered, ${uniqueOpens} unique opens`);
-
-    return res.json({
+    res.json({
       source: "db",
       processed,
       delivered,
@@ -85,13 +122,14 @@ router.get("/sendgrid/summary", protect, async (req, res) => {
       clickRate,
       deliveryRate,
       bounceRate,
-      spamRate,
+      spamRate
     });
+
   } catch (error) {
     console.error("❌ Error fetching summary:", error);
-    return res.status(500).json({
+    res.status(500).json({
       error: "Analytics unavailable",
-      details: error.message,
+      details: error.message
     });
   }
 });
