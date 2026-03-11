@@ -119,20 +119,20 @@ const ContactPage = () => {
       link: "tel:+17712204003",
       gradient: "from-purple-500 to-pink-500",
     },
-    {
-      icon: FaMapMarkerAlt,
-      title: "India Office",
-      content:
-        "3RD FLOOR, 12-4.13,12A, J.B. Kaval,\nMAJOR SANDEEP UNNIKRISHNAN ROAD,\nADITYANAGAR, VIDYARANYAPURA,\nBangalore 560097",
-      gradient: "from-green-500 to-emerald-500",
-    },
-    {
-      icon: FaPhone,
-      title: "Call (India)",
-      content: "+91 99724 52044",
-      link: "tel:+919972452044",
-      gradient: "from-orange-500 to-red-500",
-    },
+    // {
+    //   icon: FaMapMarkerAlt,
+    //   title: "India Office",
+    //   content:
+    //     "3RD FLOOR, 12-4.13,12A, J.B. Kaval,\nMAJOR SANDEEP UNNIKRISHNAN ROAD,\nADITYANAGAR, VIDYARANYAPURA,\nBangalore 560097",
+    //   gradient: "from-green-500 to-emerald-500",
+    // },
+    // {
+    //   icon: FaPhone,
+    //   title: "Call (India)",
+    //   content: "+91 99724 52044",
+    //   link: "tel:+919972452044",
+    //   gradient: "from-orange-500 to-red-500",
+    // },
     {
       icon: FaEnvelope,
       title: "Email",
