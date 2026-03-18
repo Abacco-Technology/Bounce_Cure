@@ -66,8 +66,9 @@ async function _sendInBatches(campaign, buildMessage) {
     // ✅ Spread batchCount emails evenly over 30 minutes
     // 2000 emails → 900ms delay each = exactly 30 min
     //  500 emails → 3600ms delay each = exactly 30 min
-    const delayPerEmail = Math.floor(BATCH_DURATION_MS / batchCount);
-
+const delayPerEmail = batchCount < 50 
+  ? 2000  // small batch: 2s max delay
+  : Math.floor(BATCH_DURATION_MS / batchCount);
     console.log(`\n📦 Batch ${batchNum}/${totalBatches} | emails ${batchStart + 1}–${batchEnd} | delay: ${delayPerEmail}ms/email`);
 
     // Update currentBatch so Analytics shows live progress
@@ -115,15 +116,16 @@ async function _sendInBatches(campaign, buildMessage) {
       }
 
       // ✅ Save progress + update pending every 50 emails
-      if ((i + 1) % 50 === 0) {
+      // ✅ Fix — also save when it's the last email in a small batch
+      const isLastEmail = i === batchEmails.length - 1;
+      if ((i + 1) % 50 === 0 || isLastEmail) {
         await prisma.campaign.update({
           where: { id: campaign.id },
           data: {
             sentCount: totalSent,
-            pending:   totalRecipients - totalSent,  // ✅ keep pending in sync
+            pending:   totalRecipients - totalSent,
           },
         });
-        console.log(`   💾 batch ${batchNum} | ${i + 1}/${batchCount} | totalSent: ${totalSent} | pending: ${totalRecipients - totalSent}`);
       }
 
       // ✅ THE CRITICAL THROTTLE — spaces emails over 30 minutes
@@ -1036,7 +1038,7 @@ router.post("/send", async (req, res) => {
       console.log(`   📧 Subject: ${emailSubject}`);
       console.log(`   📅 Date: ${scheduledDate} ${scheduledTime}`);
       console.log(`   👥 Recipients: ${recipients.length}`);
-      console.log(`   🎨 Canvas Elements: ${canvasData?.length || 0}`);
+      // console.log(`   🎨 Canvas Elements: ${canvasData?.length || 0}`);
       console.log(`   ⏰ Scheduled DateTime: ${scheduledDateTime.toISOString()}`);
       console.log(`   📍 Type: ${scheduleType}`);
       console.log(`   ✉️ From: ${fromName} <${fromEmail}>`);
