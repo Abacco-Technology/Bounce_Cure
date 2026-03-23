@@ -161,8 +161,8 @@ router.post("/save-payment", async (req, res) => {
       console.log("⚙️ Auto-assigning credits for plan:", lowerPlanName);
 
       if (lowerPlanName === "essentials") {
-        finalEmailVerificationCredits = 0;       // no verification credits
-        finalEmailSendCredits = 50000;           // 50k sends
+        finalEmailVerificationCredits = 0;
+        finalEmailSendCredits = 50000;
         finalSmsCredits = 0;
         finalWhatsappCredits = 0;
       } else if (lowerPlanName === "standard") {
@@ -185,35 +185,7 @@ router.post("/save-payment", async (req, res) => {
       finalWhatsappCredits,
     });
 
-  // 🧾 Generate custom invoice ID (BC234Ab5000 format)
-const prefix = "BC234Ab";
-const startingNumber = 5000;
-
-const lastPayment = await prisma.payment.findFirst({
-  where: { customInvoiceId: { not: null } },
-  orderBy: { id: "desc" },
-  select: { customInvoiceId: true },
-});
-
-let newInvoiceNumber = startingNumber;
-
-if (lastPayment?.customInvoiceId) {
-  const match = lastPayment.customInvoiceId.match(/\d+$/);
-
-  if (match) {
-    const lastNum = parseInt(match[0], 10);
-
-    // ✅ ensure we never go below 5000
-    newInvoiceNumber = lastNum >= startingNumber ? lastNum + 1 : startingNumber;
-  }
-}
-
-// ✅ Pad to minimum 4 digits
-const paddedNumber = String(newInvoiceNumber).padStart(4, "0");
-const customInvoiceId = `${prefix}${paddedNumber}`;
-
-
-    // 💾 Build payment object
+    // 🧾 Build base payment data (without customInvoiceId — added inside retry loop)
     const paymentData = {
       userId: userIdInt,
       name,
@@ -236,13 +208,66 @@ const customInvoiceId = `${prefix}${paddedNumber}`;
       paymentDate: paymentDateObj,
       nextPaymentDate: new Date(nextPaymentDate),
       status: status || "succeeded",
-      customInvoiceId, // ✅ Add new custom invoice field
     };
 
-    // ✅ Save payment in DB
-    const payment = await prisma.payment.create({ data: paymentData });
+    // 🔁 Save payment with retry on customInvoiceId collision
+    const prefix = "BC234Ab";
+    const startingNumber = 5000;
+    const MAX_RETRIES = 5;
 
-    // 🔁 Reattach credit values for invoice use (Essentials, Standard, Premium)
+    let payment;
+    let customInvoiceId;
+
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      // ✅ Re-query on every attempt to get the freshest last invoice ID
+      const lastPayment = await prisma.payment.findFirst({
+        where: { customInvoiceId: { not: null } },
+        orderBy: { customInvoiceId: "desc" }, // ✅ Fixed: order by the invoice ID, not row id
+        select: { customInvoiceId: true },
+      });
+
+      let newInvoiceNumber = startingNumber;
+
+      if (lastPayment?.customInvoiceId) {
+        const match = lastPayment.customInvoiceId.match(/\d+$/);
+        if (match) {
+          const lastNum = parseInt(match[0], 10);
+          newInvoiceNumber = lastNum >= startingNumber ? lastNum + 1 : startingNumber;
+        }
+      }
+
+      // ✅ On retry, bump further to avoid the same collision
+      newInvoiceNumber += attempt;
+
+      customInvoiceId = `${prefix}${String(newInvoiceNumber).padStart(4, "0")}`;
+
+      try {
+        payment = await prisma.payment.create({
+          data: { ...paymentData, customInvoiceId },
+        });
+        console.log(`✅ Payment saved on attempt ${attempt + 1} → ${customInvoiceId}`);
+        break; // ✅ Success — exit retry loop
+      } catch (err) {
+        const isCollision =
+          err.code === "P2002" &&
+          err.meta?.target?.includes("customInvoiceId");
+
+        if (isCollision) {
+          console.warn(
+            `⚠️ Invoice ID collision on attempt ${attempt + 1}: ${customInvoiceId}. Retrying...`
+          );
+          if (attempt === MAX_RETRIES - 1) {
+            throw new Error(
+              `Failed to generate a unique invoice ID after ${MAX_RETRIES} attempts.`
+            );
+          }
+        } else {
+          throw err; // Non-collision error — rethrow immediately
+        }
+      }
+    }
+
+    // 🔁 Reattach credit values for invoice use
     payment.emailVerificationCredits = finalEmailVerificationCredits;
     payment.emailSendCredits = finalEmailSendCredits;
     payment.smsCredits = finalSmsCredits;

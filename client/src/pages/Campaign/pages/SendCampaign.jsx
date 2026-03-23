@@ -639,14 +639,8 @@ useEffect(() => {
       }
 
       // ── capture + upload snapshot ────────────────────────
-      setSendStatus({ success:true, message:"📸 Capturing email design…" });
-      const base64      = await captureSnapshot();
-      let   snapshotUrl = null;
-
-      if (base64) {
-        setSendStatus({ success:true, message:"☁️ Uploading design snapshot…" });
-        snapshotUrl = await uploadSnapshot(base64);
-      }
+      let snapshotUrl = null; // always null → server uses generateHtmlFromCanvas
+      setSendStatus({ success:true, message:"📤 Preparing campaign…" });
 
       setSendStatus({ success:true, message:"📤 Sending campaign…" });
 
