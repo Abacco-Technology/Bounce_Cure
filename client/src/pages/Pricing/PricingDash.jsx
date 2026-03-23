@@ -6,12 +6,11 @@ import DashboardLayout from "../../components/DashboardLayout";
 import { setUserPlan } from "../../utils/PlanAccessControl";
 import MultiMediaPricing from "./MultiMediaPricing";
 
-// Email Verification Plans Component (Updated to match PricingEmailVerifi.jsx)
+// Email Verification Plans Component
 const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, onClose, navigate }) => {
   const [selectedVerificationTier, setSelectedVerificationTier] = useState(null);
   const [selectedCurrency, setSelectedCurrency] = useState(propCurrency || 'USD');
 
-  // Currency rates
   const rates = currencyRates || {
     USD: { symbol: '$', rate: 1 },
     EUR: { symbol: '€', rate: 0.92 },
@@ -26,7 +25,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
     CHF: { symbol: 'CHF', rate: 0.88 }
   };
 
-  // Verification tiers
   const verificationTiers = [
     { credits: 10000 },
     { credits: 20000 },
@@ -36,24 +34,22 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
     { credits: Infinity, label: 'Unlimited' }
   ];
 
-  // Pricing calculation logic (matches PricingEmailVerifi.jsx)
   const getTierPricing = (credits) => {
     let basePriceUSD = 0;
     let discountPercent = 25;
 
     if (credits === Infinity) {
-      basePriceUSD = 1500; // Base for Unlimited
-      discountPercent = 30; // 30% off for Unlimited
+      basePriceUSD = 1500;
+      discountPercent = 30;
     } else {
-      basePriceUSD = credits * 0.01; // $0.01 per verification
-      discountPercent = 25; // 25% off for all tiers
+      basePriceUSD = credits * 0.01;
+      discountPercent = 25;
     }
 
     const discountedPriceUSD = basePriceUSD * (1 - discountPercent / 100);
     return { basePriceUSD, discountedPriceUSD, discountPercent };
   };
 
-  // Format price based on currency
   const formatPrice = (priceUSD) => {
     const rate = rates[selectedCurrency]?.rate || 1;
     const symbol = rates[selectedCurrency]?.symbol || '$';
@@ -68,7 +64,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
     return `${symbol}${convertedPrice.toFixed(2)}`;
   };
 
-  // Handle buy verification
   const handleBuyVerification = (tier) => {
     const { basePriceUSD, discountedPriceUSD } = getTierPricing(tier.credits);
     const rate = rates[selectedCurrency]?.rate || 1;
@@ -125,7 +120,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
   return (
     <div className="min-h-screen text-white p-8">
       <div className="max-w-7xl mx-auto">
-        {/* Back Button */}
         <div className="mb-8">
           <button
             onClick={onClose}
@@ -136,7 +130,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
           </button>
         </div>
 
-        {/* Header */}
         <div className="text-center mb-12">
           <div className="flex items-center justify-center mb-4">
             <Shield className="w-12 h-12 text-[#c2831f] mr-3" />
@@ -149,7 +142,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
           </p>
         </div>
 
-        {/* Currency Selector */}
         <div className="flex justify-center mb-12">
           <div className="bg-[#1e1e1e] rounded-xl p-3 inline-flex items-center gap-3 border-2 border-gray-700">
             <span className="text-gray-400 text-sm px-2">Currency:</span>
@@ -167,7 +159,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
           </div>
         </div>
 
-        {/* Verification Plans Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           {verificationTiers.map((tier, index) => {
             const { basePriceUSD, discountedPriceUSD, discountPercent } = getTierPricing(tier.credits);
@@ -203,7 +194,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
                   </p>
                 </div>
 
-                {/* Discount display */}
                 <div className="text-center mb-8 pb-6 border-b border-gray-700">
                   <div className="text-4xl font-bold text-green-400 mb-1">
                     {formatPrice(discountedPriceUSD)}
@@ -221,7 +211,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
                   )}
                 </div>
 
-                {/* Features */}
                 <div className="space-y-3 mb-8">
                   <div className="flex items-center text-sm text-gray-300">
                     <Check className="w-5 h-5 text-green-400 mr-2" /> Real-time verification
@@ -262,7 +251,6 @@ const EmailValidationPlans = ({ selectedCurrency: propCurrency, currencyRates, o
           })}
         </div>
 
-        {/* Footer */}
         <div className="text-center text-sm text-gray-500">
           <p>All verification credits are valid for one month from purchase date</p>
           <p className="mt-2">Need more? Contact us for custom enterprise solutions</p>
@@ -281,7 +269,11 @@ const PricingDash = () => {
   const [showEmailVerification, setShowEmailVerification] = useState(false);
   const [showMultiMedia, setShowMultiMedia] = useState(false);
 
-  // Currency exchange rates (relative to USD)
+  // ✅ Custom contacts state
+  const [isCustomContacts, setIsCustomContacts] = useState(false);
+  const [customContactInput, setCustomContactInput] = useState("");
+
+  // Currency exchange rates
   const exchangeRates = {
     USD: 1,
     EUR: 0.93,
@@ -310,7 +302,6 @@ const PricingDash = () => {
     CHF: "CHF",
   };
 
-  // Convert to format needed by EmailValidationPlans
   const currencyRates = Object.keys(exchangeRates).reduce((acc, code) => {
     acc[code] = {
       symbol: currencySymbols[code],
@@ -319,12 +310,16 @@ const PricingDash = () => {
     return acc;
   }, {});
 
-  // If showing email verification page, render it
+  // ✅ Effective contacts — uses custom input if active, otherwise preset dropdown
+  const effectiveContacts = isCustomContacts
+    ? Math.max(1, parseInt(customContactInput) || 0)
+    : selectedContacts;
+
   if (showEmailVerification) {
     return (
       <DashboardLayout>
         <div className="mt-20">
-          <EmailValidationPlans 
+          <EmailValidationPlans
             selectedCurrency={selectedCurrency}
             currencyRates={currencyRates}
             onClose={() => setShowEmailVerification(false)}
@@ -335,7 +330,6 @@ const PricingDash = () => {
     );
   }
 
-  // If showing multimedia pricing page, render it
   if (showMultiMedia) {
     return (
       <DashboardLayout>
@@ -346,7 +340,6 @@ const PricingDash = () => {
             onClose={() => setShowMultiMedia(false)}
             navigate={navigate}
           />
-
         </div>
       </DashboardLayout>
     );
@@ -364,11 +357,10 @@ const PricingDash = () => {
     }
   };
 
-  // Per contact pricing rates
   const perContactRates = {
     essentials: {
       500: 0.05,
-      1000:0.05,
+      1000: 0.05,
       2500: 0.05,
       5000: 0.05,
       10000: 0.04,
@@ -403,7 +395,7 @@ const PricingDash = () => {
 
   const contactTiers = [
     { value: 500, label: "500" },
-    { value: 1000, label: "1000" },
+    { value: 1000, label: "1,000" },
     { value: 2500, label: "2,500" },
     { value: 5000, label: "5,000" },
     { value: 10000, label: "10,000" },
@@ -416,65 +408,61 @@ const PricingDash = () => {
     { value: 200000, label: "2,00,000" },
   ];
 
-const plans = [
-  { 
-    name: "Essentials", 
-    tagline: "Send the right content at the right time with testing and scheduling features", 
-    users: 3, 
-    support: "Standard Support", 
-    contactLimit: 50000,
-    emailSendsPerContact: 1,
-    emailValidationPerContact: 0,
-    hasWhatsApp: false,
-    hasCRM: false,
-    isDiscounted: true,
-    
-    // ✅ Total credits for invoice & checkout
-    emailValidations: 50000 * 0, // 0 validations
-    emailSends: 50000 * 1, // 50k sends
-    smsVolume: 0,
-    whatsappVolume: 0
-  },
-  { 
-    name: "Standard", 
-    tagline: "Sell even more with personalization, optimization tools, and enhanced automations", 
-    users: 5, 
-    support: "Priority Support", 
-    contactLimit: 50000,
-    emailSendsPerContact: 1,
-    emailValidationPerContact: 1,
-    hasWhatsApp: false,
-    hasCRM: false,
-    highlight: true, 
-    isDiscounted: true,
-    
-    emailValidations: 50000 * 1, // 50k validations
-    emailSends: 50000 * 1, // 50k sends
-    smsVolume: 5000,
-    whatsappVolume: 2000
-  },
-  { 
-    name: "Premium", 
-    tagline: "Scale fast with dedicated onboarding, unlimited contacts, and priority support; built for teams", 
-    users: "Unlimited", 
-    support: "Dedicated Support", 
-    features: [
-      "Email marketing", "Email validation", "SMS marketing", 
-      "WhatsApp campaigns", "CRM access", "Advanced automation", 
-      "A/B testing", "Priority support", "Custom integrations"
-    ], 
-    contactLimit: Infinity,
-    emailSendsPerContact: 1,
-    emailValidationPerContact: 1,
-    hasCRM: true,
-    isDiscounted: true,
-
-    emailValidations: 100000, // can be unlimited or large number
-    emailSends: 100000,
-    smsVolume: 10000,
-    whatsappVolume: 5000
-  },
-];
+  const plans = [
+    {
+      name: "Essentials",
+      tagline: "Send the right content at the right time with testing and scheduling features",
+      users: 3,
+      support: "Standard Support",
+      contactLimit: 50000,
+      emailSendsPerContact: 1,
+      emailValidationPerContact: 0,
+      hasWhatsApp: false,
+      hasCRM: false,
+      isDiscounted: true,
+      emailValidations: 50000 * 0,
+      emailSends: 50000 * 1,
+      smsVolume: 0,
+      whatsappVolume: 0
+    },
+    {
+      name: "Standard",
+      tagline: "Sell even more with personalization, optimization tools, and enhanced automations",
+      users: 5,
+      support: "Priority Support",
+      contactLimit: 50000,
+      emailSendsPerContact: 1,
+      emailValidationPerContact: 1,
+      hasWhatsApp: false,
+      hasCRM: false,
+      highlight: true,
+      isDiscounted: true,
+      emailValidations: 50000 * 1,
+      emailSends: 50000 * 1,
+      smsVolume: 5000,
+      whatsappVolume: 2000
+    },
+    {
+      name: "Premium",
+      tagline: "Scale fast with dedicated onboarding, unlimited contacts, and priority support; built for teams",
+      users: "Unlimited",
+      support: "Dedicated Support",
+      features: [
+        "Email marketing", "Email validation", "SMS marketing",
+        "WhatsApp campaigns", "CRM access", "Advanced automation",
+        "A/B testing", "Priority support", "Custom integrations"
+      ],
+      contactLimit: Infinity,
+      emailSendsPerContact: 1,
+      emailValidationPerContact: 1,
+      hasCRM: true,
+      isDiscounted: true,
+      emailValidations: 100000,
+      emailSends: 100000,
+      smsVolume: 10000,
+      whatsappVolume: 5000
+    },
+  ];
 
   const features = [
     {
@@ -542,7 +530,6 @@ const plans = [
 
   const getPlanContactLimit = (planType) => {
     const contactCount = parseInt(localStorage.getItem("totalContacts")) || 0;
-
     switch (planType?.toLowerCase()) {
       case "free": return 50;
       case "essentials": return 50000;
@@ -552,55 +539,45 @@ const plans = [
     }
   };
 
-  const isPlanAvailable = (planName) => selectedContacts <= getPlanContactLimit(planName);
+  // ✅ Uses effectiveContacts
+  const isPlanAvailable = (planName) => effectiveContacts <= getPlanContactLimit(planName);
 
-  // FIXED: Updated calculateEmailSends to account for billing period
   const calculateEmailSends = (plan, contacts) => {
     if (plan.name === "Free") return 50;
-    
-    const multiplier = 
-      pricingType === "yearly" ? 12 : 
+    const multiplier =
+      pricingType === "yearly" ? 12 :
       pricingType === "quarterly" ? 3 : 1;
-      
     return contacts * plan.emailSendsPerContact * multiplier;
   };
-  
-  // FIXED: Updated calculateEmailValidations to account for billing period
+
   const calculateEmailValidations = (plan, contacts) => {
-    const multiplier = 
-      pricingType === "yearly" ? 12 : 
+    const multiplier =
+      pricingType === "yearly" ? 12 :
       pricingType === "quarterly" ? 3 : 1;
-      
     return contacts * plan.emailValidationPerContact * multiplier;
   };
 
   const calculatePrice = (plan, contacts) => {
     if (plan.name === "Free") return 0;
-    
     const planKey = plan.name.toLowerCase();
     const rates = perContactRates[planKey];
-    
     if (!rates) return 0;
-    
-    // Find the appropriate rate for the contact tier
-    let rate = 0;
-    if (contacts <= 500) rate = rates[500];
-    else if (contacts <= 2500) rate = rates[2500];
-    else if (contacts <= 5000) rate = rates[5000];
-    else if (contacts <= 10000) rate = rates[10000];
-    else if (contacts <= 20000) rate = rates[20000];
-    else if (contacts <= 30000) rate = rates[30000];
-    else if (contacts <= 40000) rate = rates[40000];
-    else rate = rates[50000];
-    
-    // Monthly price per contact
+
+    // ✅ Fixed: iterate tiers in ascending order, use the rate of the
+    // LAST tier the contact count meets or exceeds.
+    // This ensures price always increases as contacts increase —
+    // e.g. 21,498 stays at the 20,000-tier rate ($0.04), not the 30,000-tier rate ($0.03).
+    const tierBreakpoints = [500, 1000, 2500, 5000, 10000, 20000, 30000, 40000, 50000];
+    let rate = rates[500];
+    for (const tier of tierBreakpoints) {
+      if (contacts >= tier) rate = rates[tier];
+      else break;
+    }
+
     const monthlyPrice = contacts * rate;
-    
-    // Apply billing period multiplier
-    const multiplier = 
-      pricingType === "yearly" ? 12 : 
+    const multiplier =
+      pricingType === "yearly" ? 12 :
       pricingType === "quarterly" ? 3 : 1;
-      
     return monthlyPrice * multiplier;
   };
 
@@ -611,25 +588,23 @@ const plans = [
   const handleBuyNow = (plan, contacts) => {
     const isLoggedIn = !!localStorage.getItem("authToken");
     const hasPurchasedBefore = localStorage.getItem("hasPurchasedBefore") === "true";
-    
+
     const monthlyFullPrice = parseFloat(calculatePrice(plan, contacts)) / (
-      pricingType === "yearly" ? 12 : 
+      pricingType === "yearly" ? 12 :
       pricingType === "quarterly" ? 3 : 1
     );
     const isNewCustomer = !hasPurchasedBefore;
     const monthlyPrice = calculateDiscountedPrice(monthlyFullPrice, isNewCustomer);
-    
-    const multiplier = 
-      pricingType === "yearly" ? 12 : 
+
+    const multiplier =
+      pricingType === "yearly" ? 12 :
       pricingType === "quarterly" ? 3 : 1;
     const price = monthlyPrice * multiplier;
     const originalPrice = monthlyFullPrice * multiplier;
 
-    // FIXED: Use updated calculateEmailSends and calculateEmailValidations functions
     const emailSendLimit = calculateEmailSends(plan, contacts);
     const emailValidationLimit = calculateEmailValidations(plan, contacts);
 
-    // Convert to selected currency before sending to signin or payment
     const convertedBasePrice = price * exchangeRates[selectedCurrency];
     const convertedOriginalPrice = originalPrice * exchangeRates[selectedCurrency];
     const convertedTotal = convertedBasePrice * 1.1;
@@ -653,8 +628,7 @@ const plans = [
       isFromPricingDash: true,
       isNewUser: isNewCustomer,
       currency: selectedCurrency,
-      currencySymbol: currencySymbols[selectedCurrency] || "$", // ✅ Add this line
-
+      currencySymbol: currencySymbols[selectedCurrency] || "$",
     };
 
     localStorage.setItem("pendingUpgradePlan", JSON.stringify(planDetails));
@@ -676,24 +650,93 @@ const plans = [
     </td>
   );
 
+  // ✅ Fixed: same >= logic so cost-per-contact display is consistent with calculatePrice
+  const getRateForContacts = (planKey, contacts) => {
+    const rates = perContactRates[planKey];
+    if (!rates) return 0;
+    const tierBreakpoints = [500, 1000, 2500, 5000, 10000, 20000, 30000, 40000, 50000];
+    let rate = rates[500];
+    for (const tier of tierBreakpoints) {
+      if (contacts >= tier) rate = rates[tier];
+      else break;
+    }
+    return rate;
+  };
+
   return (
     <DashboardLayout>
       <div className="text-white min-h-screen py-10 px-4 mt-20">
         <div className="max-w-7xl mx-auto space-y-12">
+
           {/* Header with Contact and Currency Selector */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-10">
+          <div className="flex flex-col md:flex-row md:items-start md:justify-between mb-10 gap-4">
             <h2 className="text-2xl font-bold text-[#c2831f] mb-4 md:mb-0">Choose Plans</h2>
-            <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
-                <label className="text-gray-400">Contacts:</label>
-                <select className="bg-[#1e1e1e] text-white border border-gray-600 rounded px-3 py-2 text-sm" value={selectedContacts} onChange={(e) => setSelectedContacts(Number(e.target.value))}>
-                  {contactTiers.map((tier) => <option key={tier.value} value={tier.value}>{tier.label}</option>)}
-                </select>
+            <div className="flex flex-wrap items-start gap-4">
+
+              {/* ✅ Contacts Selector with Custom Option */}
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-gray-400">Contacts:</label>
+                  <select
+                    className="bg-[#1e1e1e] text-white border border-gray-600 rounded px-3 py-2 text-sm"
+                    value={isCustomContacts ? "custom" : selectedContacts}
+                    onChange={(e) => {
+                      if (e.target.value === "custom") {
+                        setIsCustomContacts(true);
+                        setCustomContactInput("");
+                      } else {
+                        setIsCustomContacts(false);
+                        setSelectedContacts(Number(e.target.value));
+                      }
+                    }}
+                  >
+                    {contactTiers.map((tier) => (
+                      <option key={tier.value} value={tier.value}>{tier.label}</option>
+                    ))}
+                    <option value="custom">Custom...</option>
+                  </select>
+                </div>
+
+                {/* ✅ Custom input row — shown only when Custom is selected */}
+                {isCustomContacts && (
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 220"
+                      value={customContactInput}
+                      onChange={(e) => setCustomContactInput(e.target.value)}
+                      className="bg-[#1e1e1e] text-white border border-[#c2831f] rounded px-3 py-2 text-sm w-36 focus:outline-none focus:ring-1 focus:ring-[#c2831f]"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => {
+                        setIsCustomContacts(false);
+                        setSelectedContacts(Math.max(1, parseInt(customContactInput) || 500));
+                        setCustomContactInput("");
+                      }}
+                      className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded transition-colors"
+                      title="Clear custom input"
+                    >
+                      ✕
+                    </button>
+                    {customContactInput && parseInt(customContactInput) > 0 && (
+                      <span className="text-xs text-[#c2831f] font-semibold">
+                        {parseInt(customContactInput).toLocaleString()} contacts
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
-              
+
+              {/* Currency Selector */}
               <div className="flex items-center gap-2">
                 <label className="text-gray-400">Currency:</label>
-                <select className="bg-[#1e1e1e] text-white border border-gray-600 rounded px-3 py-2 text-sm" value={selectedCurrency} onChange={(e) => setSelectedCurrency(e.target.value)}>
+                <select
+                  className="bg-[#1e1e1e] text-white border border-gray-600 rounded px-3 py-2 text-sm"
+                  value={selectedCurrency}
+                  onChange={(e) => setSelectedCurrency(e.target.value)}
+                >
                   <option value="USD">USD ($)</option>
                   <option value="EUR">EUR (€)</option>
                   <option value="GBP">GBP (£)</option>
@@ -712,7 +755,6 @@ const plans = [
 
           {/* Monthly / Quarterly / Yearly Toggle + Email Verification + Multi-Media Buttons */}
           <div className="flex flex-col md:flex-row items-center justify-center gap-6 mb-20">
-            {/* Toggle Buttons */}
             <div className="inline-flex rounded-md shadow-sm overflow-hidden border border-gray-700">
               {["monthly", "quarterly", "yearly"].map((type) => (
                 <button
@@ -732,7 +774,6 @@ const plans = [
               ))}
             </div>
 
-            {/* Email Verification Button */}
             <button
               onClick={() => setShowEmailVerification(true)}
               className="inline-flex items-center gap-3 bg-[#c2831f]
@@ -743,7 +784,6 @@ const plans = [
               Email Verification Plans
             </button>
 
-            {/* Multi-Media SMS/WhatsApp Button */}
             <button
               onClick={() => setShowMultiMedia(true)}
               className="inline-flex items-center gap-3 bg-[#c2831f]
@@ -758,21 +798,21 @@ const plans = [
           {/* Plan Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {plans.map((plan) => {
-              const monthlyFullPrice = parseFloat(calculatePrice(plan, selectedContacts)) / (
-                pricingType === "yearly" ? 12 : 
+              const monthlyFullPrice = parseFloat(calculatePrice(plan, effectiveContacts)) / (
+                pricingType === "yearly" ? 12 :
                 pricingType === "quarterly" ? 3 : 1
               );
-              const multiplier = 
-                pricingType === "yearly" ? 12 : 
+              const multiplier =
+                pricingType === "yearly" ? 12 :
                 pricingType === "quarterly" ? 3 : 1;
               const price = monthlyFullPrice * multiplier;
               const planAvailable = isPlanAvailable(plan.name);
               const isNewCustomer = !localStorage.getItem("hasPurchasedBefore");
               const discountedPrice = calculateDiscountedPrice(monthlyFullPrice, isNewCustomer) * multiplier;
 
-              // FIXED: Calculate email sends and validations using the updated functions
-              const emailSends = calculateEmailSends(plan, selectedContacts);
-              const emailValidations = calculateEmailValidations(plan, selectedContacts);
+              // ✅ Uses effectiveContacts
+              const emailSends = calculateEmailSends(plan, effectiveContacts);
+              const emailValidations = calculateEmailValidations(plan, effectiveContacts);
 
               return (
                 <div
@@ -783,30 +823,52 @@ const plans = [
                       : "border-gray-700"
                   } ${!planAvailable ? "opacity-60" : ""}`}
                 >
-                  {plan.highlight && <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full">Best value</div>}
-                  {!planAvailable && <div className="absolute top-0 left-0 right-0 bg-gray-700 text-white text-center py-2 text-sm font-bold z-10">NOT AVAILABLE</div>}
+                  {plan.highlight && (
+                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-yellow-500 text-black text-xs font-bold px-3 py-1 rounded-full">
+                      Best value
+                    </div>
+                  )}
+                  {!planAvailable && (
+                    <div className="absolute top-0 left-0 right-0 bg-gray-700 text-white text-center py-2 text-sm font-bold z-10">
+                      NOT AVAILABLE
+                    </div>
+                  )}
+
                   <h3 className="text-xl font-semibold mb-1">{plan.name}</h3>
                   <p className="text-gray-400 text-sm mb-4">{plan.tagline}</p>
+
                   <div className="mb-4">
                     {plan.name === "Free" ? (
-                      <div className="text-2xl font-bold">{formatPrice(price)}<span className="text-sm font-normal text-gray-500">/month</span></div>
+                      <div className="text-2xl font-bold">
+                        {formatPrice(price)}
+                        <span className="text-sm font-normal text-gray-500">/month</span>
+                      </div>
                     ) : (
                       <>
                         {isNewCustomer && plan.isDiscounted ? (
                           <>
                             <div className="flex items-baseline gap-2">
-                              <div className="text-2xl font-bold">{formatPrice(discountedPrice)}<span className="text-sm font-normal text-gray-500">/{pricingType}</span></div>
+                              <div className="text-2xl font-bold">
+                                {formatPrice(discountedPrice)}
+                                <span className="text-sm font-normal text-gray-500">/{pricingType}</span>
+                              </div>
                             </div>
-                            <div className="text-xl line-through text-gray-500">{formatPrice(price)}<span className="text-sm font-normal text-gray-500">/{pricingType}</span></div>
-
+                            <div className="text-xl line-through text-gray-500">
+                              {formatPrice(price)}
+                              <span className="text-sm font-normal text-gray-500">/{pricingType}</span>
+                            </div>
                             <div className="text-sm text-green-400 font-semibold">50% OFF for new customers!</div>
                           </>
                         ) : (
-                          <div className="text-2xl font-bold">{formatPrice(price)}<span className="text-sm font-normal text-gray-500">/{pricingType}</span></div>
+                          <div className="text-2xl font-bold">
+                            {formatPrice(price)}
+                            <span className="text-sm font-normal text-gray-500">/{pricingType}</span>
+                          </div>
                         )}
                       </>
                     )}
                   </div>
+
                   <ul className="text-sm text-gray-300 mb-4 space-y-2 text-left">
                     <li className="flex items-center gap-2">
                       <User size={16} /> Users: {plan.users}
@@ -814,12 +876,12 @@ const plans = [
 
                     <li className="flex flex-col gap-1">
                       <div className="flex items-center gap-2">
-                        <Mail size={16} /> 
+                        <Mail size={16} />
                         <span>
                           Email Sends:{" "}
                           {plan.name === "Free"
                             ? "50"
-                            : `${emailSends.toLocaleString()} `}
+                            : `${emailSends.toLocaleString()}`}
                         </span>
                       </div>
 
@@ -827,32 +889,22 @@ const plans = [
                         <div className="ml-6 text-xs text-gray-400">
                           {(() => {
                             const planKey = plan.name.toLowerCase();
-                            const rates = perContactRates[planKey];
-                            if (!rates) return null;
-
-                            let rate = 0;
-                            if (selectedContacts <= 500) rate = rates[500];
-                            else if (selectedContacts <= 2500) rate = rates[2500];
-                            else if (selectedContacts <= 5000) rate = rates[5000];
-                            else if (selectedContacts <= 10000) rate = rates[10000];
-                            else if (selectedContacts <= 20000) rate = rates[20000];
-                            else if (selectedContacts <= 30000) rate = rates[30000];
-                            else if (selectedContacts <= 40000) rate = rates[40000];
-                            else rate = rates[50000];
-
+                            const rate = getRateForContacts(planKey, effectiveContacts);
+                            if (!rate) return null;
                             return (
-                              <>Cost per contact: <span className="text-[#c2831f] font-semibold">{formatPrice(rate)}</span></>
+                              <>
+                                Cost per contact:{" "}
+                                <span className="text-[#c2831f] font-semibold">{formatPrice(rate)}</span>
+                              </>
                             );
                           })()}
                         </div>
                       )}
                     </li>
 
-                    {/* FIXED: Display the calculated email validations */}
                     {plan.emailValidationPerContact > 0 && (
                       <li className="flex items-center gap-2">
-                        <Check size={16} /> Email Validations:{" "}
-                        {`${emailValidations.toLocaleString()}  `}
+                        <Check size={16} /> Email Validations: {emailValidations.toLocaleString()}
                       </li>
                     )}
 
@@ -866,7 +918,6 @@ const plans = [
                         <Check size={16} className="text-green-500" /> SMS Campaigns
                       </li>
                     )}
-
                     {plan.hasCRM && (
                       <li className="flex items-center gap-2">
                         <Check size={16} className="text-green-500" /> CRM Access
@@ -879,7 +930,7 @@ const plans = [
                   </ul>
 
                   <button
-                    onClick={() => handleBuyNow(plan, selectedContacts)}
+                    onClick={() => handleBuyNow(plan, effectiveContacts)}
                     className={`mt-5 w-full font-semibold py-2 rounded cursor-pointer ${
                       plan.name === "Free"
                         ? "bg-gray-700 text-gray-400"
@@ -908,13 +959,17 @@ const plans = [
                 <thead>
                   <tr className="border-b border-gray-700">
                     <th className="text-left py-4 px-4 w-1/4">Features</th>
-                    {plans.map((plan) => <th key={plan.name} className="text-center py-4 px-3 font-semibold">{plan.name}</th>)}
+                    {plans.map((plan) => (
+                      <th key={plan.name} className="text-center py-4 px-3 font-semibold">{plan.name}</th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {features.map((cat, catIdx) => (
                     <React.Fragment key={catIdx}>
-                      <tr className="bg-gray-800"><td colSpan={5} className="py-2 px-4 font-semibold text-base">{cat.category}</td></tr>
+                      <tr className="bg-gray-800">
+                        <td colSpan={5} className="py-2 px-4 font-semibold text-base">{cat.category}</td>
+                      </tr>
                       {cat.items.map((item, itemIdx) => (
                         <tr key={itemIdx} className="border-b border-gray-800 hover:bg-gray-900">
                           <td className="py-3 px-4">{item.name}</td>
@@ -928,7 +983,9 @@ const plans = [
             </div>
           </div>
 
-          <p className="text-center text-xs text-gray-600 mt-8">All plans billed {pricingType} in {selectedCurrency} unless specified otherwise. Pricing based on per-contact rates.</p>
+          <p className="text-center text-xs text-gray-600 mt-8">
+            All plans billed {pricingType} in {selectedCurrency} unless specified otherwise. Pricing based on per-contact rates.
+          </p>
         </div>
       </div>
     </DashboardLayout>
