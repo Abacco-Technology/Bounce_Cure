@@ -329,6 +329,8 @@ export default function Analytics() {
   const [pdfLoading,         setPdfLoading]         = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("all");
   const [user,               setUser]               = useState(null);
+  const [selectedIds,        setSelectedIds]        = useState(new Set());
+  const [bulkDeleting,       setBulkDeleting]       = useState(false);
   const pollingRef = useRef(null);
 
   useEffect(() => {
@@ -389,7 +391,49 @@ export default function Analytics() {
     }
   };
 
-  // ── Fetch SendGrid stats scoped to a campaign's date ──────────
+  const deleteSelectedCampaigns = async () => {
+    if (selectedIds.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedIds.size} selected campaign(s)?`)) return;
+    setBulkDeleting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const ids = Array.from(selectedIds);
+      await Promise.all(
+        ids.map(id =>
+          fetch(`${API_URL}/api/campaigns/${id}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+          })
+        )
+      );
+      setCampaigns(prev => prev.filter(c => !selectedIds.has(String(c.id))));
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      alert("Error deleting some campaigns");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === campaigns.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(campaigns.map(c => String(c.id))));
+    }
+  };
+
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(String(id))) next.delete(String(id));
+      else next.add(String(id));
+      return next;
+    });
+  };
+
+
   const fetchCampaignSgStats = async (campaign) => {
     try {
       const token = localStorage.getItem("token");
@@ -557,7 +601,33 @@ export default function Analytics() {
 
         {/* ── Campaign table ── */}
         <div className="bg-[#0a0a0a] border border-gray-800 p-6 rounded-xl overflow-x-auto">
-          <h2 className="text-lg font-semibold text-[#b2761c] mb-4">Campaign Progress</h2>
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h2 className="text-lg font-semibold text-[#b2761c]">Campaign Progress</h2>
+            {selectedIds.size > 0 && (
+              <button
+                onClick={deleteSelectedCampaigns}
+                disabled={bulkDeleting}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold border border-red-700 text-red-500 hover:bg-red-700 hover:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkDeleting ? (
+                  <>
+                    <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                    </svg>
+                    Deleting…
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                    </svg>
+                    Delete Selected ({selectedIds.size})
+                  </>
+                )}
+              </button>
+            )}
+          </div>
           {loading ? (
             <p className="text-gray-400">Loading...</p>
           ) : campaigns.length === 0 ? (
@@ -566,6 +636,15 @@ export default function Analytics() {
             <table className="w-full text-left text-sm">
               <thead className="border-b border-gray-700 text-gray-400">
                 <tr>
+                  <th className="py-2 pr-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === campaigns.length && campaigns.length > 0}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 rounded border-gray-600 bg-gray-800 accent-[#b2761c] cursor-pointer"
+                      title="Select all"
+                    />
+                  </th>
                   <th className="py-2">Campaign</th>
                   <th>Total</th> 
                   <th>Batches</th>
@@ -579,8 +658,20 @@ export default function Analytics() {
                 {campaigns.map((c) => {
                   const bp = getBatchProgress(c);
                   const totalMails = c.totalRecipients || (c.sentCount || 0) + (c.pending || 0);
+                  const isSelected = selectedIds.has(String(c.id));
                   return (
-                    <tr key={c.id} className="border-b border-gray-800 hover:bg-gray-900">
+                    <tr
+                      key={c.id}
+                      className={`border-b border-gray-800 hover:bg-gray-900 transition-colors ${isSelected ? "bg-[#1a1200]" : ""}`}
+                    >
+                      <td className="py-2 pr-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(c.id)}
+                          className="w-4 h-4 rounded border-gray-600 bg-gray-800 accent-[#b2761c] cursor-pointer"
+                        />
+                      </td>
                       <td className="py-2 pr-4 max-w-[180px] truncate">{c.name}</td>
                       <td className="pr-4">
                         {totalMails}
