@@ -226,16 +226,16 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     switch (el.type) {
 
       case 'heading':
-        return `<h1 style="margin:4px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
+        return `<h1 style="margin:2px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
 
       case 'subheading':
-        return `<h2 style="margin:4px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
+        return `<h2 style="margin:2px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
 
       case 'paragraph':
-        return `<p style="margin:5px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.6};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
+        return `<p style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
 
       case 'blockquote':
-        return `<div style="margin:8px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
+        return `<div style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
 
       case 'image': {
         let src = el.src || '';
@@ -260,7 +260,7 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
 
       case 'button': {
         const ba = align(el, inCard);
-        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
       }
 
       case 'line':
@@ -312,7 +312,7 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
           const platform = (el.platform || '').toLowerCase();
           src = cdnIcons[platform] || cdnIcons['facebook'];
         }
-        return `<a href="${el.link || '#'}" target="_blank" style="display:inline-block;vertical-align:middle;margin:0 6px;text-decoration:none;"><img src="${src}" width="${sz}" height="${sz}" alt="${el.platform || 'social'}" style="display:block;border:0;border-radius:6px;width:${sz}px;height:${sz}px;" /></a>`;
+        return `<a href="${el.link || '#'}" target="_blank" style="display:inline-block;vertical-align:middle;margin:0 6px;text-decoration:none;"><img src="${src}" width="${sz}" height="${sz}" alt="${el.platform || 'social'}" style="display:inline;border:0;border-radius:6px;width:${sz}px;height:${sz}px;" /></a>`;
       }
 
       default: return '';
@@ -375,7 +375,7 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     const hasSocialIcons = kids.some(k => k.type === 'social');
     const hasUnsubscribe = kids.some(k => k.type === 'heading' && k.content === 'Unsubscribe');
     
-    if (hasButton && hasSocialIcons && hasUnsubscribe) {
+    if (hasSocialIcons && (hasUnsubscribe || hasButton)) {
       // This is the email footer card - use table-based layout
       const sorted = [...kids].sort((a, b) => a.y - b.y);
       
@@ -384,7 +384,7 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       const networkText = sorted.find(k => k.type === 'paragraph' && k.content && k.content.includes('professional network'));
       const unsubscribe = sorted.find(k => k.type === 'heading' && k.content === 'Unsubscribe');
       const divider1 = sorted.find(k => k.type === 'line' && k.y < 150);
-      const phone = sorted.find(k => k.type === 'paragraph' && k.content && k.content.includes('📞'));
+      const phone = sorted.find(k => k.type === 'paragraph' && k.content && (k.content.includes('📞') || k.content.match(/\d{3}[-.\s]\d{3}/)));
       const separator = sorted.find(k => k.type === 'paragraph' && k.content === '|');
       const email = sorted.find(k => k.type === 'paragraph' && k.content && k.content.includes('@'));
       const socialIcons = sorted.filter(k => k.type === 'social');
@@ -455,9 +455,23 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
         html += `<tr><td style="padding:8px 0 16px;text-align:center;">`;
         
         socialIcons.forEach(icon => {
-          html += `<a href="${icon.link || '#'}" style="display:inline-block;margin:0 6px;">
-            <img src="${icon.src}" alt="${icon.platform || 'social'}" width="${icon.width || 36}" height="${icon.height || 36}" style="display:block;border:0;"/>
-          </a>`;
+          const cdnIcons = {
+            facebook:  'https://cdn-icons-png.flaticon.com/512/733/733547.png',
+            twitter:   'https://cdn-icons-png.flaticon.com/512/733/733579.png',
+            linkedin:  'https://cdn-icons-png.flaticon.com/512/145/145807.png',
+            instagram: 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png',
+            youtube:   'https://cdn-icons-png.flaticon.com/512/1384/1384060.png',
+            tiktok:    'https://cdn-icons-png.flaticon.com/512/3046/3046126.png',
+            whatsapp:  'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+            pinterest: 'https://cdn-icons-png.flaticon.com/512/145/145808.png',
+          };
+          let iconSrc = icon.src || '';
+          if (!iconSrc || iconSrc.startsWith('blob:') || iconSrc.startsWith('data:') || iconSrc.startsWith('/')) {
+            const platform = (icon.platform || '').toLowerCase();
+            iconSrc = cdnIcons[platform] || cdnIcons['facebook'];
+          }
+          const iconSz = Math.min(sc(icon.width) || 32, sc(icon.height) || 32, 40);
+          html += `<a href="${icon.link || '#'}" target="_blank" style="display:inline-block;margin:0 6px;text-decoration:none;"><img src="${iconSrc}" width="${iconSz}" height="${iconSz}" alt="${icon.platform || 'social'}" style="display:inline;border:0;border-radius:6px;width:${iconSz}px;height:${iconSz}px;vertical-align:middle;" /></a>`;
         });
         
         html += `</td></tr>`;
@@ -513,21 +527,53 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       rows += `<tr><td style="padding:12px 16px 4px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="44" valign="middle" style="padding-right:8px;">${renderEl(iconEl, true)}</td><td valign="middle">${renderEl(headEl, true)}</td></tr></table></td></tr>`;
     }
 
-    // Body content — sort by Y, render each element in its own <tr> with gap spacing
+    // Body content — sort by Y, group elements at same Y into one row (side-by-side)
     if (rest.length > 0) {
-      const restSorted = [...rest].sort((a, b) => a.y - b.y);
+      const restSorted = [...rest].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
       const topPad = (topImg || iconEl) ? '6' : '16';
-      restSorted.forEach((k, idx) => {
-        // Calculate Y-gap from previous element to preserve canvas spacing
+
+      // Group elements into rows: elements whose vertical centres overlap go in the same row
+      const rowGroups = [];
+      restSorted.forEach(k => {
+        const kMidY = k.y + k.height / 2;
+        const existing = rowGroups.find(g =>
+          g.some(m => {
+            const mMidY = m.y + m.height / 2;
+            return Math.abs(kMidY - mMidY) < Math.min(k.height, m.height) * 0.6;
+          })
+        );
+        if (existing) existing.push(k);
+        else rowGroups.push([k]);
+      });
+
+      rowGroups.forEach((group, gIdx) => {
+        // Y-gap from previous row
         let gapPx = 0;
-        if (idx > 0) {
-          const prev = restSorted[idx - 1];
-          const canvasGap = Math.max(0, k.y - (prev.y + prev.height));
+        if (gIdx > 0) {
+          const prevGroup = rowGroups[gIdx - 1];
+          const prevBottom = Math.max(...prevGroup.map(m => m.y + m.height));
+          const curTop = Math.min(...group.map(m => m.y));
+          const canvasGap = Math.max(0, curTop - prevBottom);
           gapPx = Math.round(canvasGap * (EW / CW));
         }
-        const padTop = idx === 0 ? topPad : (gapPx > 2 ? gapPx : 4);
-        const padBot = idx === restSorted.length - 1 ? '16' : '0';
-        rows += `<tr><td style="padding:${padTop}px 16px ${padBot}px;">${renderEl(k, true)}</td></tr>`;
+        const padTop = gIdx === 0 ? 6 : Math.min(gapPx, 10);
+        const padBot = gIdx === rowGroups.length - 1 ? '16' : '0';
+
+        if (group.length === 1) {
+          // Single element — normal full-width row
+          rows += `<tr><td style="padding:${padTop}px 12px ${padBot}px;">${renderEl(group[0], true)}</td></tr>`;
+        } else {
+          // Multiple elements side by side — one <td> each, equal width
+          const sortedByX = [...group].sort((a, b) => a.x - b.x);
+          const colW = Math.round(100 / sortedByX.length);
+          rows += `<tr>`;
+          sortedByX.forEach((k, kIdx) => {
+            const lPad = kIdx === 0 ? '16' : '4';
+            const rPad = kIdx === sortedByX.length - 1 ? '16' : '4';
+            rows += `<td width="${colW}%" valign="middle" style="padding:${padTop}px ${rPad}px ${padBot}px ${lPad}px;text-align:center;">${renderEl(k, true)}</td>`;
+          });
+          rows += `</tr>`;
+        }
       });
     }
 
@@ -544,8 +590,41 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     });
   });
 
-  orphans.forEach(el => {
-    units.push({ x: el.x, y: el.y, cw: el.width, ch: el.height, elType: el.type, origId: el.id, _el: el, html: renderEl(el, false) });
+  // Group orphan elements that share the same Y band (side-by-side on canvas)
+  const orphansSorted = [...orphans].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+  const orphanGroups = [];
+  orphansSorted.forEach(el => {
+    const elMidY = el.y + el.height / 2;
+    const existing = orphanGroups.find(g =>
+      g.some(m => Math.abs(elMidY - (m.y + m.height / 2)) < Math.min(el.height, m.height) * 0.6)
+    );
+    if (existing) existing.push(el);
+    else orphanGroups.push([el]);
+  });
+
+  orphanGroups.forEach(group => {
+    const groupY   = Math.min(...group.map(e => e.y));
+    const groupBot = Math.max(...group.map(e => e.y + e.height));
+    const groupX   = Math.min(...group.map(e => e.x));
+    const groupCW  = Math.max(...group.map(e => e.x + e.width)) - groupX;
+
+    // Determine alignment from canvas X position
+    const elCenterX = groupX + groupCW / 2;
+    const align = elCenterX < CW * 0.38 ? 'left' : elCenterX > CW * 0.62 ? 'right' : 'center';
+
+    let innerHtml;
+    if (group.length === 1) {
+      innerHtml = renderEl(group[0], false);
+    } else {
+      // side-by-side group
+      const sortedByX = [...group].sort((a, b) => a.x - b.x);
+      innerHtml = `<table cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr>` +
+        sortedByX.map(el => `<td valign="middle" style="padding:0 6px;">${renderEl(el, false)}</td>`).join('') +
+        `</tr></table>`;
+    }
+
+    const wrappedHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="${align}" style="padding:4px 0;">${innerHtml}</td></tr></table>`;
+    units.push({ x: groupX, y: groupY, cw: groupCW, ch: groupBot - groupY, elType: 'orphan-group', origId: group[0].id, html: wrappedHtml });
   });
 
   // Sort units by Y position
@@ -573,7 +652,10 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       const prev = units[idx - 1];
       // Gap = space between bottom of previous unit and top of current unit, scaled to email width
       const canvasGap = Math.max(0, unit.y - (prev.y + prev.ch));
-      const emailGap  = Math.round(canvasGap * (EW / CW));
+      const emailGap = Math.min(
+        Math.round(canvasGap * (EW / CW)),
+        12 
+      );
       if (emailGap > 2) {
         html += `<div style="height:${emailGap}px;font-size:0;line-height:0;">&nbsp;</div>\n`;
       }
