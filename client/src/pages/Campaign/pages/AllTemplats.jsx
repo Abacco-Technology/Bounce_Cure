@@ -4,7 +4,7 @@ import {
   Search, Star, Eye, Heart, Mail, Megaphone, Share2, Calendar, 
   Rocket, Users, Award, TrendingUp, Gift, FileText, Briefcase,
   ImageIcon, Monitor, Presentation, PartyPopper, ShoppingBag, Filter,
-  Grid, List, X
+  Grid, List, X, Trash2, Pencil, Check
 } from "lucide-react";
 const API_URL = import.meta.env.VITE_VRI_URL;
 
@@ -1117,6 +1117,9 @@ const AllTemplates = () => {
   const [viewMode, setViewMode] = useState("grid");
   const [savedTemplates, setSavedTemplates] = useState([]);
   const [userCreatedTemplates, setUserCreatedTemplates] = useState([]);
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteConfirmId, setDeleteConfirmId] = useState(null);
 
 // Load saved templates from database on component mount
 useEffect(() => {
@@ -1168,6 +1171,42 @@ useEffect(() => {
       setSavedTemplates(savedTemplates.filter(id => id !== templateId));
     } else {
       setSavedTemplates([...savedTemplates, templateId]);
+    }
+  };
+
+  const handleDeleteTemplate = async (templateId) => {
+    const userId = localStorage.getItem("userId");
+    if (!userId) return;
+    try {
+      const response = await fetch(`${API_URL}/api/saved-templates/${userId}/${templateId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Delete failed");
+      setUserCreatedTemplates(prev => prev.filter(t => t.id !== templateId));
+      setSavedTemplates(prev => prev.filter(id => id !== templateId));
+      setDeleteConfirmId(null);
+    } catch (err) {
+      console.error("Error deleting template:", err);
+    }
+  };
+
+  const handleRenameTemplate = async (templateId) => {
+    const userId = localStorage.getItem("userId");
+    if (!userId || !renameValue.trim()) return;
+    try {
+      const response = await fetch(`${API_URL}/api/saved-templates/update`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, templateId, name: renameValue.trim() }),
+      });
+      if (!response.ok) throw new Error("Rename failed");
+      setUserCreatedTemplates(prev =>
+        prev.map(t => t.id === templateId ? { ...t, name: renameValue.trim() } : t)
+      );
+      setRenamingId(null);
+      setRenameValue("");
+    } catch (err) {
+      console.error("Error renaming template:", err);
     }
   };
 
@@ -1762,12 +1801,39 @@ const renderTemplatePreview = (template) => {
                   {/* Content */}
                   <div className="p-6">
                     <div className="flex items-start justify-between mb-3">
-                      <h3 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors duration-200 line-clamp-2">
-                        {template.name}
-                      </h3>
+                      {renamingId === template.id ? (
+                        <div className="flex items-center gap-2 flex-1 mr-2">
+                          <input
+                            autoFocus
+                            value={renameValue}
+                            onChange={e => setRenameValue(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === "Enter") handleRenameTemplate(template.id);
+                              if (e.key === "Escape") { setRenamingId(null); setRenameValue(""); }
+                            }}
+                            className="flex-1 bg-gray-700 border border-blue-500 text-white rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <button
+                            onClick={() => handleRenameTemplate(template.id)}
+                            className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                          >
+                            <Check size={14} />
+                          </button>
+                          <button
+                            onClick={() => { setRenamingId(null); setRenameValue(""); }}
+                            className="p-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <h3 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors duration-200 line-clamp-2">
+                          {template.name}
+                        </h3>
+                      )}
                       <button 
                         onClick={() => toggleSaveTemplate(template.id)}
-                        className={`p-2 hover:bg-gray-700 rounded-full transition-colors duration-200 ${
+                        className={`p-2 hover:bg-gray-700 rounded-full transition-colors duration-200 flex-shrink-0 ${
                           savedTemplates.includes(template.id) || template.category === "Saved" ? 'text-red-400' : 'text-gray-400 hover:text-red-400'
                         }`}
                         disabled={template.category === "Saved"}
@@ -1798,6 +1864,44 @@ const renderTemplatePreview = (template) => {
                         <span>{template.likes}</span>
                       </div>
                     </div>
+
+                    {/* Saved Template Actions */}
+                    {template.category === "Saved" && (
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-700">
+                        <button
+                          onClick={() => { setRenamingId(template.id); setRenameValue(template.name); }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-blue-600 text-gray-300 hover:text-white rounded-lg transition-colors duration-200"
+                        >
+                          <Pencil size={12} />
+                          Rename
+                        </button>
+                        {deleteConfirmId === template.id ? (
+                          <div className="flex items-center gap-1.5 ml-auto">
+                            <span className="text-xs text-gray-400">Delete?</span>
+                            <button
+                              onClick={() => handleDeleteTemplate(template.id)}
+                              className="px-2.5 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                            >
+                              Yes
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirmId(null)}
+                              className="px-2.5 py-1.5 text-xs bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                            >
+                              No
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setDeleteConfirmId(template.id)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-gray-700 hover:bg-red-600 text-gray-300 hover:text-white rounded-lg transition-colors duration-200 ml-auto"
+                          >
+                            <Trash2 size={12} />
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1823,10 +1927,37 @@ const renderTemplatePreview = (template) => {
                     {/* Content */}
                     <div className="flex-grow">
                       <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h3 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors duration-200">
-                            {template.name}
-                          </h3>
+                        <div className="flex-1 mr-4">
+                          {renamingId === template.id ? (
+                            <div className="flex items-center gap-2">
+                              <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={e => setRenameValue(e.target.value)}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") handleRenameTemplate(template.id);
+                                  if (e.key === "Escape") { setRenamingId(null); setRenameValue(""); }
+                                }}
+                                className="flex-1 bg-gray-700 border border-blue-500 text-white rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <button
+                                onClick={() => handleRenameTemplate(template.id)}
+                                className="p-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                              >
+                                <Check size={14} />
+                              </button>
+                              <button
+                                onClick={() => { setRenamingId(null); setRenameValue(""); }}
+                                className="p-1.5 bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </div>
+                          ) : (
+                            <h3 className="text-xl font-semibold text-white group-hover:text-blue-400 transition-colors duration-200">
+                              {template.name}
+                            </h3>
+                          )}
                           <span className={`inline-block px-2 py-1 text-xs rounded-full mt-1 ${
                             template.category === "Saved" ? "bg-purple-600/20 text-purple-400" : "bg-blue-600/20 text-blue-400"
                           }`}>
@@ -1866,7 +1997,7 @@ const renderTemplatePreview = (template) => {
                       </div>
                       
                       {/* Actions */}
-                      <div className="flex space-x-3">
+                      <div className="flex items-center gap-3 flex-wrap">
                         <button 
                           onClick={() => setPreviewTemplate(template)}
                           className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors duration-200"
@@ -1880,6 +2011,42 @@ const renderTemplatePreview = (template) => {
                         >
                           <span>Use Template</span>
                         </button>
+                        {template.category === "Saved" && (
+                          <>
+                            <button
+                              onClick={() => { setRenamingId(template.id); setRenameValue(template.name); }}
+                              className="flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-700 hover:bg-blue-600 text-gray-300 hover:text-white rounded-lg transition-colors duration-200"
+                            >
+                              <Pencil size={14} />
+                              Rename
+                            </button>
+                            {deleteConfirmId === template.id ? (
+                              <div className="flex items-center gap-2 ml-auto">
+                                <span className="text-sm text-gray-400">Delete?</span>
+                                <button
+                                  onClick={() => handleDeleteTemplate(template.id)}
+                                  className="px-3 py-2 text-sm bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors"
+                                >
+                                  Yes
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirmId(null)}
+                                  className="px-3 py-2 text-sm bg-gray-600 hover:bg-gray-500 text-white rounded-lg transition-colors"
+                                >
+                                  No
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setDeleteConfirmId(template.id)}
+                                className="flex items-center gap-1.5 px-3 py-2 text-sm bg-gray-700 hover:bg-red-600 text-gray-300 hover:text-white rounded-lg transition-colors duration-200 ml-auto"
+                              >
+                                <Trash2 size={14} />
+                                Delete
+                              </button>
+                            )}
+                          </>
+                        )}
                       </div>
                     </div>
                   </div>
