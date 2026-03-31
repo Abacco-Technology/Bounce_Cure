@@ -349,7 +349,21 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
                     {isBlob      && "⚠️ Local blob URL — upload to server so it shows in email"}
                     {isBase64    && "⚠️ Base64 image — upload to server so it shows in email"}
                     {!imgSrc     && "No image set"}
+                      <div>
+                        <SLabel>Image Link</SLabel>
+
+                        <PRow label="URL">
+                          <input
+                            type="url"
+                            placeholder="https://example.com"
+                            value={selectedEl.link || ""}
+                            onChange={(e) => u("link", e.target.value)}
+                            style={inputStyle}
+                          />
+                        </PRow>
+                      </div>
                   </div>
+                  
                 )}
 
                 {/* ✅ FILE UPLOAD — uploads to server immediately */}
