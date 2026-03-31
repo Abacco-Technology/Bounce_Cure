@@ -90,11 +90,27 @@ function renderPreviewElement(el) {
         );
       }
       return (
-        <img src={src} alt={el.alt||"Image"}
-              style={{ width:"100%", height:"100%", objectFit:el.objectFit||"cover",
-              borderRadius:`${el.borderRadius||0}px`,
-              border:el.borderWidth?`${el.borderWidth}px solid ${el.borderColor}`:"none",
-              display:"block" }} />
+        <a
+          href={el.link || "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "block", width: "100%", height: "100%" }}
+        >
+          <img
+            src={src}
+            alt={el.alt || "Image"}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: el.objectFit || "cover",
+              borderRadius: `${el.borderRadius || 0}px`,
+              border: el.borderWidth
+                ? `${el.borderWidth}px solid ${el.borderColor}`
+                : "none",
+              display: "block",
+            }}
+          />
+        </a>
       );
     }
 

@@ -255,7 +255,15 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
         const heightStyle = scaledH > 0
           ? `height:${scaledH}px;object-fit:cover;`
           : 'height:auto;';
-        return `<div style="margin:0;font-size:0;line-height:0;"><img src="${src}" alt="${el.alt || ''}" width="100%" style="display:block;width:100%;max-width:${maxW};${heightStyle}border-radius:${br}px;${bdr}"/></div>`;
+          return `<div style="margin:0;font-size:0;line-height:0;">
+            <a href="${el.link || '#'}" target="_blank">
+              <img src="${src}" alt="${el.alt || ''}"
+                width="100%"
+                style="display:block;width:100%;max-width:${maxW};
+                ${heightStyle}
+                border-radius:${br}px;${bdr}" />
+            </a>
+          </div>`;  
       }
 
       case 'button': {
