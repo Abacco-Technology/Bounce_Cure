@@ -109,240 +109,240 @@ function StripeForm() {
     else if (storedName) setName(storedName);
   }, [location.state, navigate]);
 
- // Complete handleSubmit function for Stripe.jsx
-// Replace the entire handleSubmit function (around line 100-250)
+  // Complete handleSubmit function for Stripe.jsx
+  // Replace the entire handleSubmit function (around line 100-250)
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
 
-  if (!plan) {
-    setStatus("❌ No plan selected");
-    return;
-  }
-
-  setLoading(true);
-  setStatus("Processing payment...");
-
-  // Convert amount to selected currency
-  const usdAmount = parseFloat(plan.totalCost || 0);
-  const convertedAmount = convertAmountToCurrency(usdAmount, selectedCurrency);
-  const amount = parseFloat(convertedAmount.toFixed(2));
-
-  const userId = localStorage.getItem("userId");
-  console.log("🧾 Sending to backend:", {
-    userId,
-    name,
-    email,
-    amount,
-    planName: plan?.planName,
-    planType: plan?.planType,
-  });
-
-  const billingAddress = `${line1}, ${city}, ${postalCode}`;
-  const discount = plan?.discountAmount || 0;
-
-  console.log("💳 Processing payment for plan:", plan.planName);
-  console.log("💰 Amount:", amount, selectedCurrency);
-
-  try {
-    // ===== STEP 1: Create Stripe Payment Intent =====
-    console.log("📄 Step 1: Creating payment intent...");
-    const { data } = await axios.post(`${API_URL}/api/stripe/create-payment-intent`, {
-      amount,
-      email,
-      userId,
-      planName: plan.planName,
-      planType: plan.billingPeriod,
-      provider: "Stripe",
-      contacts: plan.slots || plan.contactCount || 0,
-      currency: selectedCurrency.toLowerCase(),
-    });
-
-    console.log("✅ Payment intent created:", data.transactionId);
-
-    // ===== STEP 2: Confirm Payment with Stripe =====
-    console.log("📄 Step 2: Confirming payment...");
-    const result = await stripe.confirmCardPayment(data.clientSecret, {
-      payment_method: {
-        card: elements.getElement(CardElement),
-        billing_details: {
-          name,
-          email,
-          address: {
-            line1,
-            city,
-            country: getCountryCode(selectedCurrency),
-            postal_code: postalCode,
-          },
-        },
-      },
-    });
-
-    // ===== STEP 3: Handle Payment Result =====
-    if (result.error) {
-      console.error("❌ Payment error:", result.error);
-      setStatus(`❌ ${result.error.message}`);
-      setLoading(false);
+    if (!plan) {
+      setStatus("❌ No plan selected");
       return;
     }
 
-    if (result.paymentIntent.status === "succeeded") {
-      console.log("✅ Payment succeeded!");
-      setStatus("✅ Payment successful! Saving payment...");
+    setLoading(true);
+    setStatus("Processing payment...");
 
-      const paymentIntent = result.paymentIntent;
+    // Convert amount to selected currency
+    const usdAmount = parseFloat(plan.totalCost || 0);
+    const convertedAmount = convertAmountToCurrency(usdAmount, selectedCurrency);
+    const amount = parseFloat(convertedAmount.toFixed(2));
 
-      // ===== STEP 4: Determine Credit Allocation Based on Plan Type =====
-      let emailVerificationCredits = 0;
-      let emailSendCredits = 0;
-      let smsCredits = 0;
-      let whatsappCredits = 0;
+    const userId = localStorage.getItem("userId");
+    console.log("🧾 Sending to backend:", {
+      userId,
+      name,
+      email,
+      amount,
+      planName: plan?.planName,
+      planType: plan?.planType,
+    });
 
-      console.log("🔍 Analyzing plan type:", {
-        planType: plan.planType,
-        planName: plan.planName,
-      });
+    const billingAddress = `${line1}, ${city}, ${postalCode}`;
+    const discount = plan?.discountAmount || 0;
 
-      // Check if this is a multimedia plan
-      if (
-        plan.planType?.toLowerCase().includes("sms") ||
-        plan.planName?.toLowerCase().includes("sms")
-      ) {
-        smsCredits =
-          plan.credits ||
-          plan.smsCredits ||
-          plan.smsVolume ||
-          plan.totalCredits ||
-          plan.contactCount ||
-          0;
-        console.log("📱 SMS Campaign detected:", smsCredits);
-      }
-      else if (
-        plan.planType === "multimedia-whatsapp" ||
-        plan.planName?.toLowerCase().includes("whatsapp")
-      ) {
-        // ===== WHATSAPP CAMPAIGN PLAN =====
-        whatsappCredits = plan.credits || plan.whatsappVolume || 0;
-        console.log("💬 WhatsApp Campaign detected:", whatsappCredits);
-      } else {
-        // ===== EMAIL CAMPAIGN PLAN =====
-        emailVerificationCredits =
-          plan.verificationCredits ||
-          plan.emailValidations ||
-          plan.contacts ||
-          0;
-        emailSendCredits = plan.emailSends || plan.emails || 0;
-        console.log("📧 Email Campaign detected:", {
-          emailVerificationCredits,
-          emailSendCredits,
-        });
-      }
+    console.log("💳 Processing payment for plan:", plan.planName);
+    console.log("💰 Amount:", amount, selectedCurrency);
 
-      console.log("💳 Final Credit Allocation:", {
-        emailVerificationCredits,
-        emailSendCredits,
-        smsCredits,
-        whatsappCredits,
-      });
-
-      // ===== STEP 5: Save Payment to Backend =====
-      console.log("📄 Step 5: Saving payment to database...");
-      await axios.post(`${API_URL}/api/stripe/save-payment`, {
-        userId,
-        name,
+    try {
+      // ===== STEP 1: Create Stripe Payment Intent =====
+      console.log("📄 Step 1: Creating payment intent...");
+      const { data } = await axios.post(`${API_URL}/api/stripe/create-payment-intent`, {
+        amount,
         email,
-        transactionId: paymentIntent.id,
+        userId,
         planName: plan.planName,
         planType: plan.billingPeriod,
         provider: "Stripe",
-
-        // ✅ Send all credit types (backend will store whichever is > 0)
-        emailVerificationCredits,
-        emailSendCredits,
-        smsCredits,
-        whatsappCredits,
-
-        amount,
+        contacts: plan.slots || plan.contactCount || 0,
         currency: selectedCurrency.toLowerCase(),
-        planPrice: amount - discount,
-        discount,
-        paymentMethod: paymentIntent.payment_method_types[0],
-        cardLast4:
-          paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
-          "",
-        billingAddress,
-        paymentDate: new Date().toISOString(),
-        status: paymentIntent.status,
       });
 
-      console.log("✅ Payment saved successfully in backend");
+      console.log("✅ Payment intent created:", data.transactionId);
 
-      // ===== STEP 6: Update localStorage Based on Plan Type (fixed) =====
-      console.log("📄 Step 6: Updating localStorage...");
-
-      // ✅ Always overwrite with backend-updated totals — no double counting
-      localStorage.setItem("totalSMSCredits", smsCredits || 0);
-      localStorage.setItem("totalWhatsAppCredits", whatsappCredits || 0);
-      localStorage.setItem("totalEmails", emailSendCredits || 0);
-      localStorage.setItem("emailVerificationCredits", emailVerificationCredits || 0);
-
-      console.log("✅ LocalStorage updated (no duplication):", {
-        smsCredits,
-        whatsappCredits,
-        emailSendCredits,
-        emailVerificationCredits,
-      });
-
-
-      // ===== STEP 7: Initialize User State After Purchase =====
-      console.log("📄 Step 7: Initializing user state...");
-      initializeUserAfterPurchase({
-        planName: plan.planName,
-        emails: emailSendCredits,
-        verifications: emailVerificationCredits,
-        sms: smsCredits,
-        whatsapp: whatsappCredits,
-      });
-
-      // ===== STEP 8: Update Backend User Plan =====
-      console.log("📄 Step 8: Updating user plan in backend...");
-      try {
-        await axios.put(
-          `${API_URL}/api/users/plan`,
-          {
-            planName: plan.planName,
-            contactLimit:
-              emailVerificationCredits > 0 ? emailVerificationCredits : 0,
-            emailLimit: emailSendCredits > 0 ? emailSendCredits : 0,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${localStorage.getItem("token")}`,
+      // ===== STEP 2: Confirm Payment with Stripe =====
+      console.log("📄 Step 2: Confirming payment...");
+      const result = await stripe.confirmCardPayment(data.clientSecret, {
+        payment_method: {
+          card: elements.getElement(CardElement),
+          billing_details: {
+            name,
+            email,
+            address: {
+              line1,
+              city,
+              country: getCountryCode(selectedCurrency),
+              postal_code: postalCode,
             },
-          }
-        );
-        console.log("✅ User plan updated successfully in backend");
-      } catch (err) {
-        console.error("⚠️ Failed to update user plan:", err.message);
+          },
+        },
+      });
+
+      // ===== STEP 3: Handle Payment Result =====
+      if (result.error) {
+        console.error("❌ Payment error:", result.error);
+        setStatus(`❌ ${result.error.message}`);
+        setLoading(false);
+        return;
       }
 
-      // ===== STEP 9: Cleanup and Redirect =====
-      console.log("📄 Step 9: Cleaning up and redirecting...");
-      localStorage.removeItem("pendingUpgradePlan");
-      sessionStorage.removeItem("pendingUpgradePlan");
+      if (result.paymentIntent.status === "succeeded") {
+        console.log("✅ Payment succeeded!");
+        setStatus("✅ Payment successful! Saving payment...");
 
-      setStatus("✅ Payment successful! Redirecting to Dashboard...");
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 3000);
+        const paymentIntent = result.paymentIntent;
+
+        // ===== STEP 4: Determine Credit Allocation Based on Plan Type =====
+        let emailVerificationCredits = 0;
+        let emailSendCredits = 0;
+        let smsCredits = 0;
+        let whatsappCredits = 0;
+
+        console.log("🔍 Analyzing plan type:", {
+          planType: plan.planType,
+          planName: plan.planName,
+        });
+
+        // Check if this is a multimedia plan
+        if (
+          plan.planType?.toLowerCase().includes("sms") ||
+          plan.planName?.toLowerCase().includes("sms")
+        ) {
+          smsCredits =
+            plan.credits ||
+            plan.smsCredits ||
+            plan.smsVolume ||
+            plan.totalCredits ||
+            plan.contactCount ||
+            0;
+          console.log("📱 SMS Campaign detected:", smsCredits);
+        }
+        else if (
+          plan.planType === "multimedia-whatsapp" ||
+          plan.planName?.toLowerCase().includes("whatsapp")
+        ) {
+          // ===== WHATSAPP CAMPAIGN PLAN =====
+          whatsappCredits = plan.credits || plan.whatsappVolume || 0;
+          console.log("💬 WhatsApp Campaign detected:", whatsappCredits);
+        } else {
+          // ===== EMAIL CAMPAIGN PLAN =====
+          emailVerificationCredits =
+            plan.verificationCredits ||
+            plan.emailValidations ||
+            plan.contacts ||
+            0;
+          emailSendCredits = plan.emailSends || plan.emails || 0;
+          console.log("📧 Email Campaign detected:", {
+            emailVerificationCredits,
+            emailSendCredits,
+          });
+        }
+
+        console.log("💳 Final Credit Allocation:", {
+          emailVerificationCredits,
+          emailSendCredits,
+          smsCredits,
+          whatsappCredits,
+        });
+
+        // ===== STEP 5: Save Payment to Backend =====
+        console.log("📄 Step 5: Saving payment to database...");
+        await axios.post(`${API_URL}/api/stripe/save-payment`, {
+          userId,
+          name,
+          email,
+          transactionId: paymentIntent.id,
+          planName: plan.planName,
+          planType: plan.billingPeriod,
+          provider: "Stripe",
+
+          // ✅ Send all credit types (backend will store whichever is > 0)
+          emailVerificationCredits,
+          emailSendCredits,
+          smsCredits,
+          whatsappCredits,
+
+          amount,
+          currency: selectedCurrency.toLowerCase(),
+          planPrice: amount - discount,
+          discount,
+          paymentMethod: paymentIntent.payment_method_types[0],
+          cardLast4:
+            paymentIntent.charges?.data[0]?.payment_method_details?.card?.last4 ||
+            "",
+          billingAddress,
+          paymentDate: new Date().toISOString(),
+          status: paymentIntent.status,
+        });
+
+        console.log("✅ Payment saved successfully in backend");
+
+        // ===== STEP 6: Update localStorage Based on Plan Type (fixed) =====
+        console.log("📄 Step 6: Updating localStorage...");
+
+        // ✅ Always overwrite with backend-updated totals — no double counting
+        localStorage.setItem("totalSMSCredits", smsCredits || 0);
+        localStorage.setItem("totalWhatsAppCredits", whatsappCredits || 0);
+        localStorage.setItem("totalEmails", emailSendCredits || 0);
+        localStorage.setItem("emailVerificationCredits", emailVerificationCredits || 0);
+
+        console.log("✅ LocalStorage updated (no duplication):", {
+          smsCredits,
+          whatsappCredits,
+          emailSendCredits,
+          emailVerificationCredits,
+        });
+
+
+        // ===== STEP 7: Initialize User State After Purchase =====
+        console.log("📄 Step 7: Initializing user state...");
+        initializeUserAfterPurchase({
+          planName: plan.planName,
+          emails: emailSendCredits,
+          verifications: emailVerificationCredits,
+          sms: smsCredits,
+          whatsapp: whatsappCredits,
+        });
+
+        // ===== STEP 8: Update Backend User Plan =====
+        console.log("📄 Step 8: Updating user plan in backend...");
+        try {
+          await axios.put(
+            `${API_URL}/api/users/plan`,
+            {
+              planName: plan.planName,
+              contactLimit:
+                emailVerificationCredits > 0 ? emailVerificationCredits : 0,
+              emailLimit: emailSendCredits > 0 ? emailSendCredits : 0,
+            },
+            {
+              headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+              },
+            }
+          );
+          console.log("✅ User plan updated successfully in backend");
+        } catch (err) {
+          console.error("⚠️ Failed to update user plan:", err.message);
+        }
+
+        // ===== STEP 9: Cleanup and Redirect =====
+        console.log("📄 Step 9: Cleaning up and redirecting...");
+        localStorage.removeItem("pendingUpgradePlan");
+        sessionStorage.removeItem("pendingUpgradePlan");
+
+        setStatus("✅ Payment successful! Redirecting to Dashboard...");
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 3000);
+      }
+    } catch (error) {
+      console.error("❌ Error during payment process:", error);
+      setStatus(`❌ Something went wrong: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error("❌ Error during payment process:", error);
-    setStatus(`❌ Something went wrong: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
 
   const getCountryCode = (currency) => {
