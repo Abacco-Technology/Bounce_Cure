@@ -5,347 +5,297 @@ import DashboardLayout from "../../components/DashboardLayout";
 const API_URL = import.meta.env.VITE_VRI_URL;
 const REFRESH_INTERVAL = 30000;
 
+// ── Color palette (light / white theme) ──────────────────────────
 const C = {
-  gold:      [178, 118, 28],
-  goldLight: [200, 148, 55],
-  black:     [0,   0,   0],
-  dark:      [10,  10,  10],
-  grayDark:  [28,  28,  28],
-  grayMid:   [55,  55,  55],
-  grayLight: [120, 120, 120],
-  white:     [255, 255, 255],
-  green:     [74,  222, 128],
-  yellow:    [250, 204,  21],
-  red:       [248, 113, 113],
-  blue:      [96,  165, 250],
+  orange: [178, 118, 28],
+  orangeAlt: [200, 148, 55],
+  black: [0, 0, 0],
+  white: [255, 255, 255],
+  offWhite: [250, 250, 250],
+  lightGray: [240, 240, 240],
+  midGray: [180, 180, 180],
+  darkGray: [80, 80, 80],
+  labelGray: [120, 120, 120],
+  green: [34, 139, 34],
+  yellow: [180, 120, 0],
+  red: [200, 50, 50],
+  blue: [30, 100, 200],
 };
 
-function drawFooter(doc, W, H, page, total) {
-  doc.setFillColor(...C.grayDark);  doc.rect(0, H - 12, W, 12, "F");
-  doc.setFillColor(...C.gold);      doc.rect(0, H - 12, W, 0.4, "F");
-  doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
-  doc.setTextColor(...C.grayLight);
-  doc.text("Bounce Cure  •  Confidential Report", 12, H - 4.5);
-  doc.text("Page " + page + " of " + total, W - 12, H - 4.5, { align: "right" });
-}
-
+// ── Page background ───────────────────────────────────────────────
 function setupPageBg(doc, W, H) {
-  doc.setFillColor(...C.black);    doc.rect(0, 0, W, H, "F");
-  doc.setFillColor(...C.gold);     doc.rect(0, 0, W, 1.2, "F");
-  doc.setFillColor(...C.grayDark); doc.rect(0, 0, 5, H, "F");
-  doc.setFillColor(...C.gold);     doc.rect(0, 0, 1.6, H, "F");
+  doc.setFillColor(...C.white); doc.rect(0, 0, W, H, "F");
+  doc.setFillColor(...C.orange); doc.rect(0, 0, 2.5, H, "F");
 }
 
+// ── Brand header ──────────────────────────────────────────────────
 function drawBrandHeader(doc, W, user, subtitle, dateStr, timeStr) {
-  const HX = 12, HY = 8, HW = W - 24, HH = 40;
-  doc.setFillColor(...C.grayDark); doc.roundedRect(HX, HY, HW, HH, 2, 2, "F");
-  doc.setFillColor(...C.gold);     doc.roundedRect(HX, HY, 1.8, HH, 0.8, 0.8, "F");
-  const lx = HX + 14, ly = HY + HH / 2;
-  doc.setFillColor(...C.gold);     doc.circle(lx, ly, 8, "F");
-  doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C.black);
-  doc.text("BC", lx, ly + 2.5, { align: "center" });
-  doc.setFont("helvetica", "bold"); doc.setFontSize(15); doc.setTextColor(...C.goldLight);
-  doc.text("Bounce Cure", HX + 28, HY + 14);
-  doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(...C.grayLight);
-  doc.text(subtitle, HX + 28, HY + 22);
-  doc.setFontSize(6.8);
-  doc.text("Generated: " + dateStr + "  •  " + timeStr, HX + 28, HY + 29);
+  const HX = 10, HY = 8, HW = W - 20, HH = 38;
+
+  doc.setFillColor(...C.white);
+  doc.roundedRect(HX, HY, HW, HH, 2, 2, "F");
+  doc.setDrawColor(...C.midGray); doc.setLineWidth(0.3);
+  doc.roundedRect(HX, HY, HW, HH, 2, 2, "S");
+  doc.setFillColor(...C.orange);
+  doc.roundedRect(HX, HY, 2, HH, 0.8, 0.8, "F");
+
+  // Logo circle
+  // Profile Image Circle
+  // ── Logo Image ─────────────────────────────
+  // ── Logo Image ─────────────────────────────
+  // Logo circle
+  const lx = HX + 20;
+  const ly = HY + HH / 2;
+  const logoSize = 30;
+
+  // ── Use rasul.jpg instead of bounce.jpg ──
+  doc.addImage(
+    "/rasul-1.png",
+    "PNG",
+    lx - 22,
+    ly - 18,
+    39, // width
+    35 // height
+  );
+
+
+  // Text
+  const tx = HX + 33;
+  doc.setFont("helvetica", "bold"); doc.setFontSize(16);
+  doc.setTextColor(...C.orange); doc.text("Bounce Cure", tx, HY + 13);
+
+  doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+  doc.setTextColor(...C.darkGray); doc.text(subtitle, tx, HY + 21);
+
+  doc.setFontSize(7); doc.setTextColor(...C.labelGray);
+  doc.text("Generated: " + dateStr + "  •  " + timeStr, tx, HY + 29);
+
   if (user?.name || user?.email) {
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...C.gold);
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
+    doc.setTextColor(...C.orange);
     doc.text(user.name || "", W - HX - 4, HY + 16, { align: "right" });
-    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C.grayLight);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7);
+    doc.setTextColor(...C.labelGray);
     doc.text(user.email || "", W - HX - 4, HY + 23, { align: "right" });
   }
+
   return HY + HH;
 }
 
-// ── Helper: draw a row of metric cards ───────────────────────────
+// ── Section heading + orange rule ─────────────────────────────────
+function drawSectionHeading(doc, HX, W, curY, text) {
+  doc.setFont("helvetica", "bold"); doc.setFontSize(8.5);
+  doc.setTextColor(...C.orange); doc.text(text, HX, curY);
+  doc.setDrawColor(...C.orange); doc.setLineWidth(0.3);
+  doc.line(HX, curY + 2.5, W - HX, curY + 2.5);
+  return curY + 8;
+}
+
+// ── Metric cards ──────────────────────────────────────────────────
 function drawMetricCards(doc, HX, HW, curY, metrics, COLS = 3) {
-  const cardW = (HW - (COLS - 1) * 3) / COLS, cardH = 20, cGap = 3;
+  const gap = 3, cardW = (HW - (COLS - 1) * gap) / COLS, cardH = 22;
   metrics.forEach((m, i) => {
     const col = i % COLS, row = Math.floor(i / COLS);
-    const cx = HX + col * (cardW + cGap), cy = curY + row * (cardH + cGap);
-    doc.setFillColor(...C.grayDark); doc.roundedRect(cx, cy, cardW, cardH, 2, 2, "F");
-    doc.setFillColor(...C.gold);     doc.roundedRect(cx, cy, 1.6, cardH, 0.8, 0.8, "F");
-    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(...C.grayLight);
-    doc.text(m.label.toUpperCase(), cx + 5, cy + 7);
-    doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-    doc.setTextColor(...(m.color || C.goldLight));
-    doc.text(String(m.value), cx + 5, cy + 16);
+    const cx = HX + col * (cardW + gap), cy = curY + row * (cardH + gap);
+
+    doc.setFillColor(...C.lightGray);
+    doc.roundedRect(cx, cy, cardW, cardH, 2, 2, "F");
+    doc.setDrawColor(...C.midGray); doc.setLineWidth(0.2);
+    doc.roundedRect(cx, cy, cardW, cardH, 2, 2, "S");
+    doc.setFillColor(...C.orange);
+    doc.roundedRect(cx, cy, 2, cardH, 0.8, 0.8, "F");
+
+    doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
+    doc.setTextColor(...C.labelGray);
+    doc.text(m.label.toUpperCase(), cx + 6, cy + 8);
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+    doc.setTextColor(...(m.color || C.orange));
+    doc.text(String(m.value), cx + 6, cy + 18);
   });
-  return curY + Math.ceil(metrics.length / COLS) * (cardH + cGap);
+  return curY + Math.ceil(metrics.length / COLS) * (cardH + gap);
 }
 
-// ── Helper: draw a section heading + gold rule ────────────────────
-function drawSectionHeading(doc, HX, W, curY, text) {
-  doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(...C.gold);
-  doc.text(text, HX, curY);
-  doc.setDrawColor(...C.gold); doc.setLineWidth(0.25); doc.line(HX, curY + 2, W - HX, curY + 2);
-  return curY + 6;
+// ── Footer ────────────────────────────────────────────────────────
+function drawFooter(doc, W, H, page, total) {
+  doc.setDrawColor(...C.orange); doc.setLineWidth(0.3);
+  doc.line(10, H - 12, W - 10, H - 12);
+  doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
+  doc.setTextColor(...C.orange);
+  doc.text("Bounce Cure  •  Confidential Report", 12, H - 6);
+  doc.setTextColor(...C.labelGray);
+  doc.text("Page " + page + " of " + total, W - 12, H - 6, { align: "right" });
 }
 
-// ── Full (all-campaigns) PDF ───────────────────────────────────────
+// ── Full (all-campaigns) PDF ──────────────────────────────────────
 const generateFullPDF = (sgSummary, campaigns, user) => {
   const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const W = doc.internal.pageSize.getWidth();
   const H = doc.internal.pageSize.getHeight();
-  const HX = 12, HW = W - 24;
+  const HX = 10, HW = W - 20;
 
-  const now      = new Date();
-  const dateStr  = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const timeStr  = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  const now = new Date();
+  const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
-  const totalSent    = sgSummary?.processed    ?? 0;
-  const delivered    = sgSummary?.delivered    ?? 0;
-  const opens        = sgSummary?.opens        ?? 0;
-  const clicks       = sgSummary?.clicks       ?? 0;
-  const bounces      = sgSummary?.bounces      ?? 0;
-  const spam         = sgSummary?.spam         ?? 0;
-  const openRate     = sgSummary?.openRate     ?? 0;
-  const clickRate    = sgSummary?.clickRate    ?? 0;
+  const totalSent = sgSummary?.processed ?? 0;
+  const delivered = sgSummary?.delivered ?? 0;
+  const opens = sgSummary?.opens ?? 0;
+  const clicks = sgSummary?.clicks ?? 0;
+  const bounces = sgSummary?.bounces ?? 0;
+  const spam = sgSummary?.spam ?? 0;
+  const openRate = sgSummary?.openRate ?? 0;
+  const clickRate = sgSummary?.clickRate ?? 0;
   const deliveryRate = sgSummary?.deliveryRate ?? 0;
 
   setupPageBg(doc, W, H);
-  let curY = drawBrandHeader(doc, W, user, "Analytics Report  •  SendGrid Campaign Performance Overview", dateStr, timeStr) + 8;
+  let curY = drawBrandHeader(
+    doc, W, user,
+    "Analytics Report  •  SendGrid Campaign Performance Overview",
+    dateStr, timeStr
+  ) + 8;
 
+  // Key Metrics
   curY = drawSectionHeading(doc, HX, W, curY, "KEY METRICS");
   curY = drawMetricCards(doc, HX, HW, curY, [
-    { label: "Total Sent",    value: totalSent.toLocaleString() },
-    { label: "Delivered",     value: delivered.toLocaleString() },
-    { label: "Opens",         value: opens.toLocaleString() },
-    { label: "Clicks",        value: clicks.toLocaleString() },
-    { label: "Bounces",       value: bounces.toLocaleString() },
-    { label: "Spam Reports",  value: spam.toLocaleString() },
-    { label: "Open Rate",     value: openRate + "%" },
-    { label: "Click Rate",    value: clickRate + "%" },
+    { label: "Total Sent", value: totalSent.toLocaleString() },
+    { label: "Delivered", value: delivered.toLocaleString() },
+    { label: "Opens", value: opens.toLocaleString() },
+    { label: "Clicks", value: clicks.toLocaleString() },
+    { label: "Bounces", value: bounces.toLocaleString() },
+    { label: "Spam Reports", value: spam.toLocaleString() },
+    { label: "Open Rate", value: openRate + "%" },
+    { label: "Click Rate", value: clickRate + "%" },
     { label: "Delivery Rate", value: deliveryRate + "%" },
-  ]) + 6;
+  ]) + 8;
 
+  // Performance Rates
   curY = drawSectionHeading(doc, HX, W, curY, "PERFORMANCE RATES");
   [
     { label: "Delivery Rate", value: deliveryRate },
-    { label: "Open Rate",     value: openRate },
-    { label: "Click Rate",    value: clickRate },
+    { label: "Open Rate", value: openRate },
+    { label: "Click Rate", value: clickRate },
   ].forEach((b) => {
-    const barX = HX + 30, barMaxW = HW - 44, barH = 5;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...C.white);
+    const barX = HX + 32, barMaxW = HW - 44, barH = 5.5;
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
+    doc.setTextColor(...C.darkGray);
     doc.text(b.label, HX, curY + barH - 0.5);
-    doc.setFillColor(...C.grayMid); doc.roundedRect(barX, curY, barMaxW, barH, barH / 2, barH / 2, "F");
+
+    doc.setFillColor(...C.lightGray);
+    doc.roundedRect(barX, curY, barMaxW, barH, barH / 2, barH / 2, "F");
+    doc.setDrawColor(...C.midGray); doc.setLineWidth(0.2);
+    doc.roundedRect(barX, curY, barMaxW, barH, barH / 2, barH / 2, "S");
+
     const fw = Math.max(barH, (Math.min(b.value, 100) / 100) * barMaxW);
-    doc.setFillColor(...C.gold); doc.roundedRect(barX, curY, fw, barH, barH / 2, barH / 2, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C.gold);
-    doc.text(b.value + "%", barX + barMaxW + 2, curY + barH - 0.5);
-    curY += barH + 5;
+    doc.setFillColor(...C.orange);
+    doc.roundedRect(barX, curY, fw, barH, barH / 2, barH / 2, "F");
+
+    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
+    doc.setTextColor(...C.orange);
+    doc.text(b.value + "%", barX + barMaxW + 3, curY + barH - 0.5);
+    curY += barH + 6;
   });
-  curY += 3;
+  curY += 4;
 
+  // Campaign Details table
   curY = drawSectionHeading(doc, HX, W, curY, "CAMPAIGN DETAILS");
-  const colHeaders = ["Campaign", "Batches", "Pending", "Sent", "Status"];
-  const colWidths  = [HW * 0.38, HW * 0.14, HW * 0.14, HW * 0.14, HW * 0.20];
-  const rowH2 = 8;
 
-  doc.setFillColor(...C.grayDark); doc.rect(HX, curY, HW, rowH2, "F");
-  doc.setDrawColor(...C.gold); doc.setLineWidth(0.25); doc.rect(HX, curY, HW, rowH2, "S");
-  doc.setFont("helvetica", "bold"); doc.setFontSize(7); doc.setTextColor(...C.gold);
+  const colHeaders = ["Campaign", "Date", "Pending", "Sent", "Status"];
+  const colWidths = [HW * 0.40, HW * 0.18, HW * 0.12, HW * 0.12, HW * 0.18];
+  const rowH = 8;
+
+  // Header row
+  doc.setFillColor(...C.lightGray); doc.rect(HX, curY, HW, rowH, "F");
+  doc.setDrawColor(...C.midGray); doc.setLineWidth(0.2); doc.rect(HX, curY, HW, rowH, "S");
+  doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C.orange);
   let hx = HX + 3;
   colHeaders.forEach((h, i) => { doc.text(h, hx, curY + 5.5); hx += colWidths[i]; });
-  curY += rowH2;
+  curY += rowH;
 
   const tableRows = campaigns.length > 0
     ? campaigns.map((c) => ({
-        cells: [
-          c.name || "—",
-          c.totalBatches > 1 ? (c.currentBatch ?? 0) + "/" + c.totalBatches : "—",
-          c.pending != null ? String(c.pending) : "—",
-          String(c.sentCount ?? 0),
-          c.status || "—",
-        ],
-        status: (c.status || "").toLowerCase(),
-      }))
+      cells: [
+        c.name || "—",
+        c.createdAt ? new Date(c.createdAt).toISOString().slice(0, 10) : "—",
+        c.pending != null ? String(c.pending) : "—",
+        String(c.sentCount ?? 0),
+        c.status || "—",
+      ],
+      status: (c.status || "").toLowerCase(),
+    }))
     : [{ cells: ["No campaigns found", "—", "—", "—", "—"], status: "" }];
 
   tableRows.forEach((row, idx) => {
-    if (curY + rowH2 > H - 18) {
+    if (curY + rowH > H - 18) {
       drawFooter(doc, W, H, doc.internal.getNumberOfPages(), doc.internal.getNumberOfPages());
       doc.addPage(); setupPageBg(doc, W, H); curY = 14;
     }
-    doc.setFillColor(...(idx % 2 === 0 ? C.dark : [18, 18, 18])); doc.rect(HX, curY, HW, rowH2, "F");
-    doc.setDrawColor(...C.grayMid); doc.setLineWidth(0.12); doc.rect(HX, curY, HW, rowH2, "S");
+    doc.setFillColor(...(idx % 2 === 0 ? C.white : C.offWhite));
+    doc.rect(HX, curY, HW, rowH, "F");
+    doc.setDrawColor(...C.lightGray); doc.setLineWidth(0.15);
+    doc.rect(HX, curY, HW, rowH, "S");
+
     let rx = HX + 3;
     row.cells.forEach((cell, ci) => {
       if (ci === 4) {
         const s = row.status;
-        if (s === "completed" || s === "sent")          doc.setTextColor(...C.green);
+        if (s === "completed" || s === "sent") doc.setTextColor(...C.green);
         else if (s === "sending" || s === "processing") doc.setTextColor(...C.yellow);
-        else if (s === "failed")                        doc.setTextColor(...C.red);
-        else if (s === "scheduled")                     doc.setTextColor(...C.blue);
-        else                                            doc.setTextColor(...C.grayLight);
+        else if (s === "failed") doc.setTextColor(...C.red);
+        else if (s === "scheduled") doc.setTextColor(...C.blue);
+        else doc.setTextColor(...C.labelGray);
         doc.setFont("helvetica", "bold");
-      } else { doc.setTextColor(...C.white); doc.setFont("helvetica", "normal"); }
+      } else {
+        doc.setTextColor(...C.darkGray);
+        doc.setFont("helvetica", "normal");
+      }
       doc.setFontSize(7);
-      const maxC = ci === 0 ? 32 : 12;
+      const maxC = ci === 0 ? 32 : 14;
       doc.text(cell.length > maxC ? cell.slice(0, maxC - 1) + "…" : cell, rx, curY + 5.5);
       rx += colWidths[ci];
     });
-    curY += rowH2;
+    curY += rowH;
   });
 
   const pageTotal = doc.internal.getNumberOfPages();
   for (let p = 1; p <= pageTotal; p++) { doc.setPage(p); drawFooter(doc, W, H, p, pageTotal); }
 
-  const yy = now.getFullYear(), mm = String(now.getMonth() + 1).padStart(2, "0"), dd = String(now.getDate()).padStart(2, "0");
+  const yy = now.getFullYear(),
+    mm = String(now.getMonth() + 1).padStart(2, "0"),
+    dd = String(now.getDate()).padStart(2, "0");
   doc.save("analytics-report-" + yy + "-" + mm + "-" + dd + ".pdf");
 };
 
-// ── Single-campaign PDF ────────────────────────────────────────────
-// sgStats = sendgrid stats filtered to this campaign's date range
-const generateCampaignPDF = (campaign, user, sgStats) => {
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const W = doc.internal.pageSize.getWidth();
-  const H = doc.internal.pageSize.getHeight();
-  const HX = 12, HW = W - 24;
 
-  const now     = new Date();
-  const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
-  const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
-
-  // Derive the campaign date label for display
-  const campDate = campaign.createdAt
-    ? new Date(campaign.createdAt).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" })
-    : "—";
-
-  setupPageBg(doc, W, H);
-  let curY = drawBrandHeader(doc, W, user, "Individual Campaign Report", dateStr, timeStr) + 8;
-
-  // Campaign name banner
-  doc.setFillColor(22, 22, 22); doc.roundedRect(HX, curY, HW, 14, 2, 2, "F");
-  doc.setFillColor(...C.gold);  doc.roundedRect(HX, curY, 1.6, 14, 0.8, 0.8, "F");
-  doc.setFont("helvetica", "bold"); doc.setFontSize(10); doc.setTextColor(...C.white);
-  const cName = campaign.name || "Unnamed Campaign";
-  doc.text(cName.length > 55 ? cName.slice(0, 54) + "…" : cName, HX + 6, curY + 9.5);
-
-  // Date badge on the right of the banner
-  doc.setFont("helvetica", "normal"); doc.setFontSize(7); doc.setTextColor(...C.grayLight);
-  doc.text("Campaign Date: " + campDate, W - HX - 4, curY + 9.5, { align: "right" });
-  curY += 20;
-
-  // ── Campaign metric cards ──────────────────────────────────────
-  const status = (campaign.status || "").toLowerCase();
-  const statusLabel =
-    status === "completed" || status === "sent"       ? "Completed" :
-    status === "sending"   || status === "processing" ? "Sending…"  :
-    status === "failed"    ? "Failed"    :
-    status === "scheduled" ? "Scheduled" :
-    campaign.status || "—";
-
-  const statusColor =
-    status === "completed" || status === "sent"       ? C.green  :
-    status === "sending"   || status === "processing" ? C.yellow :
-    status === "failed"    ? C.red  :
-    status === "scheduled" ? C.blue : C.grayLight;
-
-  curY = drawSectionHeading(doc, HX, W, curY, "CAMPAIGN METRICS");
-  curY = drawMetricCards(doc, HX, HW, curY, [
-    { label: "Total Sent",  value: String(campaign.sentCount ?? 0) },
-    { label: "Pending",     value: campaign.pending != null ? String(campaign.pending) : "—" },
-    { label: "Batches",     value: campaign.totalBatches > 1 ? (campaign.currentBatch ?? 0) + " / " + campaign.totalBatches : "—" },
-    { label: "Status",      value: statusLabel, color: statusColor },
-    { label: "Campaign ID", value: campaign.id ? String(campaign.id).slice(0, 12) : "—" },
-    { label: "Created",     value: campDate },
-  ]) + 8;
-
-  // ── SendGrid stats for this campaign's date ────────────────────
-  if (sgStats) {
-    const opens        = sgStats.opens        ?? 0;
-    const clicks       = sgStats.clicks       ?? 0;
-    const bounces      = sgStats.bounces      ?? 0;
-    const delivered    = sgStats.delivered    ?? 0;
-    const spam         = sgStats.spam         ?? 0;
-    const openRate     = sgStats.openRate     ?? 0;
-    const clickRate    = sgStats.clickRate    ?? 0;
-    const deliveryRate = sgStats.deliveryRate ?? 0;
-
-    curY = drawSectionHeading(doc, HX, W, curY, "SENDGRID EMAIL STATS  (campaign date)");
-    curY = drawMetricCards(doc, HX, HW, curY, [
-      { label: "Delivered",     value: delivered.toLocaleString() },
-      { label: "Opens",         value: opens.toLocaleString() },
-      { label: "Clicks",        value: clicks.toLocaleString() },
-      { label: "Bounces",       value: bounces.toLocaleString() },
-      { label: "Spam Reports",  value: spam.toLocaleString() },
-      { label: "Open Rate",     value: openRate + "%" },
-      { label: "Click Rate",    value: clickRate + "%" },
-      { label: "Delivery Rate", value: deliveryRate + "%" },
-    ]) + 8;
-
-    // Performance bars
-    curY = drawSectionHeading(doc, HX, W, curY, "PERFORMANCE RATES");
-    [
-      { label: "Delivery Rate", value: deliveryRate },
-      { label: "Open Rate",     value: openRate },
-      { label: "Click Rate",    value: clickRate },
-    ].forEach((b) => {
-      const barX = HX + 32, barMaxW = HW - 44, barH = 5;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...C.white);
-      doc.text(b.label, HX, curY + barH - 0.5);
-      doc.setFillColor(...C.grayMid); doc.roundedRect(barX, curY, barMaxW, barH, barH / 2, barH / 2, "F");
-      const fw = Math.max(barH, (Math.min(b.value, 100) / 100) * barMaxW);
-      doc.setFillColor(...C.gold); doc.roundedRect(barX, curY, fw, barH, barH / 2, barH / 2, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C.gold);
-      doc.text(b.value + "%", barX + barMaxW + 2, curY + barH - 0.5);
-      curY += barH + 5;
-    });
-    curY += 6;
-  }
-
-  // ── Batch progress bar (if multi-batch) ───────────────────────
-  if (campaign.totalBatches > 1) {
-    curY = drawSectionHeading(doc, HX, W, curY, "BATCH PROGRESS");
-    const pct = Math.round(((campaign.currentBatch ?? 0) / campaign.totalBatches) * 100);
-    const barX = HX + 32, barMaxW = HW - 44, barH = 6;
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.5); doc.setTextColor(...C.white);
-    doc.text("Batch Progress", HX, curY + barH - 0.5);
-    doc.setFillColor(...C.grayMid); doc.roundedRect(barX, curY, barMaxW, barH, barH / 2, barH / 2, "F");
-    const fw = Math.max(barH, (pct / 100) * barMaxW);
-    doc.setFillColor(...C.gold); doc.roundedRect(barX, curY, fw, barH, barH / 2, barH / 2, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.5); doc.setTextColor(...C.gold);
-    doc.text(pct + "%", barX + barMaxW + 2, curY + barH - 0.5);
-    curY += barH + 12;
-  }
-  const pageTotal = doc.internal.getNumberOfPages();
-  for (let p = 1; p <= pageTotal; p++) { doc.setPage(p); drawFooter(doc, W, H, p, pageTotal); }
-
-  const safeName = (campaign.name || "campaign").replace(/[^a-z0-9]/gi, "-").toLowerCase().slice(0, 30);
-  const yy = now.getFullYear(), mm = String(now.getMonth() + 1).padStart(2, "0"), dd = String(now.getDate()).padStart(2, "0");
-  doc.save("campaign-" + safeName + "-" + yy + "-" + mm + "-" + dd + ".pdf");
-};
 
 // ── Component ─────────────────────────────────────────────────────
 export default function Analytics() {
-  const [campaigns,          setCampaigns]          = useState([]);
-  const [sgSummary,          setSgSummary]          = useState(null);
-  const [loading,            setLoading]            = useState(true);
-  const [refreshing,         setRefreshing]         = useState(false);
-  const [error,              setError]              = useState("");
-  const [pdfLoading,         setPdfLoading]         = useState(false);
+  const [campaigns, setCampaigns] = useState([]);
+  const [sgSummary, setSgSummary] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState("");
+  const [pdfLoading, setPdfLoading] = useState(false);
   const [selectedCampaignId, setSelectedCampaignId] = useState("all");
-  const [user,               setUser]               = useState(null);
-  const [selectedIds,        setSelectedIds]        = useState(new Set());
-  const [bulkDeleting,       setBulkDeleting]       = useState(false);
+  const [user, setUser] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const pollingRef = useRef(null);
 
   useEffect(() => {
     try {
       const stored = localStorage.getItem("user");
       if (stored) setUser(JSON.parse(stored));
-    } catch {}
+    } catch { }
   }, []);
 
   const fetchData = useCallback(async () => {
     try {
-      const token   = localStorage.getItem("token");
+      const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
       const [summaryRes, campaignsRes] = await Promise.all([
-        fetch(`${API_URL}/api/analytics/sendgrid/summary`,   { headers }),
+        fetch(`${API_URL}/api/analytics/sendgrid/summary`, { headers }),
         fetch(`${API_URL}/api/analytics/sendgrid/campaigns`, { headers }),
       ]);
       const [summaryData, campaignsData] = await Promise.all([
@@ -377,7 +327,7 @@ export default function Analytics() {
     if (!window.confirm("Are you sure you want to delete this campaign?")) return;
     try {
       const token = localStorage.getItem("token");
-      const res   = await fetch(`${API_URL}/api/campaigns/${id}`, {
+      const res = await fetch(`${API_URL}/api/campaigns/${id}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -433,20 +383,14 @@ export default function Analytics() {
     });
   };
 
-
   const fetchCampaignSgStats = async (campaign) => {
     try {
       const token = localStorage.getItem("token");
-
-      // Build start/end from campaign's createdAt (full day)
-      const created  = campaign.createdAt ? new Date(campaign.createdAt) : new Date();
-      const startDate = created.toISOString().slice(0, 10);          // "YYYY-MM-DD"
-
-      // end date = day after (so the range covers the full day)
+      const created = campaign.createdAt ? new Date(campaign.createdAt) : new Date();
+      const startDate = created.toISOString().slice(0, 10);
       const end = new Date(created);
       end.setDate(end.getDate() + 1);
       const endDate = end.toISOString().slice(0, 10);
-
       const res = await fetch(
         `${API_URL}/api/analytics/sendgrid/summary?startDate=${startDate}&endDate=${endDate}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -461,33 +405,115 @@ export default function Analytics() {
 
   const handleDownloadPDF = async () => {
     setPdfLoading(true);
+
     try {
-      if (selectedCampaignId === "all") {
-        generateFullPDF(sgSummary, campaigns, user);
-      } else {
-        const camp = campaigns.find(c => String(c.id) === String(selectedCampaignId));
-        if (!camp) { alert("Campaign not found"); return; }
 
-        // Fetch SendGrid stats for this campaign's date
-        const campStats = await fetchCampaignSgStats(camp);
+      // ─────────────────────────────────────
+      // MULTI SELECT
+      // ─────────────────────────────────────
+      if (selectedIds.size > 0) {
 
-        generateCampaignPDF(camp, user, campStats);
+        const selectedCampaigns = campaigns.filter(c =>
+          selectedIds.has(String(c.id))
+        );
+
+        // calculate summary for selected campaigns
+        const selectedSummary = {
+          processed: selectedCampaigns.reduce((a, c) => a + (c.sentCount || 0), 0),
+          delivered: selectedCampaigns.reduce((a, c) => a + (c.sentCount || 0), 0),
+          opens: 0,
+          clicks: 0,
+          bounces: 0,
+          spam: 0,
+          openRate: 0,
+          clickRate: 0,
+          deliveryRate: 100,
+        };
+
+        generateFullPDF(
+          selectedSummary,
+          selectedCampaigns,
+          user
+        );
+
+        return;
       }
+
+      // ─────────────────────────────────────
+      // ALL CAMPAIGNS
+      // ─────────────────────────────────────
+      if (selectedCampaignId === "all") {
+
+        generateFullPDF(
+          sgSummary,
+          campaigns,
+          user
+        );
+
+        return;
+      }
+
+      // ─────────────────────────────────────
+      // SINGLE CAMPAIGN
+      // ─────────────────────────────────────
+      const selectedCampaign = campaigns.find(
+        c => String(c.id) === String(selectedCampaignId)
+      );
+
+      if (!selectedCampaign) {
+        alert("Campaign not found");
+        return;
+      }
+
+      const singleCampaignSummary = {
+        processed: selectedCampaign.sentCount || 0,
+
+        delivered:
+          selectedCampaign.deliveredCount || 0,
+
+        opens:
+          selectedCampaign.openCount || 0,
+
+        clicks:
+          selectedCampaign.clickCount || 0,
+
+        bounces:
+          selectedCampaign.bounceCount || 0,
+
+        spam:
+          selectedCampaign.spamCount || 0,
+
+        openRate:
+          selectedCampaign.openRate || 0,
+
+        clickRate:
+          selectedCampaign.clickRate || 0,
+
+        deliveryRate:
+          selectedCampaign.deliveryRate || 0,
+      };
+
+      generateFullPDF(
+        singleCampaignSummary,
+        [selectedCampaign],
+        user
+      );
+
     } catch (err) {
       console.error("PDF generation failed:", err);
-      alert("Failed to generate PDF. Please try again.");
+      alert("Failed to generate PDF");
     } finally {
       setPdfLoading(false);
     }
   };
 
-  const totalSent    = sgSummary?.processed    || 0;
-  const delivered    = sgSummary?.delivered    || 0;
-  const openRate     = sgSummary?.openRate     || 0;
-  const clickRate    = sgSummary?.clickRate    || 0;
+  const totalSent = sgSummary?.processed || 0;
+  const delivered = sgSummary?.delivered || 0;
+  const openRate = sgSummary?.openRate || 0;
+  const clickRate = sgSummary?.clickRate || 0;
   const deliveryRate = sgSummary?.deliveryRate || 0;
-  const bounces      = sgSummary?.bounces      || 0;
-  const spam         = sgSummary?.spam         || 0;
+  const bounces = sgSummary?.bounces || 0;
+  const spam = sgSummary?.spam || 0;
 
   const getBatchProgress = (c) => {
     const total = c.totalBatches || 1, current = c.currentBatch || 0;
@@ -503,21 +529,91 @@ export default function Analytics() {
         <div className="flex flex-wrap items-center justify-between gap-3 pt-16">
           <h1 className="text-2xl font-bold text-[#b2761c]">Analytics Dashboard</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={selectedCampaignId}
-              onChange={e => setSelectedCampaignId(e.target.value)}
-              disabled={loading || campaigns.length === 0}
-              className="bg-[#0a0a0a] border border-gray-700 text-white text-sm rounded-lg px-3 py-2.5
-                         focus:outline-none focus:border-[#b2761c] disabled:opacity-40 cursor-pointer
-                         max-w-[220px] truncate"
-            >
-              <option value="all">All Campaigns (Full Report)</option>
-              {campaigns.map(c => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name ? (c.name.length > 28 ? c.name.slice(0, 27) + "…" : c.name) : `Campaign ${c.id}`}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(prev => !prev)}
+                className="bg-[#0a0a0a] border border-gray-700 text-white text-sm rounded-lg px-4 py-2.5
+               min-w-[240px] flex items-center justify-between hover:border-[#b2761c]"
+              >
+                <span>
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} Campaign(s) Selected`
+                    : "All Campaigns (Full Report)"}
+                </span>
+
+                <svg
+                  className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {showDropdown && (
+                <div className="absolute z-50 mt-2 w-full bg-black border border-gray-700 rounded-lg shadow-xl max-h-72 overflow-y-auto">
+
+                  {/* ALL OPTION */}
+                  <label className="flex items-center gap-3 px-4 py-3 hover:bg-gray-900 cursor-pointer border-b border-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === 0}
+                      onChange={() => {
+                        setSelectedIds(new Set());
+                        setSelectedCampaignId("all");
+                      }}
+                      className="accent-[#b2761c] w-4 h-4"
+                    />
+                    <span className="text-white text-sm">
+                      All Campaigns (Full Report)
+                    </span>
+                  </label>
+
+                  {/* CAMPAIGNS */}
+                  {campaigns.map(c => {
+                    const checked = selectedIds.has(String(c.id));
+
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-900 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+
+                              if (next.has(String(c.id))) {
+                                next.delete(String(c.id));
+                              } else {
+                                next.add(String(c.id));
+                              }
+
+                              return next;
+                            });
+
+                            setSelectedCampaignId("custom");
+                          }}
+                          className="accent-[#b2761c] w-4 h-4"
+                        />
+
+                        <span className="text-white text-sm truncate">
+                          {c.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={handleManualRefresh}
@@ -535,8 +631,8 @@ export default function Analytics() {
                 viewBox="0 0 24 24" fill="none" stroke="currentColor"
                 strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
               >
-                <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
-                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+                <path d="M23 4v6h-6" /><path d="M1 20v-6h6" />
+                <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
               </svg>
               {refreshing ? "Refreshing…" : "Refresh"}
             </button>
@@ -552,20 +648,16 @@ export default function Analytics() {
               ].join(" ")}
             >
               {pdfLoading ? (
-                <>
-                  <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
-                  </svg>
-                  Generating…
-                </>
+                <>Generating…</>
               ) : (
                 <>
-                  <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 16l-4-4h3V4h2v8h3l-4 4z"/>
-                    <path d="M20 18H4v2h16v-2z"/>
-                  </svg>
-                  Download Report
+                  Download {
+                    selectedIds.size > 0
+                      ? `Selected (${selectedIds.size})`
+                      : selectedCampaignId === "all"
+                        ? "Report"
+                        : "Campaign Report"
+                  }
                 </>
               )}
             </button>
@@ -583,14 +675,14 @@ export default function Analytics() {
         {/* ── Stat cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {[
-            { title: "Total Sent",      value: totalSent           },
-            { title: "Delivered",       value: delivered           },
-            { title: "Open Rate",       value: `${openRate}%`      },
-            { title: "Click Rate",      value: `${clickRate}%`     },
-            { title: "Delivery Rate",   value: `${deliveryRate}%`  },
-            { title: "Bounces",         value: bounces             },
-            { title: "Spam Reports",    value: spam                },
-            { title: "Total Campaigns", value: campaigns.length    },
+            { title: "Total Sent", value: totalSent },
+            { title: "Delivered", value: delivered },
+            { title: "Open Rate", value: `${openRate}%` },
+            { title: "Click Rate", value: `${clickRate}%` },
+            { title: "Delivery Rate", value: `${deliveryRate}%` },
+            { title: "Bounces", value: bounces },
+            { title: "Spam Reports", value: spam },
+            { title: "Total Campaigns", value: campaigns.length },
           ].map((item, i) => (
             <div key={i} className="bg-[#0a0a0a] border border-gray-800 p-4 rounded-xl">
               <p className="text-gray-400 text-sm">{item.title}</p>
@@ -612,15 +704,15 @@ export default function Analytics() {
                 {bulkDeleting ? (
                   <>
                     <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                     </svg>
                     Deleting…
                   </>
                 ) : (
                   <>
                     <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M9 6V4h6v2" />
                     </svg>
                     Delete Selected ({selectedIds.size})
                   </>
@@ -646,11 +738,12 @@ export default function Analytics() {
                     />
                   </th>
                   <th className="py-2">Campaign</th>
-                  <th>Total</th> 
-                  <th>Batches</th>
+                  <th>Total</th>
+                  {/* <th>Batches</th> */}
                   <th>Pending</th>
                   <th>Sent</th>
-                  <th>Status</th>
+                  <th className="w-[120px]">Status</th>
+                  <th className="w-[110px]">Date</th>
                   <th>Delete</th>
                 </tr>
               </thead>
@@ -673,10 +766,8 @@ export default function Analytics() {
                         />
                       </td>
                       <td className="py-2 pr-4 max-w-[180px] truncate">{c.name}</td>
-                      <td className="pr-4">
-                        {totalMails}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-300">
+                      <td className="pr-4">{totalMails}</td>
+                      {/* <td className="px-4 py-3 text-sm text-gray-300">
                         {c.totalBatches > 0
                           ? (
                             <div className="flex flex-col">
@@ -702,19 +793,47 @@ export default function Analytics() {
                           )
                           : <span className="text-gray-600">—</span>
                         }
-                      </td>
-                      
+                      </td> */}
                       <td className="pr-4">{c.pending != null ? c.pending : "-"}</td>
                       <td className="pr-4">{c.sentCount ?? 0}</td>
                       <td className="pr-4">
-                        {["sending","processing"].includes(c.status) && (
-                          <span className="inline-flex items-center gap-1 text-yellow-400 font-medium">
-                            <span className="animate-pulse">●</span> Sending
+                        <div className="flex flex-col">
+                          {["sending", "processing"].includes(c.status) && (
+                            <span className="inline-flex items-center gap-1 text-yellow-400 font-medium">
+                              <span className="animate-pulse">●</span> Sending
+                            </span>
+                          )}
+
+                          {["completed", "sent"].includes(c.status) && (
+                            <span className="text-green-500 font-medium">
+                              ✓ Completed
+                            </span>
+                          )}
+
+                          {c.status === "failed" && (
+                            <span className="text-red-500 font-medium">
+                              ✗ Failed
+                            </span>
+                          )}
+
+                          {c.status === "scheduled" && (
+                            <span className="text-blue-400 font-medium">
+                              ⏰ Scheduled
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="pr-4">
+                        <div className="flex flex-col text-sm">
+                          <span className="text-gray-300">
+                            {c.createdAt
+                              ? new Date(c.createdAt).toLocaleDateString()
+                              : "—"}
                           </span>
-                        )}
-                        {["completed","sent"].includes(c.status) && <span className="text-green-500 font-medium">✓ Completed</span>}
-                        {c.status === "failed"    && <span className="text-red-500 font-medium">✗ Failed</span>}
-                        {c.status === "scheduled" && <span className="text-blue-400 font-medium">⏰ Scheduled</span>}
+
+
+                        </div>
                       </td>
                       <td>
                         <button onClick={() => deleteCampaign(c.id)} className="text-red-600 hover:text-red-400 text-sm font-medium">
@@ -728,13 +847,6 @@ export default function Analytics() {
             </table>
           )}
         </div>
-
-        {/* ── Batch info ── */}
-        {/* <div className="bg-[#0a0a0a] border border-gray-800 p-4 rounded-xl text-sm text-gray-400">
-          <p className="text-[#b2761c] font-semibold mb-2">⏱ Batch Sending Info</p>
-          <p>Campaigns with &gt;2,000 emails are split into batches of 2,000 automatically.</p>
-          <p className="mt-1">Each batch sends over 30 minutes, then the next batch starts. Example: 10,000 emails = 5 batches × 30 min = ~2.5 hours total.</p>
-        </div> */}
 
       </div>
     </DashboardLayout>
