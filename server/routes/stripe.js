@@ -211,42 +211,33 @@ router.post("/save-payment", async (req, res) => {
     };
 
     // 🔁 Save payment with retry on customInvoiceId collision
+    // 🔁 Save payment with retry on customInvoiceId collision
     const prefix = "BC234Ab";
     const startingNumber = 5000;
-    const MAX_RETRIES = 5;
+    const MAX_RETRIES = 20;
 
     let payment;
     let customInvoiceId;
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      // ✅ Re-query on every attempt to get the freshest last invoice ID
-      const lastPayment = await prisma.payment.findFirst({
-        where: { customInvoiceId: { not: null } },
-        orderBy: { customInvoiceId: "desc" }, // ✅ Fixed: order by the invoice ID, not row id
-        select: { customInvoiceId: true },
-      });
-
-      let newInvoiceNumber = startingNumber;
-
-      if (lastPayment?.customInvoiceId) {
-        const match = lastPayment.customInvoiceId.match(/\d+$/);
-        if (match) {
-          const lastNum = parseInt(match[0], 10);
-          newInvoiceNumber = lastNum >= startingNumber ? lastNum + 1 : startingNumber;
-        }
-      }
-
-      // ✅ On retry, bump further to avoid the same collision
-      newInvoiceNumber += attempt;
-
-      customInvoiceId = `${prefix}${String(newInvoiceNumber).padStart(4, "0")}`;
-
       try {
+        // ✅ Always use current timestamp + random
+        const random = Math.floor(1000 + Math.random() * 9000);
+
+        customInvoiceId = `${prefix}${Date.now()}${random}`;
+
         payment = await prisma.payment.create({
-          data: { ...paymentData, customInvoiceId },
+          data: {
+            ...paymentData,
+            customInvoiceId,
+          },
         });
-        console.log(`✅ Payment saved on attempt ${attempt + 1} → ${customInvoiceId}`);
-        break; // ✅ Success — exit retry loop
+
+        console.log(
+          `✅ Payment saved on attempt ${attempt + 1} → ${customInvoiceId}`
+        );
+
+        break;
       } catch (err) {
         const isCollision =
           err.code === "P2002" &&
@@ -254,19 +245,21 @@ router.post("/save-payment", async (req, res) => {
 
         if (isCollision) {
           console.warn(
-            `⚠️ Invoice ID collision on attempt ${attempt + 1}: ${customInvoiceId}. Retrying...`
+            `⚠️ Invoice ID collision on attempt ${
+              attempt + 1
+            }: ${customInvoiceId}`
           );
+
           if (attempt === MAX_RETRIES - 1) {
             throw new Error(
-              `Failed to generate a unique invoice ID after ${MAX_RETRIES} attempts.`
+              `Failed to generate unique invoice ID after ${MAX_RETRIES} attempts`
             );
           }
         } else {
-          throw err; // Non-collision error — rethrow immediately
+          throw err;
         }
       }
     }
-
     // 🔁 Reattach credit values for invoice use
     payment.emailVerificationCredits = finalEmailVerificationCredits;
     payment.emailSendCredits = finalEmailSendCredits;
