@@ -66,8 +66,9 @@ async function _sendInBatches(campaign, buildMessage) {
     // ✅ Spread batchCount emails evenly over 30 minutes
     // 2000 emails → 900ms delay each = exactly 30 min
     //  500 emails → 3600ms delay each = exactly 30 min
-    const delayPerEmail = Math.floor(BATCH_DURATION_MS / batchCount);
-
+const delayPerEmail = batchCount < 50 
+  ? 2000  // small batch: 2s max delay
+  : Math.floor(BATCH_DURATION_MS / batchCount);
     console.log(`\n📦 Batch ${batchNum}/${totalBatches} | emails ${batchStart + 1}–${batchEnd} | delay: ${delayPerEmail}ms/email`);
 
     // Update currentBatch so Analytics shows live progress
@@ -115,15 +116,16 @@ async function _sendInBatches(campaign, buildMessage) {
       }
 
       // ✅ Save progress + update pending every 50 emails
-      if ((i + 1) % 50 === 0) {
+      // ✅ Fix — also save when it's the last email in a small batch
+      const isLastEmail = i === batchEmails.length - 1;
+      if ((i + 1) % 50 === 0 || isLastEmail) {
         await prisma.campaign.update({
           where: { id: campaign.id },
           data: {
             sentCount: totalSent,
-            pending:   totalRecipients - totalSent,  // ✅ keep pending in sync
+            pending:   totalRecipients - totalSent,
           },
         });
-        console.log(`   💾 batch ${batchNum} | ${i + 1}/${batchCount} | totalSent: ${totalSent} | pending: ${totalRecipients - totalSent}`);
       }
 
       // ✅ THE CRITICAL THROTTLE — spaces emails over 30 minutes
@@ -161,8 +163,9 @@ async function _sendInBatches(campaign, buildMessage) {
 
   console.log(`🎉 Campaign ${campaign.id} COMPLETE | ${totalSent}/${totalRecipients} sent across ${totalBatches} batch(es)`);
 }
-const generateHtmlFromCanvas = (canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail, bgColorOverride) => {
+// In server/routes/campaigns.js, replace the entire generateHtmlFromCanvas function with this updated version
 
+function generateHtmlFromCanvas(canvasData, subject, fromName, fromEmail, fromAddress, replyToEmail, bgColorOverride) {
   /* ── EMPTY FALLBACK ─────────────────────────────────────────── */
   if (!canvasData || canvasData.length === 0) {
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>${subject}</title></head>
@@ -177,8 +180,6 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
   }
 
   /* ── DIMENSIONS ─────────────────────────────────────────────── */
-  /* The canvas editor uses 800px width.                           */
-  /* The email content area is 560px (600px − 40px padding).      */
   const CW = 800;   // canvas width
   const EW = 560;   // email content width
 
@@ -201,35 +202,22 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     }));
 
   /* ── ALIGNMENT INFERENCE ────────────────────────────────────── */
-  // Uses ratio of element center to canvas width (not hardcoded px).
-  // When inside a card (inCard=true), ALWAYS trust the element's textAlign
-  // because card children are positioned relative to the card, not the canvas,
-  // so position-based detection wrongly centers left-aligned card text.
-function align(el, inCard, forceLeft) {
-  // 1️⃣ Inside a card: always trust the stored textAlign directly.
-  if (inCard) return el.textAlign || 'left';
-
-  // 2️⃣ forceLeft: companion column beside an image — skip position-based
-  //    detection, but still respect whatever the user explicitly set.
-  if (forceLeft) {
+  function align(el, inCard, forceLeft) {
+    if (inCard) return el.textAlign || 'left';
+    if (forceLeft) {
+      if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
+        return el.textAlign;
+      return 'left';
+    }
     if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
       return el.textAlign;
-    return 'left'; // default for companion columns with no explicit alignment
+    const ratio = (el.x + el.width / 2) / CW;
+    if (ratio < 0.30) return 'left';
+    if (ratio > 0.70) return 'right';
+    return 'center';
   }
 
-  // 3️⃣ Trust explicit alignment set in the editor.
-  if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
-    return el.textAlign;
-
-  // 4️⃣ Fall back to position-based detection (only when textAlign is not set).
-  const ratio = (el.x + el.width / 2) / CW;
-  if (ratio < 0.30) return 'left';
-  if (ratio > 0.70) return 'right';
-  return 'center';
-}
-
   /* ── ELEMENT RENDERERS ──────────────────────────────────────── */
-  // Convert \n to <br/> so multi-line canvas text renders correctly in email clients
   const nl2br = (str) => (str || '').replace(/\n/g, '<br/>');
 
   function renderEl(el, inCard, forceLeft, colWidthPx) {
@@ -238,16 +226,16 @@ function align(el, inCard, forceLeft) {
     switch (el.type) {
 
       case 'heading':
-        return `<h1 style="margin:4px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
+        return `<h1 style="margin:2px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
 
       case 'subheading':
-        return `<h2 style="margin:4px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
+        return `<h2 style="margin:2px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
 
       case 'paragraph':
-        return `<p style="margin:5px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.6};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
+        return `<p style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
 
       case 'blockquote':
-        return `<div style="margin:8px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
+        return `<div style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
 
       case 'image': {
         let src = el.src || '';
@@ -255,14 +243,8 @@ function align(el, inCard, forceLeft) {
         if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
         const br = Number(el.borderRadius) || 0;
         const bdr = el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#ccc'};` : '';
-        // inCard or forceLeft = image is inside a side-by-side column cell → fill column width
-        // Wide standalone (>= 55% canvas width) → full email width
-        // Small standalone → scale proportionally based on canvas size
         const isWide = inCard || forceLeft || (Number(el.width) || 0) / CW >= 0.55;
         const maxW = isWide ? '100%' : `${sc(el.width)}px`;
-        // Preserve exact canvas height in side-by-side column.
-        // colWidthPx = actual pixel width of this column in the email (passed from multi-col renderer)
-        // Scale height = canvas_height * (colWidthPx / canvas_el_width)
         const elH = Number(el.height) || 0;
         const elW = Number(el.width) || 1;
         let scaledH = 0;
@@ -273,12 +255,20 @@ function align(el, inCard, forceLeft) {
         const heightStyle = scaledH > 0
           ? `height:${scaledH}px;object-fit:cover;`
           : 'height:auto;';
-        return `<div style="margin:0;font-size:0;line-height:0;"><img src="${src}" alt="${el.alt || ''}" width="100%" style="display:block;width:100%;max-width:${maxW};${heightStyle}border-radius:${br}px;${bdr}"/></div>`;
+          return `<div style="margin:0;font-size:0;line-height:0;">
+            <a href="${el.link || '#'}" target="_blank">
+              <img src="${src}" alt="${el.alt || ''}"
+                width="100%"
+                style="display:block;width:100%;max-width:${maxW};
+                ${heightStyle}
+                border-radius:${br}px;${bdr}" />
+            </a>
+          </div>`;  
       }
 
       case 'button': {
         const ba = align(el, inCard);
-        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:10px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
+        return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
       }
 
       case 'line':
@@ -314,8 +304,23 @@ function align(el, inCard, forceLeft) {
       }
 
       case 'social': {
-        const sz = Math.min(sc(el.width) || 30, sc(el.height) || 30, 40);
-        return `<a href="${el.link || '#'}" target="_blank" style="display:inline-block;vertical-align:middle;margin:0 3px;"><img src="${el.src || ''}" width="${sz}" height="${sz}" alt="${el.platform || ''}" style="display:inline-block;border:0;border-radius:6px;width:${sz}px;height:${sz}px;"/></a>`;
+        const sz = Math.min(sc(el.width) || 32, sc(el.height) || 32, 40);
+        const cdnIcons = {
+          facebook:  'https://cdn-icons-png.flaticon.com/512/733/733547.png',
+          twitter:   'https://cdn-icons-png.flaticon.com/512/733/733579.png',
+          linkedin:  'https://cdn-icons-png.flaticon.com/512/145/145807.png',
+          instagram: 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png',
+          youtube:   'https://cdn-icons-png.flaticon.com/512/1384/1384060.png',
+          tiktok:    'https://cdn-icons-png.flaticon.com/512/3046/3046126.png',
+          whatsapp:  'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+          pinterest: 'https://cdn-icons-png.flaticon.com/512/145/145808.png',
+        };
+        let src = el.src || '';
+        if (!src || src.startsWith('blob:') || src.startsWith('data:') || src.startsWith('/')) {
+          const platform = (el.platform || '').toLowerCase();
+          src = cdnIcons[platform] || cdnIcons['facebook'];
+        }
+        return `<a href="${el.link || '#'}" target="_blank" style="display:inline-block;vertical-align:middle;margin:0 6px;text-decoration:none;"><img src="${src}" width="${sz}" height="${sz}" alt="${el.platform || 'social'}" style="display:inline;border:0;border-radius:6px;width:${sz}px;height:${sz}px;" /></a>`;
       }
 
       default: return '';
@@ -323,15 +328,10 @@ function align(el, inCard, forceLeft) {
   }
 
   /* ── CARD DETECTION ─────────────────────────────────────────── */
-  // A "card" is a rectangle that contains other elements.
-  // Any element whose CENTER falls within a rectangle's bounds
-  // is treated as a child of that rectangle.
   function centerIn(el, r) {
-    // Primary: element center is inside the rect
     const cx = el.x + el.width / 2;
     const cy = el.y + el.height / 2;
     if (cx >= r.x && cx <= r.x + r.width && cy >= r.y && cy <= r.y + r.height) return true;
-    // Fallback: element significantly overlaps the rect (>50% of element area)
     const ix = Math.max(0, Math.min(el.x + el.width, r.x + r.width) - Math.max(el.x, r.x));
     const iy = Math.max(0, Math.min(el.y + el.height, r.y + r.height) - Math.max(el.y, r.y));
     const overlap = ix * iy;
@@ -339,7 +339,6 @@ function align(el, inCard, forceLeft) {
     return elArea > 0 && overlap / elArea > 0.50;
   }
 
-  // Deduplicate overlapping rects: skip transparent grid overlays sharing same bounds
   const allRects = els.filter(e => e.type === 'rectangle');
   const skipRectIds = new Set();
   for (let i = 0; i < allRects.length; i++) {
@@ -379,172 +378,129 @@ function align(el, inCard, forceLeft) {
 
   /* ── CARD RENDERER ──────────────────────────────────────────── */
   function renderCard(bg, kids) {
+    // Special handling for email footer card
+    const hasButton = kids.some(k => k.type === 'button' && k.content && k.content.includes('FIND YOUR VOICE'));
+    const hasSocialIcons = kids.some(k => k.type === 'social');
+    const hasUnsubscribe = kids.some(k => k.type === 'heading' && k.content === 'Unsubscribe');
+    
+    if (hasSocialIcons && (hasUnsubscribe || hasButton)) {
+      // This is the email footer card - use table-based layout
+      const sorted = [...kids].sort((a, b) => a.y - b.y);
+      
+      // Extract elements
+      const button = sorted.find(k => k.type === 'button');
+      const networkText = sorted.find(k => k.type === 'paragraph' && k.content && k.content.includes('professional network'));
+      const unsubscribe = sorted.find(k => k.type === 'heading' && k.content === 'Unsubscribe');
+      const divider1 = sorted.find(k => k.type === 'line' && k.y < 150);
+      const phone = sorted.find(k => k.type === 'paragraph' && k.content && (k.content.includes('📞') || k.content.match(/\d{3}[-.\s]\d{3}/)));
+      const separator = sorted.find(k => k.type === 'paragraph' && k.content === '|');
+      const email = sorted.find(k => k.type === 'paragraph' && k.content && k.content.includes('@'));
+      const socialIcons = sorted.filter(k => k.type === 'social');
+      const divider2 = sorted.find(k => k.type === 'line' && k.y > 200);
+      
+      // Build HTML table structure
+      let html = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${bg.backgroundColor || '#1a1008'};border-radius:${bg.borderRadius || 0}px;">`;
+      
+      // Button row
+      if (button) {
+        html += `<tr><td style="padding:16px 0 8px;text-align:center;">
+          <a href="${button.link || '#'}" style="display:inline-block;padding:${button.padding || '10px 22px'};background-color:${button.backgroundColor || '#c2831f'};color:${button.color || '#ffffff'};text-decoration:none;border-radius:${button.borderRadius || 24}px;font-weight:${button.fontWeight || '700'};font-size:${button.fontSize || 14}px;font-family:${button.fontFamily || 'Arial, sans-serif'};">${button.content || 'Button'}</a>
+        </td></tr>`;
+      }
+      
+      // Network text row
+      if (networkText) {
+        html += `<tr><td style="padding:0 20px 8px;text-align:center;">
+          <p style="margin:0;color:${networkText.color || '#d4c9b0'};font-size:${networkText.fontSize || 12}px;font-family:${networkText.fontFamily || 'Arial, sans-serif'};">${networkText.content || ''}</p>
+        </td></tr>`;
+      }
+      
+      // Unsubscribe row
+      if (unsubscribe) {
+        html += `<tr><td style="padding:0 0 8px;text-align:center;">
+          <a href="#" style="color:${unsubscribe.color || '#c2831f'};font-size:${unsubscribe.fontSize || 13}px;font-weight:${unsubscribe.fontWeight || '700'};text-decoration:none;">${unsubscribe.content || 'Unsubscribe'}</a>
+        </td></tr>`;
+      }
+      
+      // First divider
+      if (divider1) {
+        html += `<tr><td style="padding:0 20px;">
+          <hr style="border:none;height:${divider1.strokeWidth || 1}px;background:${divider1.strokeColor || '#3d2e10'};margin:0;"/>
+        </td></tr>`;
+      }
+      
+      // Contact info row
+      html += `<tr><td style="padding:8px 20px;">
+        <table width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>`;
+      
+      // Phone
+      if (phone) {
+        html += `<td style="text-align:right;padding-right:10px;">
+          <p style="margin:0;color:${phone.color || '#4da6ff'};font-size:${phone.fontSize || 13}px;font-family:${phone.fontFamily || 'Arial, sans-serif'};">${phone.content || ''}</p>
+        </td>`;
+      }
+      
+      // Separator
+      if (separator) {
+        html += `<td style="text-align:center;padding:0 10px;">
+          <p style="margin:0;color:${separator.color || '#6b5a3a'};font-size:${separator.fontSize || 14}px;font-family:${separator.fontFamily || 'Arial, sans-serif'};">${separator.content || ''}</p>
+        </td>`;
+      }
+      
+      // Email
+      if (email) {
+        html += `<td style="text-align:left;padding-left:10px;">
+          <a href="mailto:${email.content || ''}" style="color:${email.color || '#4da6ff'};font-size:${email.fontSize || 13}px;font-family:${email.fontFamily || 'Arial, sans-serif'};text-decoration:none;">${email.content || ''}</a>
+        </td>`;
+      }
+      
+      html += `</tr></table>
+      </td></tr>`;
+      
+      // Social icons row
+      if (socialIcons.length > 0) {
+        html += `<tr><td style="padding:8px 0 16px;text-align:center;">`;
+        
+        socialIcons.forEach(icon => {
+          const cdnIcons = {
+            facebook:  'https://cdn-icons-png.flaticon.com/512/733/733547.png',
+            twitter:   'https://cdn-icons-png.flaticon.com/512/733/733579.png',
+            linkedin:  'https://cdn-icons-png.flaticon.com/512/145/145807.png',
+            instagram: 'https://cdn-icons-png.flaticon.com/512/2111/2111463.png',
+            youtube:   'https://cdn-icons-png.flaticon.com/512/1384/1384060.png',
+            tiktok:    'https://cdn-icons-png.flaticon.com/512/3046/3046126.png',
+            whatsapp:  'https://cdn-icons-png.flaticon.com/512/733/733585.png',
+            pinterest: 'https://cdn-icons-png.flaticon.com/512/145/145808.png',
+          };
+          let iconSrc = icon.src || '';
+          if (!iconSrc || iconSrc.startsWith('blob:') || iconSrc.startsWith('data:') || iconSrc.startsWith('/')) {
+            const platform = (icon.platform || '').toLowerCase();
+            iconSrc = cdnIcons[platform] || cdnIcons['facebook'];
+          }
+          const iconSz = Math.min(sc(icon.width) || 32, sc(icon.height) || 32, 40);
+          html += `<a href="${icon.link || '#'}" target="_blank" style="display:inline-block;margin:0 6px;text-decoration:none;"><img src="${iconSrc}" width="${iconSz}" height="${iconSz}" alt="${icon.platform || 'social'}" style="display:inline;border:0;border-radius:6px;width:${iconSz}px;height:${iconSz}px;vertical-align:middle;" /></a>`;
+        });
+        
+        html += `</td></tr>`;
+      }
+      
+      // Second divider
+      if (divider2) {
+        html += `<tr><td style="padding:0 20px 16px;">
+          <hr style="border:none;height:${divider2.strokeWidth || 2}px;background:${divider2.strokeColor || '#c2831f'};margin:0;"/>
+        </td></tr>`;
+      }
+      
+      html += `</table>`;
+      return html;
+    }
+    
+    // Regular card rendering (existing code)
     const bgC = bg.backgroundColor || '#1A1A1A';
     const rad = Number(bg.borderRadius) || 8;
     const bdr = bg.borderWidth ? `border:${bg.borderWidth}px solid ${bg.borderColor || '#444'};` : '';
     const sorted = [...kids].sort((a, b) => a.y - b.y);
-
-    /* ── SIDE-BY-SIDE SPLIT DETECTION ──────────────────────────
-       Detect split layout: image on RIGHT side of card (left-edge
-       starts past 45% of card width) and not a full-bleed top image.
-       ALL other children go to the left column.
-
-       BULLET ROW LOGIC:
-       Each feature bullet can be made of up to 3 elements at the same Y:
-         - A circle (background shape)
-         - A paragraph used as emoji/icon (small width, same x as circle)
-         - A paragraph with the feature text (further right, e.g. x+62)
-       We group all elements that share the same Y "row band" into bullet rows,
-       render them as icon+text pairs, and never render anything twice.  */
-    const cardRight2 = bg.x + bg.width;
-
-    // ── Shared band builder ────────────────────────────────────────────────
-    function buildBands(items) {
-      const used = new Set();
-      const bands = [];
-      for (let i = 0; i < items.length; i++) {
-        if (used.has(i)) continue;
-        const el = items[i];
-        const band = [{ idx: i, el }];
-        used.add(i);
-        let bTop = el.y, bBot = el.y + el.height;
-        let changed = true;
-        while (changed) {
-          changed = false;
-          for (let j = 0; j < items.length; j++) {
-            if (used.has(j)) continue;
-            const k = items[j];
-            if (k.y < bBot + 10 && k.y + k.height > bTop - 10) {
-              band.push({ idx: j, el: k }); used.add(j);
-              bTop = Math.min(bTop, k.y); bBot = Math.max(bBot, k.y + k.height);
-              changed = true;
-            }
-          }
-        }
-        bands.push(band);
-      }
-      return bands;
-    }
-
-    // ── Shared band renderer ───────────────────────────────────────────────
-    function renderBands(bands) {
-      let html = '';
-      for (const band of bands) {
-        const bandEls = band.map(b => b.el);
-        const iconEls = bandEls.filter(e =>
-          ['circle','emoji-icon','star'].includes(e.type) ||
-          (e.type === 'paragraph' && e.width <= 50)
-        );
-        const textEls = bandEls.filter(e =>
-          ['paragraph','heading','subheading'].includes(e.type) && e.width > 50
-        );
-        if (iconEls.length > 0 && textEls.length > 0) {
-          const emojiEl  = iconEls.find(e => e.type === 'paragraph');
-          const circleEl = iconEls.find(e => e.type === 'circle');
-          const emojiIconEl = iconEls.find(e => e.type === 'emoji-icon');
-          const starEl   = iconEls.find(e => e.type === 'star');
-
-          let iconHtml = '';
-          if (emojiEl && circleEl) {
-            // Render emoji inside its circle badge — preserves the coloured badge + emoji
-            const bgColor  = circleEl.backgroundColor || '#FFF8E0';
-            const bdColor  = circleEl.borderColor || '#C9A84C';
-            const bdWidth  = circleEl.borderWidth  || 2;
-            const sz       = Math.min(sc(circleEl.width) || 28, 36);
-            const emoji    = emojiEl.content || '';
-            const fSize    = Math.round(sz * 0.55);
-            iconHtml = `<div style="display:inline-block;width:${sz}px;height:${sz}px;line-height:${sz}px;text-align:center;background:${bgColor};border:${bdWidth}px solid ${bdColor};border-radius:50%;font-size:${fSize}px;vertical-align:middle;box-sizing:border-box;">${emoji}</div>`;
-          } else if (emojiEl) {
-            // Emoji without a circle — render it simply
-            const emoji  = emojiEl.content || '';
-            const fSize  = emojiEl.fontSize || 18;
-            iconHtml = `<span style="display:inline-block;font-size:${fSize}px;line-height:1;vertical-align:middle;">${emoji}</span>`;
-          } else if (emojiIconEl) {
-            const eEmoji = emojiIconEl.emoji || '⭐';
-            const eFSize = emojiIconEl.fontSize || 24;
-            iconHtml = `<span style="display:inline-block;font-size:${eFSize}px;line-height:1;vertical-align:middle;">${eEmoji}</span>`;
-          } else if (starEl) {
-            iconHtml = renderEl(starEl, true);
-          } else if (circleEl) {
-            iconHtml = renderEl(circleEl, true);
-          }
-
-          const textHtml = textEls.sort((a,b) => a.y - b.y).map(e => renderEl(e, true)).join('');
-          html += '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0 0 10px 0;border-collapse:collapse;"><tr>'
-            + '<td width="36" valign="middle" style="padding-right:10px;vertical-align:middle;">' + iconHtml + '</td>'
-            + '<td valign="middle" style="vertical-align:middle;">' + textHtml + '</td>'
-            + '</tr></table>';
-        } else {
-          const nonCircle = bandEls.filter(e => !['circle','star'].includes(e.type));
-          (nonCircle.length > 0 ? nonCircle : []).forEach(e => { html += renderEl(e, true); });
-        }
-      }
-      return html;
-    }
-
-    // Image RIGHT: left-edge >= 45% of card width (all coords relative to card)
-    const sideImg = sorted.find(k =>
-      k.type === 'image' &&
-      (k.x - bg.x) >= bg.width * 0.45 &&
-      (k.y - bg.y) >= 15
-    );
-
-    // Image LEFT: starts in left 25% of card, right-edge within left 60% of card
-    const sideImgLeft = !sideImg && sorted.find(k =>
-      k.type === 'image' &&
-      (k.x - bg.x) >= 0 &&
-      (k.x - bg.x) < bg.width * 0.25 &&
-      (k.x + k.width - bg.x) <= bg.width * 0.60 &&
-      (k.y - bg.y) >= 15
-    );
-
-    if (sideImgLeft) {
-      /* ── IMAGE LEFT, TEXT RIGHT ── */
-      let src = sideImgLeft.src || '';
-      if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/260x220?text=Image';
-      if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
-
-      const rightSorted = sorted.filter(k => k !== sideImgLeft).sort((a, b) => a.y - b.y);
-      const rightHtml = renderBands(buildBands(rightSorted));
-      const imgColPct = Math.round(((sideImgLeft.x + sideImgLeft.width - bg.x) / bg.width) * 100);
-      const textColPct = 100 - imgColPct;
-      // Use the card's actual height for the image (not just the image element height)
-      // so both columns fill the full card
-      const imgHeightPx = Math.round((bg.height / bg.height) * (sc(bg.height) || 220));
-
-      return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + bgC + ';border-radius:' + rad + 'px;' + bdr + 'overflow:hidden;border-collapse:collapse;">'
-        + '<tr>'
-        + '<td width="' + imgColPct + '%" valign="middle" style="padding:0;vertical-align:middle;font-size:0;line-height:0;">'
-        + '<img src="' + src + '" alt="" width="100%" style="display:block;width:100%;height:auto;min-height:' + Math.round(sc(sideImgLeft.height)) + 'px;object-fit:cover;border-radius:' + rad + 'px 0 0 ' + rad + 'px;"/>'
-        + '</td>'
-        + '<td width="' + textColPct + '%" valign="top" style="padding:16px 16px 16px 14px;vertical-align:top;">' + rightHtml + '</td>'
-        + '</tr>'
-        + '</table>';
-    }
-
-    if (sideImg) {
-      /* ── TEXT LEFT, IMAGE RIGHT ── */
-      let src = sideImg.src || '';
-      if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/260x220?text=Image';
-      if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
-
-      const leftSorted = sorted.filter(k => k !== sideImg).sort((a, b) => a.y - b.y);
-      const leftHtml = renderBands(buildBands(leftSorted));
-      const imgColPct = Math.round(((cardRight2 - sideImg.x) / bg.width) * 100);
-      const textColPct = 100 - imgColPct;
-      const imgHeightPx = Math.round((sideImg.height / bg.height) * 220);
-
-      return '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:' + bgC + ';border-radius:' + rad + 'px;' + bdr + 'overflow:hidden;border-collapse:collapse;">'
-        + '<tr>'
-        + '<td width="' + textColPct + '%" valign="top" style="padding:16px 14px 16px 16px;vertical-align:top;">' + leftHtml + '</td>'
-        + '<td width="' + imgColPct + '%" valign="middle" style="padding:0;vertical-align:middle;font-size:0;line-height:0;">'
-        + '<img src="' + src + '" alt="" width="100%" style="display:block;width:100%;height:' + imgHeightPx + 'px;max-height:' + imgHeightPx + 'px;object-fit:cover;border-radius:0 ' + rad + 'px ' + rad + 'px 0;"/>'
-        + '</td>'
-        + '</tr>'
-        + '</table>';
-    }
-
-        /* ── ORIGINAL STACKED LAYOUT (unchanged for other card types) ── */
 
     // Top-image: image whose top edge is within 20px of card top
     const topImg = sorted.find(k => k.type === 'image' && (k.y - bg.y) < 20);
@@ -579,21 +535,53 @@ function align(el, inCard, forceLeft) {
       rows += `<tr><td style="padding:12px 16px 4px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="44" valign="middle" style="padding-right:8px;">${renderEl(iconEl, true)}</td><td valign="middle">${renderEl(headEl, true)}</td></tr></table></td></tr>`;
     }
 
-    // Body content — sort by Y, render each element in its own <tr> with gap spacing
+    // Body content — sort by Y, group elements at same Y into one row (side-by-side)
     if (rest.length > 0) {
-      const restSorted = [...rest].sort((a, b) => a.y - b.y);
+      const restSorted = [...rest].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
       const topPad = (topImg || iconEl) ? '6' : '16';
-      restSorted.forEach((k, idx) => {
-        // Calculate Y-gap from previous element to preserve canvas spacing
+
+      // Group elements into rows: elements whose vertical centres overlap go in the same row
+      const rowGroups = [];
+      restSorted.forEach(k => {
+        const kMidY = k.y + k.height / 2;
+        const existing = rowGroups.find(g =>
+          g.some(m => {
+            const mMidY = m.y + m.height / 2;
+            return Math.abs(kMidY - mMidY) < Math.min(k.height, m.height) * 0.6;
+          })
+        );
+        if (existing) existing.push(k);
+        else rowGroups.push([k]);
+      });
+
+      rowGroups.forEach((group, gIdx) => {
+        // Y-gap from previous row
         let gapPx = 0;
-        if (idx > 0) {
-          const prev = restSorted[idx - 1];
-          const canvasGap = Math.max(0, k.y - (prev.y + prev.height));
+        if (gIdx > 0) {
+          const prevGroup = rowGroups[gIdx - 1];
+          const prevBottom = Math.max(...prevGroup.map(m => m.y + m.height));
+          const curTop = Math.min(...group.map(m => m.y));
+          const canvasGap = Math.max(0, curTop - prevBottom);
           gapPx = Math.round(canvasGap * (EW / CW));
         }
-        const padTop = idx === 0 ? topPad : (gapPx > 2 ? gapPx : 4);
-        const padBot = idx === restSorted.length - 1 ? '16' : '0';
-        rows += `<tr><td style="padding:${padTop}px 16px ${padBot}px;">${renderEl(k, true)}</td></tr>`;
+        const padTop = gIdx === 0 ? 6 : Math.min(gapPx, 10);
+        const padBot = gIdx === rowGroups.length - 1 ? '16' : '0';
+
+        if (group.length === 1) {
+          // Single element — normal full-width row
+          rows += `<tr><td style="padding:${padTop}px 12px ${padBot}px;">${renderEl(group[0], true)}</td></tr>`;
+        } else {
+          // Multiple elements side by side — one <td> each, equal width
+          const sortedByX = [...group].sort((a, b) => a.x - b.x);
+          const colW = Math.round(100 / sortedByX.length);
+          rows += `<tr>`;
+          sortedByX.forEach((k, kIdx) => {
+            const lPad = kIdx === 0 ? '16' : '4';
+            const rPad = kIdx === sortedByX.length - 1 ? '16' : '4';
+            rows += `<td width="${colW}%" valign="middle" style="padding:${padTop}px ${rPad}px ${padBot}px ${lPad}px;text-align:center;">${renderEl(k, true)}</td>`;
+          });
+          rows += `</tr>`;
+        }
       });
     }
 
@@ -601,8 +589,6 @@ function align(el, inCard, forceLeft) {
   }
 
   /* ── BUILD LAYOUT UNITS ─────────────────────────────────────── */
-  // Each "unit" = one rendered block with its canvas x/y/width
-  // so we can position it correctly in the email layout.
   const units = [];
 
   cardMap.forEach(({ bg, kids }) => {
@@ -612,133 +598,45 @@ function align(el, inCard, forceLeft) {
     });
   });
 
-  orphans.forEach(el => {
-    units.push({ x: el.x, y: el.y, cw: el.width, ch: el.height, elType: el.type, origId: el.id, _el: el, html: renderEl(el, false) });
+  // Group orphan elements that share the same Y band (side-by-side on canvas)
+  const orphansSorted = [...orphans].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+  const orphanGroups = [];
+  orphansSorted.forEach(el => {
+    const elMidY = el.y + el.height / 2;
+    const existing = orphanGroups.find(g =>
+      g.some(m => Math.abs(elMidY - (m.y + m.height / 2)) < Math.min(el.height, m.height) * 0.6)
+    );
+    if (existing) existing.push(el);
+    else orphanGroups.push([el]);
   });
 
-  // ── PRE-MERGE: Fix image + stacked-text side-by-side layout ────────────────
-  // Problem: image (left) + two paragraphs (right, stacked vertically).
-  // groupRows correctly groups Para1 with the image (Y overlap), but Para2
-  // also Y-overlaps the image yet X-overlaps Para1 → gets rejected into its
-  // own new row → renders full-width below the image.
-  //
-  // Fix: for each image unit, find ALL non-image units whose X range does NOT
-  // overlap the image AND whose Y range overlaps the image. Merge those
-  // companion units into one combined "column unit" so groupRows sees only
-  // 2 units (image + merged column) and places them side-by-side.
-  (function mergeImageCompanions() {
-    const imgUnits  = units.filter(u => u.elType === 'image');
-    const nonImgIds = new Set(units.filter(u => u.elType !== 'image').map(u => u.origId));
+  orphanGroups.forEach(group => {
+    const groupY   = Math.min(...group.map(e => e.y));
+    const groupBot = Math.max(...group.map(e => e.y + e.height));
+    const groupX   = Math.min(...group.map(e => e.x));
+    const groupCW  = Math.max(...group.map(e => e.x + e.width)) - groupX;
 
-    imgUnits.forEach(img => {
-      const imgTop = img.y, imgBot = img.y + img.ch;
-      const imgL   = img.x, imgR   = img.x + img.cw;
+    // Determine alignment from canvas X position
+    const elCenterX = groupX + groupCW / 2;
+    const align = elCenterX < CW * 0.38 ? 'left' : elCenterX > CW * 0.62 ? 'right' : 'center';
 
-      // Find companion units: Y overlaps image, X does NOT overlap image
-      const companions = units.filter(u =>
-        u.origId !== img.origId &&
-        u.elType !== 'image' &&
-        // Y overlap with image
-        u.y < imgBot && (u.y + u.ch) > imgTop &&
-        // X does NOT overlap image (they are side-by-side)
-        (u.x + u.cw <= imgL || u.x >= imgR)
-      );
+    let innerHtml;
+    if (group.length === 1) {
+      innerHtml = renderEl(group[0], false);
+    } else {
+      // side-by-side group
+      const sortedByX = [...group].sort((a, b) => a.x - b.x);
+      innerHtml = `<table cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr>` +
+        sortedByX.map(el => `<td valign="middle" style="padding:0 6px;">${renderEl(el, false)}</td>`).join('') +
+        `</tr></table>`;
+    }
 
-      if (companions.length < 1) return; // nothing to fix
+    const wrappedHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="${align}" style="padding:4px 0;">${innerHtml}</td></tr></table>`;
+    units.push({ x: groupX, y: groupY, cw: groupCW, ch: groupBot - groupY, elType: 'orphan-group', origId: group[0].id, html: wrappedHtml });
+  });
 
-      // Group companions by which X side they're on (left or right of image)
-      const leftComps  = companions.filter(u => u.x + u.cw <= imgL);
-      const rightComps = companions.filter(u => u.x >= imgR);
-
-      [leftComps, rightComps].forEach(group => {
-        if (group.length === 0) return;
-
-        // Remove individual units from the units array
-        group.forEach(u => {
-          const idx = units.indexOf(u);
-          if (idx !== -1) units.splice(idx, 1);
-        });
-
-        if (group.length === 1) {
-          // Single companion — just re-render with forceLeft to fix alignment
-          const u = group[0];
-          units.push({
-            ...u,
-            html: u._el ? renderEl(u._el, false, true) : u.html,
-          });
-          return;
-        }
-
-        // Merge into one tall column unit, re-rendering each el with forceLeft=true
-        // so text on the right side of canvas doesn't get wrongly right-aligned
-        const sorted = [...group].sort((a, b) => a.y - b.y);
-        const minY  = sorted[0].y;
-        const maxBot2 = Math.max(...sorted.map(u => u.y + u.ch));
-        const minX  = Math.min(...sorted.map(u => u.x));
-        const maxR  = Math.max(...sorted.map(u => u.x + u.cw));
-        units.push({
-          x: minX, y: minY,
-          cw: maxR - minX, ch: maxBot2 - minY,
-          elType: sorted[0].elType,
-          origId: sorted[0].origId,
-          // Preserve the canvas Y-gap between stacked companion elements as margin-top.
-          // Scale: gap_px * (EW / CW) converts canvas pixels → email pixels.
-          html: sorted.map((u, idx) => {
-            const baseHtml = u._el ? renderEl(u._el, false, true) : u.html;
-            if (idx === 0) return baseHtml;
-            const prevBot = sorted[idx - 1].y + sorted[idx - 1].ch;
-            const gapPx   = Math.max(0, u.y - prevBot);
-            const emailGap = Math.round(gapPx * (EW / CW));
-            if (emailGap <= 2) return baseHtml;
-            return `<div style="margin-top:${emailGap}px;">${baseHtml}</div>`;
-          }).join(''),
-        });
-      });
-    });
-  })();
-
-  // Sort: top-to-bottom, left-to-right
+  // Sort units by Y position
   units.sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
-
-  /* ── ROW GROUPING ───────────────────────────────────────────── */
-  // Two units belong to the same "row" (side-by-side columns) if their
-  // Y ranges OVERLAP — i.e. they are visually beside each other on the canvas.
-  // This correctly handles elements of different heights placed side-by-side.
-  function groupRows(units) {
-    // Attach height to each unit (use ch property if set, else fall back to elType defaults)
-    const withH = units.map(u => ({ ...u, ch: u.ch || 40 }));
-
-    const rows = [];
-    withH.forEach(u => {
-      const uTop = u.y;
-      const uBot = u.y + u.ch;
-      let placed = false;
-
-      for (const row of rows) {
-        // Compute the vertical span already occupied by this row
-        const rowTop = Math.min(...row.map(r => r.y));
-        const rowBot = Math.max(...row.map(r => r.y + r.ch));
-
-        // Does u overlap the row's vertical range?
-        const yOverlap = uTop < rowBot && uBot > rowTop;
-        if (!yOverlap) continue;
-
-        // Only group if X ranges do NOT overlap (they must be side-by-side)
-        const xOverlap = row.some(r => !(u.x + u.cw <= r.x || u.x >= r.x + r.cw));
-        if (xOverlap) continue;
-
-        row.push(u); placed = true; break;
-      }
-      if (!placed) rows.push([u]);
-    });
-
-    // Sort each row left-to-right, then rows top-to-bottom
-    rows.forEach(r => r.sort((a, b) => a.x - b.x));
-    rows.sort((a, b) => Math.min(...a.map(r => r.y)) - Math.min(...b.map(r => r.y)));
-    return rows;
-  }
-
-  const rows = groupRows(units);
 
   /* ── HTML OUTPUT ────────────────────────────────────────────── */
   let html = `<!DOCTYPE html>
@@ -756,65 +654,21 @@ function align(el, inCard, forceLeft) {
 <tr><td style="padding:20px;">
 `;
 
-  rows.forEach(row => {
-
-    if (row.length === 1) {
-      // Single unit: respect its canvas width proportion
-      const u = row[0];
-      const pct = u.cw / CW;                     // fraction of canvas width
-      // Text-type elements should always fill 100% to preserve readability
-      const isTextEl = ['heading','subheading','paragraph','blockquote','button'].includes(u.elType);
-      const colW = (pct >= 0.50 || isTextEl) ? '100%' : `${sc(u.cw)}px`;
-      const cx = (u.x + u.cw / 2) / CW;
-      // Cards and wide elements always use 'left' on the outer wrapper —
-      // the card itself controls internal text alignment via renderCard/renderEl.
-      // Only small standalone elements (images, shapes) use position-based alignment.
-      const tdA = (u.elType === 'card' || colW === '100%') ? 'left'
-        : cx < 0.30 ? 'left' : cx > 0.70 ? 'right' : 'center';
-
-      html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
-<tr><td align="${tdA}">
-<table width="${colW}" cellpadding="0" cellspacing="0" border="0">
-<tr><td>${u.html}</td></tr>
-</table></td></tr></table>\n`;
-
-    } else {
-      // Multiple units side-by-side
-      // Recalculate column widths so they sum to 100% and match canvas proportions.
-      // Re-render image units with forceLeft=true so they fill their column cell.
-      const totalCW = row.reduce((s, u) => s + u.cw, 0);
-      // Normalise widths to sum to 100
-      const pcts = row.map(u => Math.round((u.cw / totalCW) * 100));
-      // Correct rounding drift on last column
-      const drift = 100 - pcts.reduce((a, b) => a + b, 0);
-      pcts[pcts.length - 1] += drift;
-
-      html += `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:10px;">
-<tr>\n`;
-      // Find the tallest unit in the row (usually the image) to detect vertical alignment
-      const rowH = Math.max(...row.map(u => u.ch));
-      const rowTop = Math.min(...row.map(u => u.y));
-
-      row.forEach((u, i) => {
-        const pct = pcts[i];
-        const pad = i < row.length - 1 ? 'padding-right:8px;' : '';
-        // Re-render images with forceLeft so max-width:100% fills the column
-        // Pass colWidthPx so image height scales correctly to column width
-        const colWidthPx = Math.round((pct / 100) * EW);
-        const cellHtml = (u.elType === 'image' && u._el)
-          ? renderEl(u._el, false, true, colWidthPx)
-          : u.html;
-        // Detect vertical alignment: if this unit's Y center is in the middle 
-        // 40% of the row height → middle-align; otherwise top-align
-        const uCenterRatio = u.ch < rowH
-          ? ((u.y - rowTop) + u.ch / 2) / rowH
-          : 0;
-        const va = (u.elType !== 'image' && uCenterRatio > 0.25 && uCenterRatio < 0.75)
-          ? 'middle' : 'top';
-        html += `<td width="${pct}%" valign="${va}" style="${pad}vertical-align:${va};">${cellHtml}</td>\n`;
-      });
-      html += `</tr></table>\n`;
+  // Render all units — preserve canvas Y-gap spacing between each unit
+  units.forEach((unit, idx) => {
+    if (idx > 0) {
+      const prev = units[idx - 1];
+      // Gap = space between bottom of previous unit and top of current unit, scaled to email width
+      const canvasGap = Math.max(0, unit.y - (prev.y + prev.ch));
+      const emailGap = Math.min(
+        Math.round(canvasGap * (EW / CW)),
+        12 
+      );
+      if (emailGap > 2) {
+        html += `<div style="height:${emailGap}px;font-size:0;line-height:0;">&nbsp;</div>\n`;
+      }
     }
+    html += unit.html;
   });
 
   html += `</td></tr>
@@ -827,7 +681,7 @@ function align(el, inCard, forceLeft) {
 </body></html>`;
 
   return html;
-};
+}
 
 const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, replyToEmail) => {
   let plainText = `${subject}\n\n`;
@@ -1036,7 +890,7 @@ router.post("/send", async (req, res) => {
       console.log(`   📧 Subject: ${emailSubject}`);
       console.log(`   📅 Date: ${scheduledDate} ${scheduledTime}`);
       console.log(`   👥 Recipients: ${recipients.length}`);
-      console.log(`   🎨 Canvas Elements: ${canvasData?.length || 0}`);
+      // console.log(`   🎨 Canvas Elements: ${canvasData?.length || 0}`);
       console.log(`   ⏰ Scheduled DateTime: ${scheduledDateTime.toISOString()}`);
       console.log(`   📍 Type: ${scheduleType}`);
       console.log(`   ✉️ From: ${fromName} <${fromEmail}>`);
@@ -1224,11 +1078,44 @@ router.post("/send", async (req, res) => {
 });
 
 
+// router.get("/", async (req, res) => {
+//   try {
+//     const campaigns = await prisma.campaign.findMany({
+//       where: { userId: req.user.id },
+//       include: { events: true },
+//       orderBy: { createdAt: "desc" },
+//     });
+//     res.json(campaigns);
+//   } catch {
+//     res.status(500).json({ error: "Failed to fetch campaigns" });
+//   }
+// });
+
 router.get("/", async (req, res) => {
   try {
     const campaigns = await prisma.campaign.findMany({
       where: { userId: req.user.id },
-      include: { events: true },
+      select: {
+        id: true,
+        name: true,
+        subject: true,
+        status: true,
+        sentCount: true,
+        pending: true,
+        currentBatch: true,
+        totalBatches: true,
+        createdAt: true,
+        fromEmail: true,
+        fromName: true,
+        fromAddress: true,
+        replyToEmail: true,
+        scheduleType: true,
+        scheduledAt: true,
+        // ❌ NO recipientsJson
+        // ❌ NO designJson
+        // ❌ NO snapshotUrl
+        // ❌ NO events  ← REMOVE THIS TOO
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json(campaigns);
@@ -1236,7 +1123,6 @@ router.get("/", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch campaigns" });
   }
 });
-
 router.get("/:id", async (req, res) => {
   try {
     const campaign = await prisma.campaign.findFirst({
@@ -1617,67 +1503,51 @@ router.post("/send-shuffled", async (req, res) => {
         total: emails.length
       });
     }
-    // ==========================================================
-    // 💰 STEP 7: Deduct Credits (ONLY for immediate sends)
-    // ==========================================================
-    if (scheduleType === "immediate") {
-      console.log("💰 Deducting credits after shuffled campaign...");
-      let remainingToDeduct = actualSentCount;
 
-      // Deduct from payments first (FIFO)
-      const succeededPayments = await prisma.payment.findMany({
-        where: { userId: req.user.id, status: "succeeded" },
-        orderBy: { paymentDate: "asc" },
-        select: { id: true, emailSendCredits: true },
-      });
+if (scheduleType === "immediate") {
 
-      for (const p of succeededPayments) {
-        if (remainingToDeduct <= 0) break;
-        const current = p.emailSendCredits || 0;
-        const deduct = Math.min(current, remainingToDeduct);
-        const newCredit = Math.max(0, current - deduct);
+  let remainingToDeduct = actualSentCount;
 
-        await prisma.payment.update({
-          where: { id: p.id },
-          data: { emailSendCredits: newCredit },
-        });
+  const succeededPayments = await prisma.payment.findMany({
+    where: { userId: req.user.id, status: "succeeded" },
+    select: { emailSendCredits: true },
+  });
 
-        remainingToDeduct -= deduct;
-        console.log(`💳 Deducted ${deduct} from payment ${p.id}, remaining: ${remainingToDeduct}`);
-      }
+  const remainingPaymentCredits = succeededPayments.reduce(
+    (sum, p) => sum + (p.emailSendCredits || 0),
+    0
+  );
 
-      // Deduct remaining from user.emailLimit
-      const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
+  const finalUserEmailLimit = Math.max(
+    0,
+    (user.emailLimit ?? 0) - remainingToDeduct
+  );
 
-      await prisma.user.update({
-        where: { id: req.user.id },
-        data: { emailLimit: finalUserEmailLimit },
-      });
+  await prisma.user.update({
+    where: { id: req.user.id },
+    data: { emailLimit: finalUserEmailLimit },
+  });
 
-      console.log(`✅ Credits updated – user.emailLimit now ${finalUserEmailLimit}`);
+  const totalRemainingCredits =
+    remainingPaymentCredits + finalUserEmailLimit;
 
-      // Calculate total remaining credits
-      const updatedPayments = await prisma.payment.findMany({
-        where: { userId: req.user.id, status: "succeeded" },
-        select: { emailSendCredits: true },
-      });
-      const remainingPaymentCredits = updatedPayments.reduce((sum, p) => sum + (p.emailSendCredits || 0), 0);
-      const totalRemainingCredits = remainingPaymentCredits + finalUserEmailLimit;
+  return res.status(200).json({
+    success: true,
+    message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
+    results,
+    distribution: distributionResults,
+    creditsUsed: actualSentCount,
+    creditsRemaining: totalRemainingCredits,
+  });
+}
 
-      // ==========================================================
-      // 📤 STEP 8: Response for IMMEDIATE send
-      // ==========================================================
-      console.log(`✅ Shuffled campaign complete - Success: ${results.success.length}, Failed: ${results.failed.length}`);
+// If scheduled
+return res.status(200).json({
+  success: true,
+  message: "Shuffled campaign scheduled successfully",
+  distribution: distributionResults,
+});
 
-      return res.status(200).json({
-        success: true,
-        message: `Sent: ${results.success.length}, Failed: ${results.failed.length}`,
-        results,
-        distribution: distributionResults,
-        creditsUsed: actualSentCount,
-        creditsRemaining: totalRemainingCredits,
-      });
-    }
     // Deduct remaining from user.emailLimit
     const finalUserEmailLimit = Math.max(0, (user.emailLimit ?? 0) - remainingToDeduct);
 

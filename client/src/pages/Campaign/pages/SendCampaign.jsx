@@ -10,7 +10,7 @@ import ShuffleSubjectModal from "../Components/ShuffleSubjectModal";
 import { Shuffle } from "lucide-react";
 
 // ✅ FIX: Was VITE_VRI_URL (typo) — now correctly VITE_API_URL
-const API_URL = import.meta.env.VITE_VRI_URL;
+const API_URL = import.meta.env.VITE_VRI_URL; 
 
 const steps = [
   { id: "recipients", title: "To",       description: "Choose who to send to",  icon: Users    },
@@ -90,11 +90,27 @@ function renderPreviewElement(el) {
         );
       }
       return (
-        <img src={src} alt={el.alt||"Image"}
-              style={{ width:"100%", height:"100%", objectFit:el.objectFit||"cover",
-              borderRadius:`${el.borderRadius||0}px`,
-              border:el.borderWidth?`${el.borderWidth}px solid ${el.borderColor}`:"none",
-              display:"block" }} />
+        <a
+          href={el.link || "#"}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ display: "block", width: "100%", height: "100%" }}
+        >
+          <img
+            src={src}
+            alt={el.alt || "Image"}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: el.objectFit || "cover",
+              borderRadius: `${el.borderRadius || 0}px`,
+              border: el.borderWidth
+                ? `${el.borderWidth}px solid ${el.borderColor}`
+                : "none",
+              display: "block",
+            }}
+          />
+        </a>
       );
     }
 
@@ -426,7 +442,7 @@ useEffect(() => {
       const token   = getAuthToken();
       const headers = { "Content-Type":"application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
-      const res = await fetch(`${API_URL}/campaigncontacts`, { headers });
+      const res = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
       if (res.status === 401) { setAuthError(true); return; }
       if (res.ok) setContacts(await res.json());
     } catch (err) { console.error("fetchContacts error:", err); }
@@ -436,7 +452,7 @@ useEffect(() => {
   useEffect(() => {
     const load = async () => {
       try {
-        const res  = await fetch(`${API_URL}/campaigns/credits`, {
+        const res  = await fetch(`${API_URL}/api/campaigns/credits`, {
           headers: { Authorization: `Bearer ${getAuthToken()}` },
         });
         if (!res.ok) { setCredits(0); return; }
@@ -488,7 +504,7 @@ useEffect(() => {
     if (!email?.includes("@")) { setEmailVerificationStatus(null); return; }
     setIsCheckingEmail(true); setEmailVerificationStatus(null);
     try {
-      const res  = await fetch(`${API_URL}/campaigns/verify-email`, {
+      const res  = await fetch(`${API_URL}/api/campaigns/verify-email`, {
         method:"POST",
         headers:{ "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body: JSON.stringify({ email }),
@@ -588,7 +604,7 @@ useEffect(() => {
   /* ── upload snapshot to server ──────────────────────────── */
   const uploadSnapshot = async (base64) => {
     try {
-      const res  = await fetch(`${API_URL}/upload/snapshot`, {
+      const res  = await fetch(`${API_URL}/api/upload/snapshot`, {
         method:  "POST",
         headers: { "Content-Type":"application/json", Authorization:`Bearer ${getAuthToken()}` },
         body:    JSON.stringify({ imageBase64: base64 }),
@@ -614,7 +630,7 @@ useEffect(() => {
       }
 
       // ── fetch recipients ─────────────────────────────────
-      const cRes = await fetch(`${API_URL}/campaigncontacts`, { headers });
+      const cRes = await fetch(`${API_URL}/api/campaigncontacts`, { headers });
       if (!cRes.ok) throw new Error("Failed to fetch contacts");
       const allContacts = await cRes.json();
 
@@ -639,14 +655,8 @@ useEffect(() => {
       }
 
       // ── capture + upload snapshot ────────────────────────
-      setSendStatus({ success:true, message:"📸 Capturing email design…" });
-      const base64      = await captureSnapshot();
-      let   snapshotUrl = null;
-
-      if (base64) {
-        setSendStatus({ success:true, message:"☁️ Uploading design snapshot…" });
-        snapshotUrl = await uploadSnapshot(base64);
-      }
+      let snapshotUrl = null; // always null → server uses generateHtmlFromCanvas
+      setSendStatus({ success:true, message:"📤 Preparing campaign…" });
 
       setSendStatus({ success:true, message:"📤 Sending campaign…" });
 
@@ -743,7 +753,7 @@ useEffect(() => {
       }
 
       // ── NORMAL SEND (small campaign or scheduled) ────────────────────
-      const res  = await fetch(`${API_URL}/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
+      const res  = await fetch(`${API_URL}/api/campaigns/send`, { method:"POST", headers, body:JSON.stringify(payload) });
       let   data;
       try { data = await res.json(); } catch { data = null; }
 

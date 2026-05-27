@@ -58,7 +58,7 @@ import creditcardRoutes from './routes/creditcard.js';
 import contactRoutes from './routes/ContactUs.js';
 import userRoutes from './routes/user.js';
 import upiRoutes from "./routes/upi.js";
-import bodyParser from "body-parser";
+// import bodyParser from "body-parser";
 
 import multimediaCampaignRoutes from "./routes/multimediaCampaign.js";
 
@@ -82,6 +82,8 @@ import campaignUserMails from "./routes/campaignUserMails.js";
 import { startCampaignScheduler } from "./services/campaignScheduler.js";
 import userCredit from "./routes/userRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
+import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
+
 dotenv.config();
 
 // Init
@@ -94,18 +96,6 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname  = path.dirname(__filename);
-
-// // Serve uploaded files as static assets (images + snapshots)
-// app.use("/uploads", express.static(path.join(__dirname, "public", "uploads")));
-
-// // Mount upload routes
-// app.use("/api/upload", uploadRouter);
-
-// Allowed origins for CORS
-// ---------- CORS (update this block completely) ----------
-// ---------- ✅ CORS CONFIG (FINAL VERSION) ----------
 
 
 
@@ -113,46 +103,28 @@ const PORT = process.env.PORT || 5000;
 const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
-  "https://www.bouncecure.com",
-  "https://bouncecure.com",
-  "https://bouncecure-ui.onrender.com"
+  "https://www.bouncecure.com"
 ];
-app.use(
-  cors({
-    origin: true,        // automatically reflect request origin
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
 
-// app.use(
-//   cors({
-//     origin(origin, callback) {
-//        if (!origin) return callback(null, true);
-//       if (allowedOrigins.includes(origin)) return callback(null, true);
-//       console.warn(`❌ Blocked by CORS: ${origin}`);
-//       return callback(new Error("Not allowed by CORS"));
-//     },
-//     methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
-//     allowedHeaders: ["Content-Type", "Authorization"],  
-//     credentials: true,
-//     preflightContinue: false,
-//     optionsSuccessStatus: 204,
-//   })
-// );
+app.use(cors({
+  origin: function (origin, callback) {
 
-// ✅ Optional: explicitly handle OPTIONS requests
+    // allow Postman / server-to-server
+    if (!origin) return callback(null, true);
 
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+
+    console.log("❌ Blocked by CORS:", origin);
+    return callback(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+  methods: ["GET","POST","PUT","PATCH","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization"]
+}));
 
 app.options("*", cors());
-
-
-// Explicitly handle preflight requests (very important for GIS)
-app.options("*", cors({
-  origin: allowedOrigins,
-  credentials: true,
-}));
 // ---------- end updated CORS block ----------
 
 // HTTP server and socket
@@ -177,13 +149,13 @@ io.on('connection', (socket) => {
 
  
 
+
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use((req, res, next) => {
   console.log(`📥 [${req.method}] ${req.url} | Body:`, req.body);
   next();
 });
-
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // ----------------------- Routes -----------------------
 // Chat routes
@@ -276,13 +248,8 @@ app.get('/', (req, res) => {
 
 app.use("/api/files", uploadRoutes);
 
-// Socket service
-initSocket(io);
 
-// Start server
-server.listen(PORT, () => {
-  console.log(`✅ Server started on port ${PORT}`);
-});
+
 
 // Email verification route
 app.get('/verify-email', async (req, res) => {
@@ -348,8 +315,23 @@ app.get('/verify-email', async (req, res) => {
 });
 
 
-import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
 
 // After all your routes are set up and before app.listen():
 // Start the scheduled campaign cron job
 startScheduledCampaignCron();
+
+// 🔥 Global crash protection
+process.on("uncaughtException", (err) => {
+  console.error("🔥 UNCAUGHT EXCEPTION:", err);
+});
+
+process.on("unhandledRejection", (err) => {
+  console.error("🔥 UNHANDLED REJECTION:", err);
+});
+
+// Start server
+server.listen(PORT, () => {
+  console.log(`✅ Server started on port ${PORT}`);
+});
+
+ 
