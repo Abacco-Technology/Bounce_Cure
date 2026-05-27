@@ -44,18 +44,18 @@ function drawBrandHeader(doc, W, user, subtitle, dateStr, timeStr) {
   // ── Logo Image ─────────────────────────────
   // ── Logo Image ─────────────────────────────
   // Logo circle
-  const lx = HX + 18;
+  const lx = HX + 20;
   const ly = HY + HH / 2;
-  const logoSize = 31;
+  const logoSize = 30;
 
   // ── Use rasul.jpg instead of bounce.jpg ──
   doc.addImage(
-    "/rasul-1.png",   // ← only this line changes
-    "JPEG",
-    lx - logoSize / 2,
-    ly - logoSize / 2,
-    logoSize,
-    logoSize
+    "/rasul-1.png",
+    "PNG",
+    lx - 22,
+    ly - 18,
+    39, // width
+    35 // height
   );
 
 
@@ -200,8 +200,8 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
   // Campaign Details table
   curY = drawSectionHeading(doc, HX, W, curY, "CAMPAIGN DETAILS");
 
-  const colHeaders = ["Campaign", "Batches", "Date", "Pending", "Sent", "Status"];
-  const colWidths = [HW * 0.34, HW * 0.11, HW * 0.16, HW * 0.11, HW * 0.12, HW * 0.16];
+  const colHeaders = ["Campaign", "Date", "Pending", "Sent", "Status"];
+  const colWidths = [HW * 0.40, HW * 0.18, HW * 0.12, HW * 0.12, HW * 0.18];
   const rowH = 8;
 
   // Header row
@@ -216,7 +216,6 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
     ? campaigns.map((c) => ({
       cells: [
         c.name || "—",
-        c.totalBatches > 1 ? (c.currentBatch ?? 0) + "/" + c.totalBatches : "—",
         c.createdAt ? new Date(c.createdAt).toISOString().slice(0, 10) : "—",
         c.pending != null ? String(c.pending) : "—",
         String(c.sentCount ?? 0),
@@ -224,7 +223,7 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
       ],
       status: (c.status || "").toLowerCase(),
     }))
-    : [{ cells: ["No campaigns found", "—", "—", "—", "—", "—"], status: "" }];
+    : [{ cells: ["No campaigns found", "—", "—", "—", "—"], status: "" }];
 
   tableRows.forEach((row, idx) => {
     if (curY + rowH > H - 18) {
@@ -238,7 +237,7 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
 
     let rx = HX + 3;
     row.cells.forEach((cell, ci) => {
-      if (ci === 5) {
+      if (ci === 4) {
         const s = row.status;
         if (s === "completed" || s === "sent") doc.setTextColor(...C.green);
         else if (s === "sending" || s === "processing") doc.setTextColor(...C.yellow);
@@ -281,6 +280,7 @@ export default function Analytics() {
   const [user, setUser] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
   const pollingRef = useRef(null);
 
   useEffect(() => {
@@ -465,22 +465,37 @@ export default function Analytics() {
         return;
       }
 
-      const campaignStats = await fetchCampaignSgStats(selectedCampaign);
+      const singleCampaignSummary = {
+        processed: selectedCampaign.sentCount || 0,
 
-      // SAME PDF DESIGN
+        delivered:
+          selectedCampaign.deliveredCount || 0,
+
+        opens:
+          selectedCampaign.openCount || 0,
+
+        clicks:
+          selectedCampaign.clickCount || 0,
+
+        bounces:
+          selectedCampaign.bounceCount || 0,
+
+        spam:
+          selectedCampaign.spamCount || 0,
+
+        openRate:
+          selectedCampaign.openRate || 0,
+
+        clickRate:
+          selectedCampaign.clickRate || 0,
+
+        deliveryRate:
+          selectedCampaign.deliveryRate || 0,
+      };
+
       generateFullPDF(
-        campaignStats || {
-          processed: selectedCampaign.sentCount || 0,
-          delivered: selectedCampaign.sentCount || 0,
-          opens: 0,
-          clicks: 0,
-          bounces: 0,
-          spam: 0,
-          openRate: 0,
-          clickRate: 0,
-          deliveryRate: 100,
-        },
-        [selectedCampaign], // pass single campaign in array
+        singleCampaignSummary,
+        [selectedCampaign],
         user
       );
 
@@ -514,21 +529,91 @@ export default function Analytics() {
         <div className="flex flex-wrap items-center justify-between gap-3 pt-16">
           <h1 className="text-2xl font-bold text-[#b2761c]">Analytics Dashboard</h1>
           <div className="flex items-center gap-2 flex-wrap">
-            <select
-              value={selectedCampaignId}
-              onChange={e => setSelectedCampaignId(e.target.value)}
-              disabled={loading || campaigns.length === 0}
-              className="bg-[#0a0a0a] border border-gray-700 text-white text-sm rounded-lg px-3 py-2.5
-                         focus:outline-none focus:border-[#b2761c] disabled:opacity-40 cursor-pointer
-                         max-w-[220px] truncate"
-            >
-              <option value="all">All Campaigns (Full Report)</option>
-              {campaigns.map(c => (
-                <option key={c.id} value={String(c.id)}>
-                  {c.name ? (c.name.length > 28 ? c.name.slice(0, 27) + "…" : c.name) : `Campaign ${c.id}`}
-                </option>
-              ))}
-            </select>
+            <div className="relative">
+              <button
+                onClick={() => setShowDropdown(prev => !prev)}
+                className="bg-[#0a0a0a] border border-gray-700 text-white text-sm rounded-lg px-4 py-2.5
+               min-w-[240px] flex items-center justify-between hover:border-[#b2761c]"
+              >
+                <span>
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} Campaign(s) Selected`
+                    : "All Campaigns (Full Report)"}
+                </span>
+
+                <svg
+                  className={`w-4 h-4 transition-transform ${showDropdown ? "rotate-180" : ""}`}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+
+              {showDropdown && (
+                <div className="absolute z-50 mt-2 w-full bg-black border border-gray-700 rounded-lg shadow-xl max-h-72 overflow-y-auto">
+
+                  {/* ALL OPTION */}
+                  <label className="flex items-center gap-3 px-4 py-3 hover:bg-gray-900 cursor-pointer border-b border-gray-800">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.size === 0}
+                      onChange={() => {
+                        setSelectedIds(new Set());
+                        setSelectedCampaignId("all");
+                      }}
+                      className="accent-[#b2761c] w-4 h-4"
+                    />
+                    <span className="text-white text-sm">
+                      All Campaigns (Full Report)
+                    </span>
+                  </label>
+
+                  {/* CAMPAIGNS */}
+                  {campaigns.map(c => {
+                    const checked = selectedIds.has(String(c.id));
+
+                    return (
+                      <label
+                        key={c.id}
+                        className="flex items-center gap-3 px-4 py-3 hover:bg-gray-900 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => {
+                            setSelectedIds(prev => {
+                              const next = new Set(prev);
+
+                              if (next.has(String(c.id))) {
+                                next.delete(String(c.id));
+                              } else {
+                                next.add(String(c.id));
+                              }
+
+                              return next;
+                            });
+
+                            setSelectedCampaignId("custom");
+                          }}
+                          className="accent-[#b2761c] w-4 h-4"
+                        />
+
+                        <span className="text-white text-sm truncate">
+                          {c.name}
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
 
             <button
               onClick={handleManualRefresh}
