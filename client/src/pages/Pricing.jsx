@@ -192,7 +192,7 @@ const Pricing = () => {
       disclaimer: '*Sending will be paused if contact or email send limit is exceeded.',
       cta: 'Sign Up',
       emailMultiplier: null,
-      emailLimit: 1000,
+      emailLimit: 50,
       features: ["Email marketing", "Basic reporting", "1 audience"]
     },
     essentials: {
