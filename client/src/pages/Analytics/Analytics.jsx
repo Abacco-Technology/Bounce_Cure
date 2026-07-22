@@ -1,6 +1,13 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { jsPDF } from "jspdf";
 import DashboardLayout from "../../components/DashboardLayout";
+// Logo is embedded as a base64 data URI (see bounceCureLogo.js) instead of
+// being fetched from the R2 URL at PDF-generation time. The R2 bucket does
+// not send CORS headers, so any runtime fetch()/XHR to that URL from the
+// browser is blocked — that's what caused the black box (jsPDF's internal
+// XHR failing silently) and later the blank gap (our fetch() failing and
+// being caught). Bundling the logo removes the network dependency entirely.
+import BOUNCE_CURE_LOGO_DATA_URL from "../../assets/bounceCureLogo";
 
 const API_URL = import.meta.env.VITE_VRI_URL;
 const REFRESH_INTERVAL = 30000;
@@ -29,7 +36,7 @@ function setupPageBg(doc, W, H) {
 }
 
 // ── Brand header ──────────────────────────────────────────────────
-function drawBrandHeader(doc, W, user, subtitle, dateStr, timeStr) {
+function drawBrandHeader(doc, W, user, subtitle, dateStr, timeStr, logoDataUrl) {
   const HX = 10, HY = 8, HW = W - 20, HH = 38;
 
   doc.setFillColor(...C.white);
@@ -40,24 +47,19 @@ function drawBrandHeader(doc, W, user, subtitle, dateStr, timeStr) {
   doc.roundedRect(HX, HY, 2, HH, 0.8, 0.8, "F");
 
   // Logo circle
-  // Profile Image Circle
-  // ── Logo Image ─────────────────────────────
-  // ── Logo Image ─────────────────────────────
-  // Logo circle
   const lx = HX + 20;
   const ly = HY + HH / 2;
-  const logoSize = 30;
 
-  // ── Use rasul.jpg instead of bounce.jpg ──
-  doc.addImage(
-    "/rasul-1.png",
-    "PNG",
-    lx - 22,
-    ly - 18,
-    39, // width
-    35 // height
-  );
-
+  if (logoDataUrl) {
+    doc.addImage(
+      logoDataUrl,
+      "PNG",
+      lx - 22,
+      ly - 18,
+      39, // width
+      35  // height
+    );
+  }
 
   // Text
   const tx = HX + 33;
@@ -138,6 +140,10 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
   const dateStr = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const timeStr = now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
 
+  // Logo is bundled at build time (see import above) — no network fetch,
+  // no CORS risk, always available synchronously.
+  const logoDataUrl = BOUNCE_CURE_LOGO_DATA_URL;
+
   const totalSent = sgSummary?.processed ?? 0;
   const delivered = sgSummary?.delivered ?? 0;
   const opens = sgSummary?.opens ?? 0;
@@ -152,7 +158,7 @@ const generateFullPDF = (sgSummary, campaigns, user) => {
   let curY = drawBrandHeader(
     doc, W, user,
     "Analytics Report  •  SendGrid Campaign Performance Overview",
-    dateStr, timeStr
+    dateStr, timeStr, logoDataUrl
   ) + 8;
 
   // Key Metrics
@@ -416,7 +422,7 @@ export default function Analytics() {
         const selectedCampaigns = campaigns.filter(c =>
           selectedIds.has(String(c.id))
         );
- 
+
         // calculate summary for selected campaigns
         const selectedSummary = {
           processed: selectedCampaigns.reduce((a, c) => a + (c.sentCount || 0), 0),
@@ -767,33 +773,6 @@ export default function Analytics() {
                       </td>
                       <td className="py-2 pr-4 max-w-[180px] truncate">{c.name}</td>
                       <td className="pr-4">{totalMails}</td>
-                      {/* <td className="px-4 py-3 text-sm text-gray-300">
-                        {c.totalBatches > 0
-                          ? (
-                            <div className="flex flex-col">
-                              <div className="flex flex-col gap-1">
-                                <span className="text-[#d99c2b] font-semibold">
-                                  {c.currentBatch ?? 1} / {c.totalBatches}
-                                </span>
-                                <div className="w-24 bg-gray-800 rounded-full h-1.5">
-                                  <div
-                                    className="bg-[#b2761c] h-1.5 rounded-full"
-                                    style={{
-                                      width: `${Math.round(((c.currentBatch ?? 0) / c.totalBatches) * 100)}%`
-                                    }}
-                                  />
-                                </div>
-                              </div>
-                              {c.status === "sending" && (
-                                <span className="text-xs text-gray-500">
-                                  batch {c.currentBatch} of {c.totalBatches}
-                                </span>
-                              )}
-                            </div>
-                          )
-                          : <span className="text-gray-600">—</span>
-                        }
-                      </td> */}
                       <td className="pr-4">{c.pending != null ? c.pending : "-"}</td>
                       <td className="pr-4">{c.sentCount ?? 0}</td>
                       <td className="pr-4">
