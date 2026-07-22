@@ -416,7 +416,7 @@ export default function Analytics() {
         const selectedCampaigns = campaigns.filter(c =>
           selectedIds.has(String(c.id))
         );
-
+ 
         // calculate summary for selected campaigns
         const selectedSummary = {
           processed: selectedCampaigns.reduce((a, c) => a + (c.sentCount || 0), 0),

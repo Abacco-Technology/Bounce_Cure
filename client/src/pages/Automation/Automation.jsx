@@ -229,7 +229,7 @@ const fetchScheduledCampaigns = async () => {
       ? prev.filter(id => id !== campaignId)
       : [...prev, campaignId]);
   };
-
+ 
   const handleTriggerSend = async () => {
     try {
       const response = await fetch(`${API_URL}/api/automation/trigger-cron`, {
