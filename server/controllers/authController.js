@@ -7,10 +7,21 @@ import { prisma } from "../prisma/prismaClient.js";
 import sendEmail from '../utils/emailService.js';
 
 
+// Helper: generate a short unique referral code
+const generateReferralCode = (firstName) => {
+    const namePart = (firstName || "USER").slice(0, 4).toUpperCase();
+    const randomPart = Math.random().toString(36).slice(2, 8).toUpperCase();
+    return `${namePart}${randomPart}`;
+};
+
 // Signup
+// NOTE: Abacco Tech referral synchronization is intentionally NOT handled here.
+// It runs client-side in SignupPage.jsx (via VITE_ABACCO_API) after this endpoint
+// already returns success, so it can never block, slow down, or roll back a
+// Bounce Cure registration. This function is unchanged from before.
 export const signup = async (req, res) => {
     try {
-        const { firstName, lastName, email, password } = req.body;
+        const { firstName, lastName, email, password, referralCode } = req.body;
 
         if (!firstName || !lastName || !email || !password) {
             return res.status(400).json({ message: "All fields are required" });
@@ -21,10 +32,46 @@ export const signup = async (req, res) => {
             return res.status(400).json({ message: "Email already registered" });
         }
 
+        // If a referral code was entered, always record it on referredByCode —
+        // whether it matches a local Bounce Cure user's own code, or is an
+        // external Abacco Tech code (e.g. "ABARC002"). We still look up a local
+        // match in case other parts of the app rely on `referrer` existing, but
+        // we no longer let a missing local match wipe out the code entirely —
+        // that was silently losing the record of which referral brought the
+        // user in. Abacco validates the code independently during its own
+        // sync step (see syncReferralWithAbacco in SignupPage.jsx).
+        let referredByCode = null;
+        if (referralCode && referralCode.trim() !== "") {
+            const trimmedCode = referralCode.trim().toUpperCase();
+
+            // Kept for parity with before — harmless if it's an Abacco code and no local user exists
+            await prisma.user.findUnique({
+                where: { referralCode: trimmedCode }
+            });
+
+            referredByCode = trimmedCode;
+        }
+
         const hashedPassword = await bcrypt.hash(password, 10);
 
+        // Generate a unique referral code for the new user
+        let newReferralCode;
+        let isUnique = false;
+        while (!isUnique) {
+            newReferralCode = generateReferralCode(firstName);
+            const existing = await prisma.user.findUnique({ where: { referralCode: newReferralCode } });
+            if (!existing) isUnique = true;
+        }
+
         const newUser = await prisma.user.create({
-            data: { firstName, lastName, email, password: hashedPassword }
+            data: {
+                firstName,
+                lastName,
+                email,
+                password: hashedPassword,
+                referralCode: newReferralCode,
+                referredByCode
+            }
         });
 
         res.status(201).json({
@@ -36,7 +83,9 @@ export const signup = async (req, res) => {
                 email: newUser.email,
                 name: `${newUser.firstName} ${newUser.lastName}`.trim(),
                 email: newUser.email,
-                profileImage: newUser.profileImage || null
+                profileImage: newUser.profileImage || null,
+                referralCode: newUser.referralCode,
+                referredByCode: newUser.referredByCode
 
             }
         });
@@ -699,7 +748,3 @@ export const testEmail = async (req, res) => {
         res.status(500).json({ error: "Failed to send email" });
     }
 };
-
-
-
-

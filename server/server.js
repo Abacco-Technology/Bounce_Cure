@@ -83,7 +83,7 @@ import { startCampaignScheduler } from "./services/campaignScheduler.js";
 import userCredit from "./routes/userRoutes.js"
 import uploadRoutes from "./routes/uploadRoutes.js"
 import { startScheduledCampaignCron } from "./cron/scheduledCampaignCron.js";
-
+import referralExportRoutes from './routes/referralExportRoutes.js';
 dotenv.config();
 
 // Init
@@ -230,6 +230,7 @@ app.get("/", (req, res) => res.send("Twilio SMS/WhatsApp API Running"));
 app.use("/api/custom", customRoutes);
 
 app.use("/api/automation-logs", protect, automationLogs);
+app.use("/api/internal", referralExportRoutes);
 
 // Socket service
 initSocket(io);

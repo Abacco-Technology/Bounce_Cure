@@ -1,6 +1,6 @@
 // client/src/pages/SignupPage.jsx
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User, CheckCircle, Shield, Zap, Globe, Clock, Phone } from 'lucide-react';
+import { Mail, Lock, User, CheckCircle, Shield, Zap, Globe, Clock, Phone, Gift } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -10,13 +10,17 @@ const API_URL = import.meta.env.VITE_VRI_URL;
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
+// 🔗 Abacco Tech's central referral server (see Step 5 — set this in .env)
+const ABACCO_API = import.meta.env.VITE_ABACCO_API;
+
 const ModernSignup = () => {
     const navigate = useNavigate();
     const [formData, setFormData] = useState({
         firstName: '',
         lastName: '',
         email: '',
-        password: ''
+        password: '',
+        referralCode: ''
     });
 
     const [focusedField, setFocusedField] = useState('');
@@ -108,6 +112,48 @@ const ModernSignup = () => {
         });
     };
 
+    // 🔗 Sync the new user with Abacco Tech's central referral server.
+    // IMPORTANT: this is intentionally isolated from Bounce Cure's own signup —
+    // it only runs AFTER Bounce Cure registration has already succeeded, it never
+    // throws out to the caller, and any failure is only logged. It must never
+    // stop or roll back the user's Bounce Cure account creation.
+    const syncReferralWithAbacco = async (submittedData) => {
+        const referralCode = (submittedData.referralCode || "").trim();
+        if (!referralCode) return; // no code entered — nothing to sync
+
+        try {
+            const abaccoRes = await fetch(`${ABACCO_API}/api/referral/register`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    referralCode,
+                    website: "Bounce Cure",
+                    userName: `${submittedData.firstName} ${submittedData.lastName}`.trim(),
+                    email: submittedData.email,
+                    // ⚠️ The signup form doesn't currently collect a phone number.
+                    // Abacco's API requires one — once a phone field is added to
+                    // formData, it will automatically flow through here.
+                    phone: submittedData.phone || "",
+                    // Defaults to "Free"; if/when a Premium purchase step is added
+                    // to signup, set formData.plan = "Premium" and it'll be sent here.
+                    plan: submittedData.plan === "Premium" ? "Premium" : "Free",
+                }),
+            });
+
+            const abaccoData = await abaccoRes.json().catch(() => ({}));
+
+            if (!abaccoRes.ok || !abaccoData.success) {
+                console.error("Referral sync failed:", abaccoData.message || abaccoRes.status);
+                return;
+            }
+
+            console.log("✅ Referral synced with Abacco Tech");
+        } catch (err) {
+            // Never let a referral sync failure affect the user's Bounce Cure signup
+            console.error("Referral sync failed", err);
+        }
+    };
+
     // Handle form submit
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -122,6 +168,11 @@ const ModernSignup = () => {
 
             if (res.ok) {
                 toast.success("Signup successful! 🎉 Please check your email for verification.");
+
+                // Fire-and-forget: sync this signup to Abacco's referral system if a
+                // referral code was entered. Errors are caught inside the helper and
+                // never block or affect the Bounce Cure signup flow above.
+                syncReferralWithAbacco(formData);
 
                 // Optional: auto-login the user
                 // const loginRes = await fetch(`${API_URL}/auth/login`, {
@@ -261,6 +312,17 @@ const ModernSignup = () => {
                             </button>
                         </div>
 
+                            <div className="relative group">
+                                <Gift className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                                <input
+                                    type="text"
+                                    name="referralCode"
+                                    placeholder="Referral Code (optional)"
+                                    value={formData.referralCode}
+                                    onChange={handleInputChange}
+                                    className="w-full bg-white/5 border border-white/20 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:border-white focus:bg-white/10 transition-all duration-300"
+                                />
+                            </div>
 
                             <button
                                 type="submit"

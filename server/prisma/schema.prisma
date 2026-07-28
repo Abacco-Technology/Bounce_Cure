@@ -30,6 +30,10 @@ model User {
   smsCredits         Int?    @default(0) // ✅ NEW
   whatsappCredits    Int?    @default(0) // ✅ NEW
 
+  // 🔹 Referral system
+  referralCode   String? @unique // this user's own code, shareable with others
+  referredByCode String? // the referral code THIS user entered at signup (optional)
+
   // Relations (leave them as-is)
   apiKeys             ApiKey[]
   contents            Content[]
