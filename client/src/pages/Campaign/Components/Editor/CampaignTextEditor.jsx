@@ -1,26 +1,53 @@
 // client/src/pages/Campaign/pages/CampaignTextEditor.jsx
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { 
-  Bold, Italic, Underline, AlignLeft, AlignCenter, AlignRight,
-  Link, Send, Eye
+import { useNavigate, useLocation } from 'react-router-dom';
+import {
+  Bold, Italic, Underline, Strikethrough, Code, Quote, Minus,
+  AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  List, ListOrdered, Link, Send, Eye, LogOut,
 } from 'lucide-react';
-import { LogOut, CheckCircle } from "lucide-react";
+import {
+  renderMarkdown, formatToStyle, lineListKind, stripMarker, LIST_MARKERS, toRoman,
+} from '../../pages/campaignMarkdown';
+
+const selCls = "bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-sm text-white";
+
+const Sep = () => <span className="w-px h-6 bg-gray-700 mx-1.5" />;
+
+const TBtn = ({ onClick, title, active, children }) => (
+  <button
+    onClick={onClick}
+    title={title}
+    className={`p-2 rounded transition-colors ${active ? 'bg-[#c2831f] text-black' : 'hover:bg-gray-800 text-white'}`}
+  >{children}</button>
+);
 
 export default function CampaignTextEditor() {
   const navigate = useNavigate();
-  const [content, setContent] = useState('');
+  const { state } = useLocation();
+
+  // Arrives from the Text Templates gallery; null/absent means blank page
+  const tpl = state?.textTemplate || null;
+
+  const [content, setContent] = useState(tpl?.content || '');
+  const [subject, setSubject] = useState(tpl?.subject || 'Your Campaign Subject');
   const [showPreview, setShowPreview] = useState(false);
-  
-  // Format state
+
+  // Paragraph-level styles applied to the whole message
   const [format, setFormat] = useState({
-    bold: false,
-    italic: false,
-    underline: false,
-    align: 'left',
-    fontSize: '16px',
-    fontFamily: 'Arial',
+    fontFamily:      tpl?.format?.fontFamily      || 'Arial',
+    fontSize:        tpl?.format?.fontSize        || '16px',
+    fontWeight:      tpl?.format?.fontWeight      || '400',
+    align:           tpl?.format?.align           || 'left',
+    lineHeight:      tpl?.format?.lineHeight      || '1.6',
+    letterSpacing:   tpl?.format?.letterSpacing   || '0px',
+    color:           tpl?.format?.color           || '#000000',
+    backgroundColor: tpl?.format?.backgroundColor || 'transparent',
+    textTransform:   tpl?.format?.textTransform   || 'none',
+    padding:         tpl?.format?.padding         || '24px',
   });
+
+  const setF = (k, v) => setFormat(f => ({ ...f, [k]: v }));
 
   const applyFormat = (formatType) => {
     const textarea = document.getElementById('editor');
@@ -30,32 +57,113 @@ export default function CampaignTextEditor() {
     
     let formattedText = selectedText;
     switch(formatType) {
-      case 'bold': formattedText = `**${selectedText}**`; break;
-      case 'italic': formattedText = `*${selectedText}*`; break;
-      case 'underline': formattedText = `__${selectedText}__`; break;
-      case 'heading': formattedText = `# ${selectedText}`; break;
-      case 'link':
+      case 'bold':        formattedText = `**${selectedText}**`; break;
+      case 'italic':      formattedText = `*${selectedText}*`;   break;
+      case 'underline':   formattedText = `__${selectedText}__`; break;
+      case 'strike':      formattedText = `~~${selectedText}~~`; break;
+      case 'code':        formattedText = `\`${selectedText}\``; break;
+      case 'h1':          formattedText = `# ${selectedText}`;   break;
+      case 'h2':          formattedText = `## ${selectedText}`;  break;
+      case 'h3':          formattedText = `### ${selectedText}`; break;
+      case 'quote':       formattedText = `> ${selectedText}`;   break;
+      case 'rule':        formattedText = `${selectedText}\n---\n`; break;
+      case 'link': {
         const url = prompt('Enter URL:');
-        if (url) formattedText = `[${selectedText}](${url})`;
+        if (url) formattedText = `[${selectedText || url}](${url})`;
         break;
+      }
       default: break;
     }
     
     const newContent = content.substring(0, start) + formattedText + content.substring(end);
     setContent(newContent);
+
+    // Restore focus and put the caret after the inserted markup
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const pos = start + formattedText.length;
+      textarea.setSelectionRange(pos, pos);
+    });
   };
 
-  const renderPreview = () => {
-    let html = content;
-    html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'); // Bold
-    html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');             // Italic
-    html = html.replace(/__(.*?)__/g, '<u>$1</u>');              // Underline
-    html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');           // Heading
-    html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');          // Subheading
-    html = html.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>'); // Link
-    html = html.replace(/\n/g, '<br/>');                         // Line breaks
-    return html;
+  /**
+   * Apply (or remove) a list style across every line the selection touches.
+   * Numbered and roman lists are renumbered from 1 each time, so inserting a
+   * line in the middle never leaves a broken sequence.
+   */
+  const applyList = (kind) => {
+    const ta = document.getElementById('editor');
+    if (!ta) return;
+
+    // Widen the selection to whole lines
+    const lineStart = content.lastIndexOf('\n', ta.selectionStart - 1) + 1;
+    let lineEnd = content.indexOf('\n', ta.selectionEnd);
+    if (lineEnd === -1) lineEnd = content.length;
+
+    const block = content.slice(lineStart, lineEnd);
+    const lines = block.split('\n');
+    const allSame = lines.every(l => !l.trim() || lineListKind(l) === kind);
+
+    const rebuilt = lines.map((l, i) => {
+      const bare = stripMarker(l);
+      if (!bare.trim()) return bare;
+      return allSame ? bare : LIST_MARKERS[kind].marker(i) + bare;   // toggle off / on
+    }).join('\n');
+
+    const next = content.slice(0, lineStart) + rebuilt + content.slice(lineEnd);
+    setContent(next);
+
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(lineStart, lineStart + rebuilt.length);
+    });
   };
+
+  /** Enter continues the current list; Enter on an empty item ends it. */
+  const onEditorKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    const ta = e.target;
+    const pos = ta.selectionStart;
+    if (pos !== ta.selectionEnd) return;
+
+    const lineStart = content.lastIndexOf('\n', pos - 1) + 1;
+    const line = content.slice(lineStart, pos);
+    const kind = lineListKind(line);
+    if (!kind) return;
+
+    e.preventDefault();
+
+    // Empty item — drop the marker and leave the list
+    if (!stripMarker(line).trim()) {
+      const next = content.slice(0, lineStart) + content.slice(pos);
+      setContent(next);
+      requestAnimationFrame(() => { ta.focus(); ta.setSelectionRange(lineStart, lineStart); });
+      return;
+    }
+
+    // Work out the next marker by counting back through the run
+    let index = 0;
+    for (let i = lineStart - 1; i >= 0; ) {
+      const prevStart = content.lastIndexOf('\n', i - 1) + 1;
+      const prevLine = content.slice(prevStart, i);
+      if (lineListKind(prevLine) !== kind) break;
+      index++;
+      i = prevStart - 1;
+      if (prevStart === 0) break;
+    }
+
+    const marker = LIST_MARKERS[kind].marker(index + 1);
+    const insert = '\n' + marker;
+    const next = content.slice(0, pos) + insert + content.slice(pos);
+    setContent(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      const caret = pos + insert.length;
+      ta.setSelectionRange(caret, caret);
+    });
+  };
+
+  const renderPreview = () => renderMarkdown(content);
 
   const handleSend = () => {
     setShowPreview(true);
@@ -71,15 +179,21 @@ export default function CampaignTextEditor() {
     const canvasElement = {
       id: `text-${Date.now()}`,
       type: "paragraph",
-      content: renderPreview(),   // HTML content
-      fontFamily: format.fontFamily,
-      fontSize: parseInt(format.fontSize),
-      textAlign: format.align,
-      color: "#000000",
+      content: renderPreview(),                 // HTML, lists included
+      fontFamily:      format.fontFamily,
+      fontSize:        parseInt(format.fontSize, 10),
+      fontWeight:      format.fontWeight,
+      textAlign:       format.align,
+      lineHeight:      parseFloat(format.lineHeight),
+      letterSpacing:   format.letterSpacing,
+      textTransform:   format.textTransform,
+      color:           format.color,
+      backgroundColor: format.backgroundColor,
       x: 50,
       y: 50,
-      width: 600,
-      height: 200,
+      width: 700,
+      // Rough height so the send preview isn't clipped on long copy
+      height: Math.max(200, content.split(/\r?\n/).length * (parseInt(format.fontSize, 10) * parseFloat(format.lineHeight) + 2)),
     };
 
     const canvasData = [canvasElement];
@@ -87,7 +201,7 @@ export default function CampaignTextEditor() {
     navigate("/send-campaign", {
       state: {
         canvasData,
-        subject: "Your Campaign Subject",
+        subject,
         fromTextEditor: true,
       },
     });
@@ -143,7 +257,15 @@ const [showExitModal, setShowExitModal] = useState(false);
           Exit to Campaign Page
         </button>
 
-        {/* Cancel */}
+        {/* Back to text templates */}
+                        <button
+                          onClick={() => navigate('/text-templates')}
+                          className="w-full px-4 py-2 rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
+                        >
+                          Back to Text Templates
+                        </button>
+
+                        {/* Cancel */}
         <button
           onClick={() => setShowExitModal(false)}
           className="w-full px-4 py-2 rounded-md border border-gray-700 text-gray-300 hover:bg-gray-800 transition-all"
@@ -160,45 +282,91 @@ const [showExitModal, setShowExitModal] = useState(false);
 
 
         {/* Toolbar */}
-        <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 flex items-center gap-2 flex-wrap">
-          {/* Font Family */}
-          <select 
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
-            value={format.fontFamily}
-            onChange={(e) => setFormat({...format, fontFamily: e.target.value})}
-          >
-            <option value="Arial">Arial</option>
-            <option value="Times New Roman">Times New Roman</option>
-            <option value="Georgia">Georgia</option>
-            <option value="Verdana">Verdana</option>
-            <option value="Courier New">Courier New</option>
-          </select>
+        <div className="bg-gray-900 border-b border-gray-800 px-4 py-3 space-y-2">
 
-          {/* Font Size */}
-          <select 
-            className="bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm"
-            value={format.fontSize}
-            onChange={(e) => setFormat({...format, fontSize: e.target.value})}
-          >
-            <option value="12px">12px</option>
-            <option value="14px">14px</option>
-            <option value="16px">16px</option>
-            <option value="18px">18px</option>
-            <option value="20px">20px</option>
-            <option value="24px">24px</option>
-          </select>
+          {/* Row 1 — paragraph styles */}
+          <div className="flex items-center gap-2 flex-wrap text-sm">
+            <select title="Font family" className={selCls} value={format.fontFamily} onChange={e => setF('fontFamily', e.target.value)}>
+              {['Arial','Helvetica','Georgia','Times New Roman','Verdana','Tahoma','Trebuchet MS','Courier New','Garamond','Palatino'].map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
 
-          {/* Formatting buttons */}
-          <button onClick={() => applyFormat('bold')} className="p-2 hover:bg-gray-800 rounded"><Bold size={18}/></button>
-          <button onClick={() => applyFormat('italic')} className="p-2 hover:bg-gray-800 rounded"><Italic size={18}/></button>
-          <button onClick={() => applyFormat('underline')} className="p-2 hover:bg-gray-800 rounded"><Underline size={18}/></button>
-          <button onClick={() => applyFormat('heading')} className="p-2 hover:bg-gray-800 rounded"><span className="font-bold text-lg">H</span></button>
-          <button onClick={() => applyFormat('link')} className="p-2 hover:bg-gray-800 rounded"><Link size={18}/></button>
+            <select title="Font size" className={selCls} value={format.fontSize} onChange={e => setF('fontSize', e.target.value)}>
+              {['12px','13px','14px','15px','16px','18px','20px','24px','28px','32px'].map(v => <option key={v} value={v}>{v}</option>)}
+            </select>
 
-          <div className="flex-1"></div>
-          <button onClick={() => setShowPreview(!showPreview)} className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded">
-            <Eye size={18}/> {showPreview ? 'Hide Preview' : 'Show Preview'}
-          </button>
+            <select title="Font weight" className={selCls} value={format.fontWeight} onChange={e => setF('fontWeight', e.target.value)}>
+              {[['300','Light'],['400','Normal'],['500','Medium'],['600','Semibold'],['700','Bold'],['800','Extra bold']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+
+            <select title="Line height" className={selCls} value={format.lineHeight} onChange={e => setF('lineHeight', e.target.value)}>
+              {['1.2','1.4','1.5','1.6','1.8','2.0'].map(v => <option key={v} value={v}>Line {v}</option>)}
+            </select>
+
+            <select title="Letter spacing" className={selCls} value={format.letterSpacing} onChange={e => setF('letterSpacing', e.target.value)}>
+              {['-0.5px','0px','0.5px','1px','1.5px','2px'].map(v => <option key={v} value={v}>Spacing {v}</option>)}
+            </select>
+
+            <select title="Text case" className={selCls} value={format.textTransform} onChange={e => setF('textTransform', e.target.value)}>
+              {[['none','Normal case'],['uppercase','UPPERCASE'],['lowercase','lowercase'],['capitalize','Capitalize']].map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+
+            <label className="flex items-center gap-1.5 text-gray-400" title="Text colour">
+              Text
+              <input type="color" value={format.color} onChange={e => setF('color', e.target.value)}
+                     className="w-8 h-7 bg-transparent border border-gray-700 rounded cursor-pointer" />
+            </label>
+
+            <label className="flex items-center gap-1.5 text-gray-400" title="Background colour">
+              BG
+              <input type="color"
+                     value={format.backgroundColor === 'transparent' ? '#ffffff' : format.backgroundColor}
+                     onChange={e => setF('backgroundColor', e.target.value)}
+                     className="w-8 h-7 bg-transparent border border-gray-700 rounded cursor-pointer" />
+              <button onClick={() => setF('backgroundColor', 'transparent')}
+                      className="text-xs text-gray-500 hover:text-white" title="Clear background">clear</button>
+            </label>
+
+            <select title="Padding" className={selCls} value={format.padding} onChange={e => setF('padding', e.target.value)}>
+              {['0px','12px','24px','32px','48px'].map(v => <option key={v} value={v}>Pad {v}</option>)}
+            </select>
+          </div>
+
+          {/* Row 2 — inline marks, blocks, lists, alignment */}
+          <div className="flex items-center gap-1 flex-wrap">
+            <TBtn onClick={() => applyFormat('bold')}      title="Bold  **text**"><Bold size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('italic')}    title="Italic  *text*"><Italic size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('underline')} title="Underline  __text__"><Underline size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('strike')}    title="Strikethrough  ~~text~~"><Strikethrough size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('code')}      title="Inline code"><Code size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('link')}      title="Insert link"><Link size={16}/></TBtn>
+
+            <Sep />
+
+            <TBtn onClick={() => applyFormat('h1')}    title="Heading 1"><span className="font-bold text-sm">H1</span></TBtn>
+            <TBtn onClick={() => applyFormat('h2')}    title="Heading 2"><span className="font-bold text-sm">H2</span></TBtn>
+            <TBtn onClick={() => applyFormat('h3')}    title="Heading 3"><span className="font-bold text-sm">H3</span></TBtn>
+            <TBtn onClick={() => applyFormat('quote')} title="Block quote"><Quote size={16}/></TBtn>
+            <TBtn onClick={() => applyFormat('rule')}  title="Horizontal rule"><Minus size={16}/></TBtn>
+
+            <Sep />
+
+            {/* The three list styles */}
+            <TBtn onClick={() => applyList('bullet')} title="Bullet list  -  item"><List size={16}/></TBtn>
+            <TBtn onClick={() => applyList('number')} title="Numbered list  1. item"><ListOrdered size={16}/></TBtn>
+            <TBtn onClick={() => applyList('roman')}  title="Roman list  I. item"><span className="font-semibold text-xs tracking-tight">I.</span></TBtn>
+
+            <Sep />
+
+            <TBtn onClick={() => setF('align','left')}    active={format.align==='left'}    title="Align left"><AlignLeft size={16}/></TBtn>
+            <TBtn onClick={() => setF('align','center')}  active={format.align==='center'}  title="Align centre"><AlignCenter size={16}/></TBtn>
+            <TBtn onClick={() => setF('align','right')}   active={format.align==='right'}   title="Align right"><AlignRight size={16}/></TBtn>
+            <TBtn onClick={() => setF('align','justify')} active={format.align==='justify'} title="Justify"><AlignJustify size={16}/></TBtn>
+
+            <div className="flex-1"></div>
+            <button onClick={() => setShowPreview(!showPreview)} className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
+              <Eye size={18}/> {showPreview ? 'Hide Preview' : 'Show Preview'}
+            </button>
+          </div>
         </div>
 
         {/* Textarea */}
@@ -207,13 +375,17 @@ const [showExitModal, setShowExitModal] = useState(false);
             id="editor"
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Start typing your campaign content here..."
+            onKeyDown={onEditorKeyDown}
+            placeholder={"Start typing your campaign content here...\n\n# Heading\n**bold**  *italic*  __underline__  ~~strike~~\n\n- bullet item\n1. numbered item\nI. roman item"}
             className="w-full h-full bg-gray-900 border border-gray-800 rounded-lg p-6 text-white resize-none focus:outline-none focus:ring-2 focus:ring-[#c2831f]"
             style={{
-              fontFamily: format.fontFamily,
-              fontSize: format.fontSize,
-              textAlign: format.align,
-              lineHeight: '1.6'
+              fontFamily:    format.fontFamily,
+              fontSize:      format.fontSize,
+              fontWeight:    format.fontWeight,
+              textAlign:     format.align,
+              lineHeight:    format.lineHeight,
+              letterSpacing: format.letterSpacing,
+              textTransform: format.textTransform,
             }}
           />
         </div>
@@ -246,14 +418,9 @@ const [showExitModal, setShowExitModal] = useState(false);
                 <div className="text-sm text-gray-600 mb-1">From: your-email@example.com</div>
                 <div className="text-sm text-gray-600">Subject: Your Campaign Subject</div>
               </div>
-              <div 
-                className="px-8 py-6 text-gray-800"
-                style={{
-                  fontFamily: format.fontFamily,
-                  fontSize: format.fontSize,
-                  textAlign: format.align,
-                  lineHeight: '1.6'
-                }}
+              <div
+                className="text-gray-800"
+                style={{ ...formatToStyle(format), padding: format.padding }}
                 dangerouslySetInnerHTML={{ __html: renderPreview() || '<p style="color: #999;">Your email content will appear here...</p>' }}
               />
               <div className="bg-gray-50 px-8 py-6 border-t border-gray-200 text-center text-sm text-gray-500">

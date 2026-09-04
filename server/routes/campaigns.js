@@ -316,20 +316,29 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
 
   const nl2br = (str) => inlineHtml(str);
 
+  /* letter-spacing / text-transform come from the Campaign Text Editor.
+     Emitted only when present so untouched templates are unchanged. */
+  const extraType = (el) => {
+    let css = '';
+    if (el.letterSpacing && el.letterSpacing !== '0px') css += `letter-spacing:${el.letterSpacing};`;
+    if (el.textTransform && el.textTransform !== 'none') css += `text-transform:${el.textTransform};`;
+    return css;
+  };
+
   function renderEl(el, inCard, forceLeft, colWidthPx) {
     const a = align(el, inCard, forceLeft);
 
     switch (el.type) {
 
       case 'heading':
-        return `<h1 style="margin:2px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Heading'}</h1>`;
+        return `<h1 style="margin:2px 0;font-size:${el.fontSize || 28}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '700'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};line-height:1.3;background:${el.backgroundColor || 'transparent'};${extraType(el)}">${nl2br(el.content) || 'Heading'}</h1>`;
 
       case 'subheading':
-        return `<h2 style="margin:2px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
+        return `<h2 style="margin:2px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};${extraType(el)}">${nl2br(el.content) || 'Subheading'}</h2>`;
 
       case 'paragraph': {
         const tag = /<(ul|ol)\b/i.test(el.content || '') ? 'div' : 'p';
-        return `<${tag} style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</${tag}>`;
+        return `<${tag} style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};${extraType(el)}">${nl2br(el.content) || ''}</${tag}>`;
       }
 
       case 'blockquote':
