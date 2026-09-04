@@ -181,7 +181,7 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
 
   /* ── DIMENSIONS ─────────────────────────────────────────────── */
   const CW = 800;   // canvas width
-  const EW = 560;   // email content width
+  const EW = 660;   // email content width (700px table - 20px padding each side)
 
   // Scale a canvas pixel value to an email pixel value
   const sc = (v) => Math.round((Number(v) || 0) * EW / CW);
@@ -215,6 +215,23 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     if (ratio < 0.30) return 'left';
     if (ratio > 0.70) return 'right';
     return 'center';
+  }
+
+  /* ── POSITIONAL WRAPPER ─────────────────────────────────────────
+     Reproduces the element's canvas X offset using spacer cells.
+     Email clients drop `position:absolute`, but table cell widths are
+     universally supported, so this is the faithful equivalent.        */
+  function positionRow(x, width, innerHtml) {
+    const leftPx  = Math.max(0, Math.min(sc(x), EW - 1));
+    const bodyPx  = Math.max(1, Math.min(sc(width), EW - leftPx));
+    const rightPx = Math.max(0, EW - leftPx - bodyPx);
+    const spacer  = (w) => w > 0
+      ? `<td class="bc-gutter" width="${w}" style="width:${w}px;font-size:0;line-height:0;">&nbsp;</td>`
+      : '';
+    return `<table class="bc-row" width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;width:100%;">`
+      + `<tr>${spacer(leftPx)}`
+      + `<td class="bc-cell" width="${bodyPx}" valign="top" style="width:${bodyPx}px;">${innerHtml}</td>`
+      + `${spacer(rightPx)}</tr></table>`;
   }
 
   /* ── ELEMENT RENDERERS ──────────────────────────────────────── */
@@ -616,23 +633,28 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     const groupX   = Math.min(...group.map(e => e.x));
     const groupCW  = Math.max(...group.map(e => e.x + e.width)) - groupX;
 
-    // Determine alignment from canvas X position
-    const elCenterX = groupX + groupCW / 2;
-    const align = elCenterX < CW * 0.38 ? 'left' : elCenterX > CW * 0.62 ? 'right' : 'center';
+    const groupPx = Math.max(1, sc(groupCW));
 
     let innerHtml;
     if (group.length === 1) {
-      innerHtml = renderEl(group[0], false);
+      // Cell is already the element's exact width, so honour its own textAlign
+      innerHtml = renderEl(group[0], false, true, groupPx);
     } else {
-      // side-by-side group
+      // Side-by-side group — preserve the horizontal gaps between elements too
       const sortedByX = [...group].sort((a, b) => a.x - b.x);
-      innerHtml = `<table cellpadding="0" cellspacing="0" border="0" style="display:inline-table;"><tr>` +
-        sortedByX.map(el => `<td valign="middle" style="padding:0 6px;">${renderEl(el, false)}</td>`).join('') +
-        `</tr></table>`;
+      let cells = '';
+      let cursor = groupX;
+      sortedByX.forEach(el => {
+        const gapPx = Math.max(0, sc(el.x - cursor));
+        if (gapPx > 0) cells += `<td width="${gapPx}" style="width:${gapPx}px;font-size:0;line-height:0;">&nbsp;</td>`;
+        const cw = Math.max(1, sc(el.width));
+        cells += `<td class="bc-col" width="${cw}" valign="top" style="width:${cw}px;">${renderEl(el, false, true, cw)}</td>`;
+        cursor = el.x + el.width;
+      });
+      innerHtml = `<table cellpadding="0" cellspacing="0" border="0" width="${groupPx}" style="width:${groupPx}px;table-layout:fixed;"><tr>${cells}</tr></table>`;
     }
 
-    const wrappedHtml = `<table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="${align}" style="padding:4px 0;">${innerHtml}</td></tr></table>`;
-    units.push({ x: groupX, y: groupY, cw: groupCW, ch: groupBot - groupY, elType: 'orphan-group', origId: group[0].id, html: wrappedHtml });
+    units.push({ x: groupX, y: groupY, cw: groupCW, ch: groupBot - groupY, elType: 'orphan-group', origId: group[0].id, html: innerHtml });
   });
 
   // Sort units by Y position
@@ -645,6 +667,15 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
   <title>${subject}</title>
+  <style type="text/css">
+    /* Fixed cell widths reproduce the canvas layout on desktop.
+       On narrow screens they would overflow, so collapse to stacked rows. */
+    @media only screen and (max-width:620px) {
+      .bc-row, .bc-row tr, .bc-cell, .bc-col { display:block !important; width:100% !important; }
+      .bc-gutter { display:none !important; width:0 !important; }
+      .bc-cell img, .bc-col img { max-width:100% !important; height:auto !important; }
+    }
+  </style>
 </head>
 <body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,sans-serif;">
 <table width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#f0f0f0">
@@ -660,15 +691,12 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       const prev = units[idx - 1];
       // Gap = space between bottom of previous unit and top of current unit, scaled to email width
       const canvasGap = Math.max(0, unit.y - (prev.y + prev.ch));
-      const emailGap = Math.min(
-        Math.round(canvasGap * (EW / CW)),
-        12 
-      );
+      const emailGap = Math.round(canvasGap * (EW / CW));
       if (emailGap > 2) {
         html += `<div style="height:${emailGap}px;font-size:0;line-height:0;">&nbsp;</div>\n`;
       }
     }
-    html += unit.html;
+    html += positionRow(unit.x, unit.cw, unit.html);
   });
 
   html += `</td></tr>

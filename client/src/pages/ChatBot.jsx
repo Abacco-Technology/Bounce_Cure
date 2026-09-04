@@ -246,7 +246,7 @@ const ChatBot = () => {
         </div>
       )}
 
-      <style jsx>{`
+      <style>{`
         /* Unread Badge */
         .unread-badge {
           position: absolute;

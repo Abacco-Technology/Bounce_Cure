@@ -2,6 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, Mail, Key, CheckCircle, XCircle } from 'lucide-react';
 
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const TwoFactorAuth = () => {
   const [isEnabled, setIsEnabled] = useState(false);
   const [loading, setLoading] = useState(false);

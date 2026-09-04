@@ -4,6 +4,8 @@ import { MailCheck, MailWarning, Mail, Send, CheckCircle, AlertTriangle } from '
 import authService from '../../services/authService';
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const EmailVerification = () => {
     const [status, setStatus] = useState(false); // true if verified
     const [loading, setLoading] = useState(false);

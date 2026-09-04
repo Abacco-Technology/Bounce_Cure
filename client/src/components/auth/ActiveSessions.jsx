@@ -4,6 +4,8 @@ import authService from "../../services/authService";
 import { Monitor, LogOut, MapPin, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const ActiveSessions = () => {
     const [sessions, setSessions] = useState([]);
     const [loading, setLoading] = useState(true);
