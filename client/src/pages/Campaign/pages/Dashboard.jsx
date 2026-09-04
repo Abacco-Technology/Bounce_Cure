@@ -5,9 +5,10 @@ import {
   MousePointer, BarChart3, RefreshCw, AlertTriangle,
   LayoutDashboard, FileText, Clock, Users, CheckCircle,
   Zap, Filter, Search, Eye, Pause, PlayCircle, MoreVertical,
-  XCircle, Shield, X
+  XCircle, Shield, X, Type
 } from "lucide-react";
 import Templets from "./Templets";
+import TextTemplates from "./TextTemplates";
 import VerifyCampaignMailForm from "./VerifyCampaignMailForm";
 
 
@@ -379,7 +380,7 @@ const totalScheduledMails = scheduledCampaigns
                   Create New Campaign
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div
                     onClick={() => {
                       setShowOptions(false);
@@ -411,6 +412,19 @@ const totalScheduledMails = scheduledCampaigns
                     <h3 className="text-xl font-semibold mb-2">Choose Templates</h3>
                     <p className="text-gray-400 text-sm">
                       Select from predefined templates
+                    </p>
+                  </div>
+
+                  <div
+                    onClick={() => {
+                      setShowOptions(false);
+                      setActiveTab("texttemplates");
+                    }}
+                    className="cursor-pointer bg-gray-900 p-8 rounded-xl hover:bg-gray-800 transition flex flex-col items-center text-center"
+                  >
+                    <h3 className="text-xl font-semibold mb-2">Text Campaign</h3>
+                    <p className="text-gray-400 text-sm">
+                      Plain-text email, written and formatted in the text editor
                     </p>
                   </div>
                 </div>
@@ -455,6 +469,17 @@ const totalScheduledMails = scheduledCampaigns
           >
             <FileText size={18} />
             Templates
+          </button>
+          <button
+            onClick={() => setActiveTab("texttemplates")}
+            className={`flex items-center gap-2 px-6 py-3 font-medium transition-colors ${
+              activeTab === "texttemplates" 
+                ? "bg-[#e2971f] text-black rounded-t-lg" 
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            <Type size={18} />
+            Text Campaigns
           </button>
           <button
             onClick={() => setActiveTab("verifyformails")}
@@ -689,6 +714,10 @@ const totalScheduledMails = scheduledCampaigns
 
         {activeTab === "templates" && (
           <Templets />
+        )}
+
+        {activeTab === "texttemplates" && (
+          <TextTemplates />
         )}
 
         {activeTab === "verifyformails" && (
