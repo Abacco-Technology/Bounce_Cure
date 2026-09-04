@@ -6,6 +6,7 @@
  */
 import React, { useState, useRef } from "react";
 import { T, SLabel, PRow, inputStyle, selectStyle, COLORS, FONTS } from "../../pages/EditorPage";
+import { convertContentToList, getContentListKind } from "./richText";
 
 const API_URL = import.meta.env.VITE_VRI_URL;
 
@@ -231,6 +232,23 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
                     ))}
                   </div>
                 </PRow>
+
+                {!isButton && (
+                  <PRow label="List">
+                    <div style={{ display:"flex", gap:6 }}>
+                      {[["•","bullet","Bulleted list"],["1.","number","Numbered list"],["I.","roman","Roman numeral list"]].map(([ic,kind,title])=>(
+                        <StyleBtn
+                          key={kind}
+                          wide
+                          active={getContentListKind(selectedEl.content)===kind}
+                          onClick={()=>u("content", convertContentToList(selectedEl.content, kind))}
+                        >
+                          <span title={title}>{ic}</span>
+                        </StyleBtn>
+                      ))}
+                    </div>
+                  </PRow>
+                )}
 
                 <PRow label="Text Color">
                   <ColorPicker value={selectedEl.color||"#F0C040"} onChange={v=>u("color",v)} />

@@ -10,8 +10,13 @@
  */
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { T } from "../../pages/EditorPage";
+import { sanitizeInlineHtml, contentToHtml, safeHref, listKind } from "./richText";
 
 const TEXT_TYPES = ["heading","subheading","paragraph","blockquote","button"];
+
+// Link colour shown on canvas. Keep in sync with inlineHtml() in
+// server/routes/campaigns.js so the canvas matches the sent email.
+export const LINK_COLOR = "#1155cc";
 
 const HANDLES = [
   { id:"nw", cx:0,   cy:0,   cursor:"nw-resize" },
@@ -152,10 +157,20 @@ export default function CanvasArea({
     };
   }, [toCanvas, updateEl, saveUndo, pageId]);
 
+  const startEdit = (el) => {
+    if (!TEXT_TYPES.includes(el.type)) return;
+    dragRef.current = null;
+    setDragging(false);
+    setSelected(el.id);
+    setEditing({ id:el.id, text:el.content||"" });
+  };
+
   const onElMouseDown = (e, el) => {
     if (editing?.id === el.id) return;
     e.preventDefault();
     e.stopPropagation();
+    // Second click of a double-click — go straight to editing, never drag
+    if (e.detail >= 2 && TEXT_TYPES.includes(el.type)) { startEdit(el); return; }
     setSelected(el.id);
     setCtxMenu(null);
     const c = toCanvas(e.clientX, e.clientY);
@@ -185,19 +200,18 @@ export default function CanvasArea({
 
   const onElDblClick = (e, el) => {
     e.stopPropagation();
-    if (TEXT_TYPES.includes(el.type)) {
-      dragRef.current = null;
-      setDragging(false);
-      setEditing({ id:el.id, text:el.content||"" });
-    }
+    startEdit(el);
   };
 
-  const commitEdit = () => {
-    if (editing) {
-      updateEl(editing.id, { content:editing.text });
+  // Receives sanitised HTML from the inline editor
+  const commitEdit = (html) => {
+    if (!editing) return;
+    const next = typeof html === "string" ? html : (editing.text || "");
+    if (next !== (editing.text || "")) {
+      updateEl(editing.id, { content: next });
       saveUndo();
-      setEditing(null);
     }
+    setEditing(null);
   };
 
   const onRightClick = (e, el) => {
@@ -217,6 +231,29 @@ export default function CanvasArea({
 
   return (
     <div style={{ display:"flex", flexDirection:"column", flex:1, overflow:"hidden" }} onClick={closeCtx}>
+
+      <style>{`
+        .bc-text a, .bc-edit a {
+          color: ${LINK_COLOR};
+          text-decoration: underline;
+          cursor: text;
+        }
+        .bc-text ul, .bc-text ol, .bc-edit ul, .bc-edit ol {
+          margin: 0.25em 0;
+          padding-left: 1.6em;
+          text-align: inherit;
+        }
+        .bc-text ul, .bc-edit ul { list-style-type: disc; }
+        .bc-text ol, .bc-edit ol { list-style-type: decimal; }
+        .bc-text ol[type="I"], .bc-edit ol[type="I"] { list-style-type: upper-roman; }
+        .bc-text li, .bc-edit li { margin: 0.15em 0; }
+        .bc-text b, .bc-text strong, .bc-edit b, .bc-edit strong { font-weight: 700; }
+        .bc-text i, .bc-text em, .bc-edit i, .bc-edit em { font-style: italic; }
+        .bc-edit:empty:before {
+          content: attr(data-placeholder);
+          color: ${T.muted};
+        }
+      `}</style>
 
       {/* Scrollable canvas area */}
       <div ref={scrollRef} style={{ flex:1, overflow:"auto", display:"flex", alignItems:"flex-start", justifyContent:"center", padding:"24px 28px 48px", background:T.bg }}>
@@ -284,10 +321,11 @@ export default function CanvasArea({
                     selected={selected === el.id}
                     editing={editing?.id === el.id}
                     editText={editing?.text}
-                    onEditChange={text => setEditing(ed => ({ ...ed, text }))}
                     onEditBlur={commitEdit}
+                    onAutoGrow={h => updateEl(el.id, { height: h })}
                     onMouseDown={onElMouseDown}
                     onDblClick={onElDblClick}
+                    onEditStart={startEdit}
                     onHandleDown={onHandleMouseDown}
                     onRightClick={onRightClick}
                   />
@@ -406,7 +444,7 @@ function HeightGrip({ onMouseDown, active }) {
 
 
 // ── Single canvas element ─────────────────────────────────────────────────────
-function CanvasEl({ el, selected, editing, editText, onEditChange, onEditBlur, onMouseDown, onDblClick, onHandleDown, onRightClick }) {
+function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onMouseDown, onDblClick, onEditStart, onHandleDown, onRightClick }) {
   const isText = TEXT_TYPES.includes(el.type);
 
   return (
@@ -444,36 +482,41 @@ function CanvasEl({ el, selected, editing, editText, onEditChange, onEditBlur, o
         />
       ))}
 
+      {/* Edit button — the reliable way in; double-click still works too */}
+      {selected && !editing && isText && (
+        <button
+          title={/<(ul|ol)\b/i.test(el.content || "") ? "Edit list items" : "Edit text"}
+          onMouseDown={e => { e.stopPropagation(); e.preventDefault(); }}
+          onClick={e => { e.stopPropagation(); onEditStart(el); }}
+          onDoubleClick={e => e.stopPropagation()}
+          style={{
+            position:"absolute", top:-26, right:0,
+            width:24, height:22, lineHeight:"20px", padding:0,
+            background:T.panel, color:T.gold,
+            border:`1px solid ${T.gold}`, borderRadius:5,
+            fontSize:11, cursor:"pointer", zIndex:16,
+            boxShadow:"0 2px 8px rgba(0,0,0,.6)",
+          }}
+          onMouseOver={e => { e.currentTarget.style.background = T.gold; e.currentTarget.style.color = T.bg; }}
+          onMouseOut={e  => { e.currentTarget.style.background = T.panel; e.currentTarget.style.color = T.gold; }}
+        >✏️</button>
+      )}
+
       {/* Tooltip */}
-      {selected && (
+      {selected && !editing && (
         <div style={{
           position:"absolute", top:-24, left:"50%", transform:"translateX(-50%)",
           background:T.panel, border:`1px solid ${T.goldDim}`,
           borderRadius:5, padding:"2px 8px",
           fontSize:9, color:T.gold, whiteSpace:"nowrap", pointerEvents:"none", zIndex:15,
         }}>
-          drag · handles to resize · dbl-click to edit
+          {isText ? "drag · resize · ✏️ or dbl-click to edit" : "drag · handles to resize"}
         </div>
       )}
 
-      {/* Inline editor */}
+      {/* Inline rich-text editor */}
       {editing && (
-        <textarea
-          autoFocus
-          value={editText}
-          onChange={e => onEditChange(e.target.value)}
-          onBlur={onEditBlur}
-          onKeyDown={e => { if (e.key==="Escape") onEditBlur(); }}
-          style={{
-            position:"absolute", inset:0, width:"100%", height:"100%",
-            fontSize:el.fontSize, fontFamily:el.fontFamily, fontWeight:el.fontWeight,
-            color:el.color, background:"transparent", border:`2px dashed ${T.gold}`,
-            borderRadius:4, padding:6, resize:"none", outline:"none",
-            lineHeight:el.lineHeight||1.4,
-            fontStyle:el.fontStyle, textDecoration:el.textDecoration, textAlign:el.textAlign,
-            zIndex:20,
-          }}
-        />
+        <InlineRichEditor el={el} initialHtml={editText} onCommit={onEditBlur} onAutoGrow={onAutoGrow} />
       )}
 
       {/* Renderers */}
@@ -519,18 +562,355 @@ function CanvasEl({ el, selected, editing, editText, onEditChange, onEditBlur, o
           borderRadius: el.borderRadius ? `${el.borderRadius}px` : (el.type==="button"?6:0),
           boxSizing:"border-box",
         }}>
-          <span style={{
+          <div className="bc-text" style={{
             fontFamily:el.fontFamily||"Georgia", fontSize:el.fontSize||16,
             fontWeight:el.fontWeight||"normal", fontStyle:el.fontStyle||"normal",
             textDecoration:el.textDecoration||"none", color:el.color||T.gold,
             textAlign:el.textAlign||"left", lineHeight:el.lineHeight||1.4,
             width:"100%", wordBreak:"break-word", whiteSpace: "pre-line",
-          }}>
-            {el.content}
-          </span>
+          }}
+            dangerouslySetInnerHTML={{ __html: contentToHtml(el.content) }}
+          />
         </div>
       )}
     </div>
+  );
+}
+
+// ── Inline rich-text editor (bold / italic / link) ────────────────────────────
+function InlineRichEditor({ el, initialHtml, onCommit, onAutoGrow }) {
+  const ref        = React.useRef(null);
+  const barRef     = React.useRef(null);
+  const savedRange = React.useRef(null);
+  const [linkOpen, setLinkOpen] = React.useState(false);
+  const [linkUrl,  setLinkUrl]  = React.useState("");
+  const [active,   setActive]   = React.useState({ bold:false, italic:false, link:false, list:null });
+
+  // Seed the DOM once. Uncontrolled on purpose — re-rendering on every
+  // keystroke would reset the caret to the start of the box.
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    node.innerHTML = contentToHtml(initialHtml);
+    node.focus();
+    const r = document.createRange();
+    r.selectNodeContents(node);
+    r.collapse(false);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    try { document.execCommand("styleWithCSS", false, false); } catch { /* older browsers */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const commit = () => onCommit(sanitizeInlineHtml(ref.current?.innerHTML || ""));
+
+  /* Grow the element as items are added, so nothing is clipped.
+     Never shrinks — the user's own resize handles stay authoritative. */
+  const grow = React.useCallback(() => {
+    const node = ref.current;
+    if (!node || !onAutoGrow) return;
+    const needed = Math.ceil(node.scrollHeight) + 12;   // + frame padding/border
+    if (needed > (el.height || 0)) onAutoGrow(needed);
+  }, [onAutoGrow, el.height]);
+
+  // Re-measure whenever the box could have changed height
+  React.useEffect(() => { grow(); });
+
+  const inEditor = (node) => !!node && !!ref.current && ref.current.contains(node.nodeType === 3 ? node.parentNode : node);
+
+  const refreshActive = () => {
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode || !inEditor(sel.anchorNode)) return;
+    let node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    let link = false;
+    while (node && node !== ref.current) {
+      if (node.tagName === "A") { link = true; break; }
+      node = node.parentNode;
+    }
+    setActive({
+      bold:   document.queryCommandState("bold"),
+      italic: document.queryCommandState("italic"),
+      link,
+      list:   listKind(closestList()),
+    });
+  };
+
+  /** Nearest <ul>/<ol> enclosing the caret, or null. */
+  const closestList = () => {
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode || !inEditor(sel.anchorNode)) return null;
+    let node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    while (node && node !== ref.current) {
+      if (node.tagName === "UL" || node.tagName === "OL") return node;
+      node = node.parentNode;
+    }
+    return null;
+  };
+
+  /**
+   * Toggle the caret's block between plain text and a list of the given kind.
+   * Clicking the active kind turns the list off; clicking a different kind
+   * converts in place, so bullet -> numbered -> roman never loses the items.
+   */
+  const applyList = (kind) => {
+    ref.current?.focus();
+    const current = listKind(closestList());
+
+    if (current === kind) {                                  // toggle off
+      document.execCommand(kind === "bullet" ? "insertUnorderedList" : "insertOrderedList");
+      refreshActive(); grow();
+      return;
+    }
+
+    if (!current) {                                          // plain text -> list
+      document.execCommand(kind === "bullet" ? "insertUnorderedList" : "insertOrderedList");
+    } else if ((current === "bullet") !== (kind === "bullet")) {
+      // Crossing the ul/ol boundary needs both commands: drop then rebuild
+      document.execCommand(current === "bullet" ? "insertUnorderedList" : "insertOrderedList");
+      document.execCommand(kind === "bullet" ? "insertUnorderedList" : "insertOrderedList");
+    }
+
+    // number <-> roman is just the numbering attribute on the same <ol>
+    const list = closestList();
+    if (list && list.tagName === "OL") {
+      list.setAttribute("type", kind === "roman" ? "I" : "1");
+    }
+    refreshActive(); grow();
+  };
+
+  const rememberSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount && inEditor(sel.anchorNode)) savedRange.current = sel.getRangeAt(0).cloneRange();
+  };
+
+  const restoreSelection = () => {
+    const r = savedRange.current;
+    if (!r) return false;
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    return true;
+  };
+
+  const exec = (cmd, value = null) => {
+    ref.current?.focus();
+    document.execCommand(cmd, false, value);
+    refreshActive();
+  };
+
+  const openLink = () => {
+    rememberSelection();
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;          // need a selection to link
+    let node = sel.anchorNode?.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    while (node && node !== ref.current && node.tagName !== "A") node = node.parentNode;
+    setLinkUrl(node && node.tagName === "A" ? node.getAttribute("href") || "" : "");
+    setLinkOpen(true);
+  };
+
+  const applyLink = () => {
+    const href = safeHref(linkUrl);
+    ref.current?.focus();
+    restoreSelection();
+    if (href) document.execCommand("createLink", false, href);
+    else      document.execCommand("unlink", false, null);
+    setLinkOpen(false);
+    setLinkUrl("");
+    refreshActive();
+  };
+
+  /** The <li> the caret sits in, or null. */
+  const closestLi = () => {
+    const sel = window.getSelection();
+    if (!sel || !sel.anchorNode || !inEditor(sel.anchorNode)) return null;
+    let node = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentNode : sel.anchorNode;
+    while (node && node !== ref.current) {
+      if (node.tagName === "LI") return node;
+      node = node.parentNode;
+    }
+    return null;
+  };
+
+  /** Append a fresh item to the end of the current list and put the caret in it. */
+  const addListItem = () => {
+    ref.current?.focus();
+    const list = closestList();
+    if (!list) { applyList("bullet"); return; }   // not a list yet — make one
+    const li = document.createElement("li");
+    li.appendChild(document.createElement("br"));
+    list.appendChild(li);
+    const r = document.createRange();
+    r.setStart(li, 0);
+    r.collapse(true);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(r);
+    refreshActive();
+    grow();
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") { e.preventDefault(); commit(); return; }
+
+    if (e.key === "Enter" && !e.shiftKey) {
+      const li = closestLi();
+      // Enter on an empty item exits the list, like Word and Google Docs
+      if (li && !li.textContent.trim()) {
+        e.preventDefault();
+        document.execCommand("outdent");
+        if (closestLi()) {
+          const list = closestList();
+          document.execCommand(
+            list && list.tagName === "UL" ? "insertUnorderedList" : "insertOrderedList"
+          );
+        }
+        refreshActive();
+        return;
+      }
+      // Otherwise let the browser insert the next <li> natively
+      setTimeout(() => { refreshActive(); grow(); }, 0);
+      return;
+    }
+    const mod = e.metaKey || e.ctrlKey;
+    if (mod && e.key.toLowerCase() === "b") { e.preventDefault(); exec("bold"); }
+    if (mod && e.key.toLowerCase() === "i") { e.preventDefault(); exec("italic"); }
+    if (mod && e.key.toLowerCase() === "k") { e.preventDefault(); openLink(); }
+    if (mod && e.key === "Enter")           { e.preventDefault(); commit(); }
+    if (mod && e.shiftKey && e.key === "8")  { e.preventDefault(); applyList("bullet"); }
+    if (mod && e.shiftKey && e.key === "7")  { e.preventDefault(); applyList("number"); }
+    // Tab indents / outdents inside a list instead of leaving the editor
+    if (e.key === "Tab" && closestList()) {
+      e.preventDefault();
+      document.execCommand(e.shiftKey ? "outdent" : "indent");
+      refreshActive();
+    }
+  };
+
+  // Paste as plain text so Word/web markup can never break the box
+  const onPaste = (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData("text/plain");
+    document.execCommand("insertText", false, text);
+  };
+
+  // Clicking the toolbar must not blur the editor and lose the selection
+  const hold = (e) => e.preventDefault();
+
+  const btn = (on) => ({
+    width:24, height:24, lineHeight:"22px", textAlign:"center",
+    background: on ? T.gold : "transparent",
+    color:      on ? T.bg   : T.gold,
+    border:`1px solid ${T.goldDim}`, borderRadius:4,
+    fontSize:12, cursor:"pointer", padding:0, fontFamily:"Georgia,serif",
+  });
+
+  return (
+    <>
+      {/* Floating toolbar */}
+      <div
+        ref={barRef}
+        onMouseDown={hold}
+        style={{
+          position:"absolute", bottom:"100%", left:0, marginBottom:6,
+          display:"flex", alignItems:"center", gap:4,
+          background:T.panel, border:`1px solid ${T.goldDim}`,
+          borderRadius:6, padding:"4px 5px", zIndex:30,
+          boxShadow:"0 4px 16px rgba(0,0,0,.6)", whiteSpace:"nowrap",
+        }}
+      >
+        <button style={{ ...btn(active.bold),   fontWeight:700 }}                 onClick={() => exec("bold")}   title="Bold (Ctrl+B)">B</button>
+        <button style={{ ...btn(active.italic), fontStyle:"italic" }}             onClick={() => exec("italic")} title="Italic (Ctrl+I)">I</button>
+        <button style={{ ...btn(active.link),   fontSize:11 }}                    onClick={openLink}             title="Link (Ctrl+K)">🔗</button>
+        {active.link && (
+          <button style={{ ...btn(false), fontSize:11 }} onClick={() => exec("unlink")} title="Remove link">⛓️‍💥</button>
+        )}
+        <span style={{ width:1, height:16, background:T.goldDim, margin:"0 2px" }} />
+        <button style={{ ...btn(active.list==="bullet"), fontSize:13 }} onClick={() => applyList("bullet")} title="Bullet list">•</button>
+        <button style={{ ...btn(active.list==="number"), fontSize:10 }} onClick={() => applyList("number")} title="Numbered list">1.</button>
+        <button style={{ ...btn(active.list==="roman"),  fontSize:10 }} onClick={() => applyList("roman")}  title="Roman numeral list">I.</button>
+        {active.list && (
+          <button
+            style={{ ...btn(false), width:"auto", padding:"0 7px", fontSize:10 }}
+            onClick={addListItem}
+            title="Add another item (or just press Enter)"
+          >+ Item</button>
+        )}
+        <span style={{ width:1, height:16, background:T.goldDim, margin:"0 2px" }} />
+        <button style={{ ...btn(false), fontSize:10 }} onClick={() => exec("removeFormat")} title="Clear formatting">Tx</button>
+
+        {linkOpen && (
+          <div
+            onMouseDown={hold}
+            style={{
+              position:"absolute", top:"100%", left:0, marginTop:5,
+              display:"flex", gap:4, background:T.panel,
+              border:`1px solid ${T.goldDim}`, borderRadius:6, padding:5, zIndex:31,
+            }}
+          >
+            <input
+              autoFocus
+              value={linkUrl}
+              placeholder="https://example.com"
+              onChange={e => setLinkUrl(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === "Enter")  { e.preventDefault(); applyLink(); }
+                if (e.key === "Escape") { e.preventDefault(); setLinkOpen(false); }
+              }}
+              style={{
+                width:180, padding:"4px 7px", fontSize:11,
+                background:T.surface, color:T.txt,
+                border:`1px solid ${T.goldDim}`, borderRadius:4, outline:"none",
+              }}
+            />
+            <button style={{ ...btn(true), width:"auto", padding:"0 8px", fontSize:11 }} onClick={applyLink}>OK</button>
+          </div>
+        )}
+      </div>
+
+      {/* Outer frame handles centring + scrolling.
+          The contentEditable inside is a plain block, which is what lets the
+          browser do native list editing (Enter = next <li>, Backspace on an
+          empty item leaves the list, arrow keys walk items). */}
+      <div
+        style={{
+          position:"absolute", inset:0, width:"100%", height:"100%",
+          display:"flex", flexDirection:"column", justifyContent:"center",
+          border:`2px dashed ${T.gold}`, borderRadius:4,
+          padding: el.type === "button" ? "0 12px" : "4px 6px",
+          boxSizing:"border-box", overflow:"auto",
+          background:"transparent", cursor:"text", zIndex:20,
+        }}
+        onMouseDown={e => { if (e.target === e.currentTarget) ref.current?.focus(); }}
+      >
+        <div
+          ref={ref}
+          className="bc-edit"
+          contentEditable
+          suppressContentEditableWarning
+          onBlur={e => {
+            // Ignore blur caused by clicking our own toolbar
+            if (barRef.current?.contains(e.relatedTarget)) return;   // toolbar click, stay in edit mode
+            commit();
+          }}
+          onInput={grow}
+          onKeyUp={refreshActive}
+          onMouseUp={refreshActive}
+          onKeyDown={onKeyDown}
+          onPaste={onPaste}
+          style={{
+            display:"block", width:"100%",
+            fontSize:el.fontSize, fontFamily:el.fontFamily, fontWeight:el.fontWeight,
+            color:el.color, background:"transparent",
+            outline:"none", cursor:"text",
+            lineHeight:el.lineHeight || 1.4,
+            fontStyle:el.fontStyle, textDecoration:el.textDecoration,
+            textAlign:el.textAlign, whiteSpace:"pre-line",
+            wordBreak:"break-word", userSelect:"text",
+          }}
+        />
+      </div>
+    </>
   );
 }
 

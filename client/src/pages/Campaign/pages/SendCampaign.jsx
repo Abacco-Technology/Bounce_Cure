@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import ShuffleSubjectModal from "../Components/ShuffleSubjectModal";
 import { Shuffle } from "lucide-react";
+import { contentToHtml } from "../Components/Editor/richText";
 
 // ✅ FIX: Was VITE_VRI_URL (typo) — now correctly VITE_API_URL
 const API_URL = import.meta.env.VITE_VRI_URL; 
@@ -65,15 +66,15 @@ function renderPreviewElement(el) {
   switch (el.type) {
     case "heading":
       return <div style={{ ...base, fontWeight:el.fontWeight||"700", fontSize:`${el.fontSize||28}px` }}
-                  dangerouslySetInnerHTML={{ __html:el.content||"Heading" }} />;
+                  dangerouslySetInnerHTML={{ __html:contentToHtml(el.content)||"Heading" }} />;
     case "subheading":
       return <div style={{ ...base, fontWeight:el.fontWeight||"600", fontSize:`${el.fontSize||20}px` }}
-                  dangerouslySetInnerHTML={{ __html:el.content||"Subheading" }} />;
+                  dangerouslySetInnerHTML={{ __html:contentToHtml(el.content)||"Subheading" }} />;
     case "paragraph":
-      return <div style={base} dangerouslySetInnerHTML={{ __html:el.content||"" }} />;
+      return <div style={base} dangerouslySetInnerHTML={{ __html:contentToHtml(el.content) }} />;
     case "blockquote":
       return <div style={{ ...base,paddingLeft:"12px", fontStyle:"italic" }}
-                  dangerouslySetInnerHTML={{ __html:el.content||"" }} />;
+                  dangerouslySetInnerHTML={{ __html:contentToHtml(el.content) }} />;
 
     case "image": {
       const src = el.src;
@@ -262,8 +263,15 @@ function EmailPreview({ pages, activePage, canvasBackgroundColor, previewRef }) 
             wrapper.style.height          = `${canvasHeight * scale}px`;
           }}
         >
+          {/* Links must look the same here as in the sent email */}
+          <style>{`
+            .bc-preview a { color:#1155cc; text-decoration:underline; }
+            .bc-preview b, .bc-preview strong { font-weight:700; }
+            .bc-preview i, .bc-preview em { font-style:italic; }
+          `}</style>
+
           {/* ↓ This div is captured by html2canvas */}
-          <div data-scale-inner="true" ref={previewRef}
+          <div data-scale-inner="true" className="bc-preview" ref={previewRef}
                style={{ width:`${CANVAS_WIDTH}px`, transformOrigin:"top left" }}>
             <div style={{ position:"relative", width:`${CANVAS_WIDTH}px`,
                           height:`${canvasHeight}px`, backgroundColor }}>
