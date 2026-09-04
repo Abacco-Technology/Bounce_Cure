@@ -1,7 +1,7 @@
 // src/services/authService.js
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_VRI_URL;
+const API_URL = `${import.meta.env.VITE_VRI_URL}/api`;
 
 // Create a reusable Axios instance
 const API = axios.create({
@@ -20,8 +20,8 @@ const getAuthHeaders = () => {
 // ==================== Email Verification ====================
 export const sendVerificationLink = () => API.post('/auth/send-verification-email', {}, getAuthHeaders());
 
-export const verifyEmail = (tokenOrOtp) =>
-    API.post('/verify-email', { code: tokenOrOtp }, getAuthHeaders());
+export const verifyEmail = (token) =>
+    API.get('/auth/verify-email', { params: { token }, ...getAuthHeaders() });
 
 // ==================== Password Management ====================
 export const changePassword = (oldPassword, newPassword) =>
@@ -31,15 +31,16 @@ export const forgotPassword = (email) =>
     API.post('/auth/forgot-password', { email });
 
 export const resetPassword = (token, newPassword) =>
-    API.post('/auth/reset-password', { token, newPassword });
+    API.post(`/auth/reset-password/${token}`, { password: newPassword });
 
 // ==================== Two Factor Auth ====================
-export const enable2FA = () => API.post('/auth/enable-2fa', {}, getAuthHeaders());
+export const enable2FA = () => API.post('/auth/2fa/enable', {}, getAuthHeaders());
 
 export const verify2FA = (otp) => API.post('/auth/verify-2fa', { otp }, getAuthHeaders());
 
-export const verifyTwoFactor = (otp) => API.post('/auth/2fa/verify', { otp }, getAuthHeaders());
+export const verifyTwoFactor = (otp) => API.post('/auth/verify-2fa', { otp }, getAuthHeaders());
 
+// NOTE: no backend route exists for this yet — server only has POST /api/auth/2fa/enable
 export const disableTwoFactor = () => API.post('/auth/2fa/disable', {}, getAuthHeaders());
 
 // ==================== Security & Sessions ====================

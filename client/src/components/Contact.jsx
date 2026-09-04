@@ -16,6 +16,8 @@ import Navbar from "./Navbar";
 import Footer from "./Footer";
 import { Check } from "lucide-react"; // ✅ Add this import at the top with your other icons
 
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const ContactPage = () => {
   const [formData, setFormData] = useState({
     fullname: "",
@@ -58,7 +60,7 @@ const ContactPage = () => {
 
     try {
       // Replace with your backend URL
-      const response = await fetch(`${API_URL}api/contact`, {
+      const response = await fetch(`${API_URL}/api/contact`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

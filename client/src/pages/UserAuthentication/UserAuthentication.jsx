@@ -11,6 +11,8 @@ import UserProfile from '../../components/UserProfile';
 import { Shield, Lock } from 'lucide-react';
 import Settings from '../Settings/Settings';
 
+const API_URL = import.meta.env.VITE_VRI_URL;
+
 const UserAuthentication = () => {
   const navigate = useNavigate();
   const [twoFactorStatus, setTwoFactorStatus] = useState('Not Enabled');

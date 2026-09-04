@@ -40,24 +40,24 @@ export function makeEl(type, opts = {}) {
     ...opts,
   };
   const defaults = {
-    heading:    { content:"Add a Heading",   width:380, height:60,  fontSize:36, fontWeight:"bold",   color:"#F0C040", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
-    subheading: { content:"Add a Subheading",width:320, height:48,  fontSize:24, fontWeight:"600",    color:"#E8D8A0", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
-    paragraph:  { content:"Add paragraph text here. Click to edit and start typing your content.", width:360, height:80, fontSize:15, fontWeight:"normal", color:"#C8B880", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.6 },
-    blockquote: { content:'"An inspiring quote goes here."', width:340, height:90, fontSize:19, fontWeight:"normal", fontStyle:"italic", color:"#C9A84C", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", lineHeight:1.5 },
-    button:     { content:"Click Me", width:160, height:48, fontSize:15, fontWeight:"700", color:"#0A0A0A", backgroundColor:"#C9A84C", borderRadius:6, fontFamily:"'Trebuchet MS'", textAlign:"center" },
-    rectangle:  { content:"", width:200, height:120, backgroundColor:"#C9A84C", borderRadius:6, borderColor:"transparent", borderWidth:0 },
-    circle:     { content:"", width:110, height:110, backgroundColor:"#7A6020" },
-    star:       { content:"", width:90,  height:90,  backgroundColor:"#F0C040" },
-    line:       { content:"", width:280, height:3,   strokeColor:"#C9A84C", strokeWidth:3 },
+    heading:    { content:"Add a Heading",   width:380, height:60,  fontSize:36, fontWeight:"bold",   color:"#000000", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
+    subheading: { content:"Add a Subheading",width:320, height:48,  fontSize:24, fontWeight:"600",    color:"#000000", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.3 },
+    paragraph:  { content:"Add paragraph text here. Click to edit and start typing your content.", width:360, height:80, fontSize:15, fontWeight:"normal", color:"#000000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", fontStyle:"normal", textDecoration:"none", lineHeight:1.6 },
+    blockquote: { content:'"An inspiring quote goes here."', width:340, height:90, fontSize:19, fontWeight:"normal", fontStyle:"italic", color:"#000000", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", lineHeight:1.5 },
+    button:     { content:"Click Me", width:160, height:48, fontSize:15, fontWeight:"700", color:"#FFFFFF", backgroundColor:"#000000", borderRadius:6, fontFamily:"'Trebuchet MS'", textAlign:"center" },
+    rectangle:  { content:"", width:200, height:120, backgroundColor:"#000000", borderRadius:6, borderColor:"transparent", borderWidth:0 },
+    circle:     { content:"", width:110, height:110, backgroundColor:"#000000" },
+    star:       { content:"", width:90,  height:90,  backgroundColor:"#000000" },
+    line:       { content:"", width:280, height:3,   strokeColor:"#000000", strokeWidth:3 },
     image:      { src: opts.src || "https://images.unsplash.com/photo-1557683316-973673baf926?w=400&h=260&fit=crop", width:300, height:190, borderRadius:4, objectFit:"cover" },
     social:     { src:opts.src, width:44, height:44, platform:opts.platform, link:opts.link||"#" },
     "emoji-icon": { emoji:opts.emoji||"⭐", fontSize:opts.fontSize||32, width:opts.width||48, height:opts.height||48 },
   };
-  return { ...base, ...(defaults[type] || { width:150, height:50 }) };
+  return { ...(defaults[type] || { width:150, height:50 }), ...base };
 }
 
 export const FONTS = ["Georgia","'Trebuchet MS'","'Times New Roman'","Verdana","'Palatino Linotype'","Impact","'Courier New'","'Comic Sans MS'"];
-export const COLORS = ["#F0C040","#C9A84C","#7A6020","#2A2200","#0A0A0A","#1A1A1A","#FFFFFF","#F5EDD0","#C04020","#204060","#406020","#602040","#C8B880","#E8D8A0","#5A5040","#8A7850"];
+export const COLORS = ["#000000","#F0C040","#C9A84C","#7A6020","#2A2200","#0A0A0A","#1A1A1A","#FFFFFF","#F5EDD0","#C04020","#204060","#406020","#602040","#C8B880","#E8D8A0","#5A5040","#8A7850"];
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 export default function TemplateEditorPage() {
