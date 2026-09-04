@@ -235,7 +235,86 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
   }
 
   /* ── ELEMENT RENDERERS ──────────────────────────────────────── */
-  const nl2br = (str) => (str || '').replace(/\n/g, '<br/>');
+
+  /* Inline markup allowlist — mirrors client/.../Editor/richText.js.
+     Anything outside <b|strong|i|em|u|s|a|br> is escaped, so pasted or
+     tampered content can never inject markup into the email. */
+  const INLINE_OK = /^(b|strong|i|em|u|s|br)$/i;
+  const LIST_OK   = /^(ul|ol|li)$/i;
+
+  /* Email clients zero out list margins/padding, so state them explicitly.
+     `type` is kept alongside list-style-type because Outlook's Word engine
+     honours the attribute but ignores the CSS. */
+  const listOpenTag = (tag, attrs) => {
+    if (/^ul$/i.test(tag)) return '<ul style="margin:6px 0;padding-left:26px;list-style-type:disc;">';
+    if (/^li$/i.test(tag)) return '<li style="margin:3px 0;">';
+    const m = /type\s*=\s*["']?([1IiAa])["']?/.exec(attrs || '');
+    const roman = m && /^i$/i.test(m[1]);
+    return `<ol type="${roman ? 'I' : '1'}" style="margin:6px 0;padding-left:26px;list-style-type:${roman ? 'upper-roman' : 'decimal'};">`;
+  };
+
+  const escapeHtml = (str) => String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const safeHref = (raw) => {
+    const href = String(raw || '').trim();
+    if (/^(https?:|mailto:|tel:)/i.test(href)) return href;
+    if (/^[\w-]+(\.[\w-]+)+([/?#].*)?$/.test(href)) return `https://${href}`;
+    return null;
+  };
+
+  function inlineHtml(str, linkColor) {
+    if (!str) return '';
+    // Drop <script>/<style> blocks including their contents
+    const cleaned = String(str).replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, '');
+
+    let out = '';
+    let last = 0;
+    const linkStack = [];   // tracks whether each open <a> was emitted
+    const listStack = [];   // tracks open ul/ol/li so closes always match
+    const re = /<\/?([a-zA-Z][\w-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/g;
+    let m;
+    while ((m = re.exec(cleaned)) !== null) {
+      out += escapeHtml(cleaned.slice(last, m.index));
+      last = re.lastIndex;
+      const [full, tag, attrs] = m;
+      const closing = full.startsWith('</');
+      const t = tag.toLowerCase();
+
+      if (INLINE_OK.test(t)) {
+        out += closing ? `</${t}>` : `<${t}>`;
+      } else if (LIST_OK.test(t)) {
+        if (closing) {
+          if (listStack.length && listStack[listStack.length - 1] === t) { listStack.pop(); out += `</${t}>`; }
+        } else {
+          listStack.push(t);
+          out += listOpenTag(t, attrs);
+        }
+      } else if (t === 'a') {
+        if (closing) {
+          // Only close a link we actually opened — never leak a stray </a>
+          if (linkStack.pop()) out += '</a>';
+          continue;
+        }
+        const hrefMatch = /href\s*=\s*("([^"]*)"|'([^']*)'|([^\s>]+))/i.exec(attrs || '');
+        const href = safeHref(hrefMatch ? (hrefMatch[2] ?? hrefMatch[3] ?? hrefMatch[4]) : '');
+        linkStack.push(!!href);
+        if (href) {
+          out += `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="color:${linkColor || '#1155cc'};text-decoration:underline;">`;
+        }
+        // unsafe href: tag dropped, inner text still rendered
+      }
+      // any other tag: dropped entirely
+    }
+    out += escapeHtml(cleaned.slice(last));
+    while (linkStack.length) { if (linkStack.pop()) out += '</a>'; }  // close anything left open
+    while (listStack.length) { out += `</${listStack.pop()}>`; }
+    return out
+      .replace(/>\s*\r?\n\s*</g, '><')        // newlines between list tags are not <br/>
+      .replace(/\r?\n/g, '<br/>');
+  }
+
+  const nl2br = (str) => inlineHtml(str);
 
   function renderEl(el, inCard, forceLeft, colWidthPx) {
     const a = align(el, inCard, forceLeft);
@@ -248,8 +327,10 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       case 'subheading':
         return `<h2 style="margin:2px 0;font-size:${el.fontSize || 20}px;color:${el.color || '#333'};font-weight:${el.fontWeight || '600'};font-family:${el.fontFamily || 'Arial,sans-serif'};text-align:${a};background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || 'Subheading'}</h2>`;
 
-      case 'paragraph':
-        return `<p style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</p>`;
+      case 'paragraph': {
+        const tag = /<(ul|ol)\b/i.test(el.content || '') ? 'div' : 'p';
+        return `<${tag} style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};">${nl2br(el.content) || ''}</${tag}>`;
+      }
 
       case 'blockquote':
         return `<div style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
@@ -721,8 +802,21 @@ const generatePlainTextFromCanvas = (canvasData, subject, fromName, fromEmail, r
         case "heading":
         case "subheading":
         case "paragraph":
-          plainText += `${el.content || ""}\n\n`;
+        case "blockquote": {
+          // Strip inline markup; surface links as "text (url)"
+          const txt = String(el.content || "")
+            .replace(/<a\b[^>]*href\s*=\s*["']?([^"'\s>]+)[^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)")
+            .replace(/<li\b[^>]*>/gi, "\n  - ")
+            .replace(/<\/(ul|ol)\s*>/gi, "\n")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<[^>]+>/g, "")
+            .replace(/&nbsp;/gi, " ")
+            .replace(/&amp;/gi, "&")
+            .replace(/&lt;/gi, "<")
+            .replace(/&gt;/gi, ">");
+          plainText += `${txt}\n\n`;
           break;
+        }
         case "image":
           plainText += `[Image: ${el.alt || "Image"}]\n\n`;
           break;

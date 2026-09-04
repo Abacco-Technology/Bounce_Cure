@@ -13,6 +13,7 @@
 import React, { useRef, useState, useMemo } from "react";
 import { T, SLabel, inputStyle, COLORS } from "../../pages/EditorPage";
 import PhotosTab from "./PhotosTab";
+import { newListContent } from "./richText";
 // ─── Stock photos ─────────────────────────────────────────────────────────────
 
 
@@ -411,6 +412,15 @@ const handleFileUpload = async (e) => {
     else elements.forEach(el => addElement(el.type, el));
   };
 
+  const handleAddList = (kind) => {
+    addElement("paragraph", {
+      content: newListContent(kind),
+      width:   360,
+      height:  110,          // three items need more room than a one-line paragraph
+      textAlign: "left",
+    });
+  };
+
   const handleAddHeading = (h) => {
     addElement("heading", {
       content: `${h.tag} Heading`,
@@ -529,6 +539,23 @@ const handleFileUpload = async (e) => {
                   { label:"Button",     type:"button",     icon:"▶",  hint:"Call-to-action" },
                 ].map(item => (
                   <ElementChip key={item.type} item={item} onClick={() => addElement(item.type)} />
+                ))}
+              </div>
+            </div>
+
+            {/* ── Lists ── */}
+            <div style={{ marginBottom:16 }}>
+              <SLabel>☰  Lists</SLabel>
+              <div style={{ fontSize:10, color:T.muted, marginBottom:6, lineHeight:1.5 }}>
+                Adds a list block. Double-click it to edit the items.
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:7 }}>
+                {[
+                  { label:"Bullet",  kind:"bullet", icon:"•",  hint:"Bulleted list" },
+                  { label:"Numbered",kind:"number", icon:"1.", hint:"1. 2. 3." },
+                  { label:"Roman",   kind:"roman",  icon:"I.", hint:"I. II. III." },
+                ].map(item => (
+                  <ElementChip key={item.kind} item={item} onClick={() => handleAddList(item.kind)} />
                 ))}
               </div>
             </div>
