@@ -1,659 +1,75 @@
 // src/pages/TemplatesPage.jsx
-import React from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Star, Eye, Heart, Mail, Megaphone, Share2, Calendar, Rocket, Users, Award, TrendingUp, Gift, Mic  } from "lucide-react";
+import { Plus, Star, Eye, Heart, Trash2, FileText, Loader2 } from "lucide-react";
+import { listSavedTemplates, deleteSavedTemplate, TEMPLATE_TYPES } from "./savedTemplateService";
+import { templates, TEMPLATE_CATEGORIES, CATEGORY_ACCENT } from "./campaignTemplateData";
 
 // Enhanced templates with more variety
-const templates = [
-  {
-    id: 1,
-    name: "Professional Welcome Email",
-    category: "Email",
-    preview: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=300&fit=crop",
-    rating: 4.8,
-    likes: 324,
-    icon: Mail,
-    description: "Warm and professional welcome email template perfect for onboarding new customers",
-    content: [
-      {
-        type: "text",
-        value: "Welcome to Our Community",
-        style: { 
-          fontSize: 36, 
-          color: "#1e40af", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "20px",
-          letterSpacing: "-0.025em"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "We're excited to have you join thousands of satisfied customers who trust us with their business needs. Your journey starts here, and we're committed to providing you with exceptional service every step of the way.",
-        style: { 
-          fontSize: 18, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "30px",
-          maxWidth: "600px"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=300&fit=crop",
-        style: {
-          borderRadius: "12px",
-          marginBottom: "30px"
-        }
-      },
-      {
-        type: "paragraph",
-        value: "Here's what you can expect: 24/7 customer support, exclusive member benefits, and access to our premium resources. If you have any questions, our team is always ready to help.",
-        style: { 
-          fontSize: 16, 
-          color: "#6b7280", 
-          textAlign: "center",
-          lineHeight: "1.5",
-          marginBottom: "25px"
-        },
-      },
-      {
-        type: "button",
-        value: "Get Started Now",
-        style: {
-          backgroundColor: "#1e40af",
-          color: "#ffffff",
-          padding: "16px 32px",
-          borderRadius: "8px",
-          fontSize: "16px",
-          fontWeight: "600",
-          margin: "20px auto",
-          display: "block",
-          border: "none",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px 0 rgba(30, 64, 175, 0.3)"
-        },
-      },
-    ],
-  },
-  {
-    id: 2,
-    name: "Marketing Newsletter Campaign",
-    category: "Marketing",
-    preview: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop",
-    rating: 4.9,
-    likes: 451,
-    icon: Megaphone,
-    description: "High-conversion newsletter template with modern design and clear call-to-actions",
-    content: [
-      {
-        type: "text",
-        value: "Your Weekly Business Insights",
-        style: { 
-          fontSize: 32, 
-          color: "#111827", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "This week's edition features market trends, growth strategies, and exclusive insights from industry leaders that you won't find anywhere else.",
-        style: { 
-          fontSize: 18, 
-          color: "#4b5563", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "25px"
-        },
-      },
-     {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop",
-        style: {
-          borderRadius: "8px",
-          marginBottom: "25px",
-          display: "block",
-          marginLeft: "30px",
-          marginRight: "auto",
-        }
-      },
-      {
-        type: "text",
-        value: "Featured This Week",
-        style: { 
-          fontSize: 24, 
-          color: "#059669", 
-          fontWeight: "600", 
-          textAlign: "left",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "• 5 proven strategies to increase customer retention\n• Market analysis: Q3 trends every business owner should know\n• Exclusive interview with successful entrepreneurs\n• Tools and resources to streamline your workflow",
-        style: { 
-          fontSize: 16, 
-          color: "#374151", 
-          textAlign: "left",
-          lineHeight: "1.8",
-          marginBottom: "25px"
-        },
-      },
-      {
-        type: "button",
-        value: "Read Full Newsletter",
-        style: {
-          backgroundColor: "#059669",
-          color: "#ffffff",
-          padding: "14px 28px",
-          borderRadius: "8px",
-          fontWeight: "600",
-          display: "block",
-          margin: "20px auto",
-          fontSize: "16px",
-          border: "none",
-          cursor: "pointer"
-        },
-      },
-    ],
-  },
-  {
-    id: 3,
-    name: "Motivational Social Post",
-    category: "Social",
-    preview: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&h=600&fit=crop",
-    rating: 4.7,
-    likes: 512,
-    icon: Share2,
-    description: "Inspiring social media template designed to engage and motivate your audience",
-    content: [
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=600&h=400&fit=crop",
-        style: {
-          borderRadius: "12px",
-          marginBottom: "20px"
-        }
-      },
-      {
-        type: "text",
-        value: "Transform Your Dreams Into Reality",
-        style: { 
-          fontSize: 38, 
-          color: "#dc2626", 
-          fontWeight: "800", 
-          textAlign: "center",
-          marginBottom: "20px",
-          textShadow: "2px 2px 4px rgba(0,0,0,0.1)"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Every successful journey begins with a single step. Whether you're starting a business, learning a new skill, or chasing a personal goal, remember that consistency beats perfection every time.",
-        style: { 
-          fontSize: 18, 
-          color: "#4338ca", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          fontWeight: "500",
-          marginBottom: "20px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "What small action will you take today to move closer to your dreams?",
-        style: { 
-          fontSize: 16, 
-          color: "#6b7280", 
-          textAlign: "center",
-          fontStyle: "italic",
-          marginBottom: "20px"
-        },
-      },
-      {
-        type: "text",
-        value: "#MotivationMonday #DreamBig #Success #Inspiration",
-        style: { 
-          fontSize: 14, 
-          color: "#2563eb", 
-          textAlign: "center",
-          fontWeight: "500"
-        },
-      },
-    ],
-  },
-  {
-    id: 4,
-    name: "Corporate Event Invitation",
-    category: "Event",
-    preview: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=600&h=400&fit=crop",
-    rating: 4.6,
-    likes: 298,
-    icon: Calendar,
-    description: "Elegant invitation template perfect for corporate events, conferences, and networking gatherings",
-    content: [
-      {
-        type: "text",
-        value: "You're Cordially Invited",
-        style: { 
-          fontSize: 36, 
-          color: "#7c3aed", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "20px",
-          letterSpacing: "-0.02em"
-        },
-      },
-      {
-        type: "text",
-        value: "Annual Business Summit 2025",
-        style: { 
-          fontSize: 28, 
-          color: "#111827", 
-          fontWeight: "600", 
-          textAlign: "center",
-          marginBottom: "25px"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1511578314322-379afb476865?w=600&h=300&fit=crop",
-        style: {
-          borderRadius: "10px",
-          marginBottom: "25px"
-        }
-      },
-      {
-        type: "paragraph",
-        value: "Join industry leaders, entrepreneurs, and innovators for two days of insightful presentations, networking opportunities, and collaborative workshops. This year's theme focuses on 'Building Sustainable Business in the Digital Age'.",
-        style: { 
-          fontSize: 16, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "25px",
-          maxWidth: "500px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "📅 Date: March 15-16, 2025\n📍 Location: Grand Convention Center\n🕒 Time: 9:00 AM - 6:00 PM\n👔 Dress Code: Business Professional",
-        style: { 
-          fontSize: 16, 
-          color: "#4b5563", 
-          textAlign: "left",
-          lineHeight: "1.8",
-          marginBottom: "30px",
-          backgroundColor: "#f9fafb",
-          padding: "20px",
-          borderRadius: "8px",
-          borderLeft: "4px solid #7c3aed"
-        },
-      },
-      {
-        type: "button",
-        value: "RSVP Now - Limited Seats",
-        style: {
-          backgroundColor: "#7c3aed",
-          color: "#ffffff",
-          padding: "16px 32px",
-          borderRadius: "8px",
-          fontWeight: "600",
-          display: "block",
-          margin: "20px auto",
-          fontSize: "16px",
-          border: "none",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px 0 rgba(124, 58, 237, 0.3)"
-        },
-      },
-    ],
-  },
-  {
-    id: 5,
-    name: "Product Launch Announcement",
-    category: "Marketing",
-    preview: "https://images.unsplash.com/photo-1593642532973-d31b6557fa68?w=600&h=400&fit=crop",
-    rating: 4.8,
-    likes: 387,
-    icon: Rocket,
-    description: "Dynamic product launch template designed to create buzz and drive pre-orders",
-    content: [
-      {
-        type: "text",
-        value: "Revolutionary Innovation Unveiled",
-        style: { 
-          fontSize: 34, 
-          color: "#059669", 
-          fontWeight: "800", 
-          textAlign: "center",
-          marginBottom: "15px",
-          textTransform: "uppercase",
-          letterSpacing: "0.05em"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1593642532973-d31b6557fa68?w=600&h=350&fit=crop",
-        style: {
-          borderRadius: "12px",
-          marginBottom: "25px",
-          boxShadow: "0 10px 30px rgba(0,0,0,0.2)"
-        }
-      },
-      {
-        type: "text",
-        value: "Introducing the Future of Smart Technology",
-        style: { 
-          fontSize: 26, 
-          color: "#111827", 
-          fontWeight: "600", 
-          textAlign: "center",
-          marginBottom: "20px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "After three years of intensive research and development, we're proud to present our groundbreaking solution that will transform how you work, create, and connect. This isn't just another product – it's a paradigm shift.",
-        style: { 
-          fontSize: 18, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "25px",
-          maxWidth: "550px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Key Features:\n• AI-powered automation that learns your preferences\n• Seamless integration with 200+ popular tools\n• Enterprise-grade security with end-to-end encryption\n• 99.9% uptime guarantee with 24/7 support\n• Intuitive interface designed for maximum productivity",
-        style: { 
-          fontSize: 16, 
-          color: "#4b5563", 
-          textAlign: "left",
-          lineHeight: "1.7",
-          marginBottom: "25px",
-          backgroundColor: "#f8fafc",
-          padding: "20px",
-          borderRadius: "10px",
-          border: "2px solid #e5e7eb"
-        },
-      },
-      {
-        type: "text",
-        value: "Early Bird Special: 40% Off",
-        style: { 
-          fontSize: 22, 
-          color: "#dc2626", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "button",
-        value: "Pre-Order Now - Limited Time",
-        style: {
-          backgroundColor: "#10b981",
-          color: "#ffffff",
-          padding: "16px 36px",
-          borderRadius: "8px",
-          fontWeight: "600",
-          margin: "20px auto",
-          display: "block",
-          fontSize: "16px",
-          border: "none",
-          cursor: "pointer",
-          boxShadow: "0 4px 14px 0 rgba(16, 185, 129, 0.4)"
-        },
-      },
-    ],
-  },
-  {
-    id: 6,
-    name: "Heartfelt Thank You Message",
-    category: "Personal",
-    preview: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=600&h=400&fit=crop",
-    rating: 4.9,
-    likes: 401,
-    icon: Heart,
-    description: "Elegant thank you template to express genuine gratitude and appreciation",
-    content: [
-      {
-        type: "text",
-        value: "With Heartfelt Gratitude",
-        style: { 
-          fontSize: 34, 
-          color: "#dc2626", 
-          fontWeight: "600", 
-          textAlign: "center",
-          marginBottom: "20px",
-          fontFamily: "serif"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1513475382585-d06e58bcb0e0?w=600&h=300&fit=crop",
-        style: {
-          borderRadius: "12px",
-          marginBottom: "25px"
-        }
-      },
-      {
-        type: "paragraph",
-        value: "Your kindness and support have made an incredible difference in our journey. From the bottom of our hearts, we want to express how much your trust and partnership mean to us.",
-        style: { 
-          fontSize: 18, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.7",
-          marginBottom: "25px",
-          fontStyle: "italic"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Whether it was your encouraging words, your business, or simply being part of our community, you've contributed to something special. We're honored to have you with us and look forward to continuing this wonderful relationship.",
-        style: { 
-          fontSize: 16, 
-          color: "#6b7280", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "20px"
-        },
-      },
-      {
-        type: "text",
-        value: "Thank you for being amazing!",
-        style: { 
-          fontSize: 20, 
-          color: "#7c3aed", 
-          fontWeight: "600", 
-          textAlign: "center",
-          marginBottom: "20px"
-        },
-      },
-    ],
-  },
-  {
-    id: 7,
-    name: "Team Achievement Celebration",
-    category: "Corporate",
-    preview: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=400&fit=crop",
-    rating: 4.7,
-    likes: 289,
-    icon: Award,
-    description: "Celebrate team milestones and achievements with this professional template",
-    content: [
-      {
-        type: "text",
-        value: "Celebrating Our Success Together",
-        style: { 
-          fontSize: 32, 
-          color: "#1f2937", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "20px"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1552664730-d307ca884978?w=600&h=300&fit=crop",
-        style: {
-          borderRadius: "10px",
-          marginBottom: "25px"
-        }
-      },
-      {
-        type: "paragraph",
-        value: "We're proud to announce that our team has achieved a remarkable milestone this quarter. Through dedication, collaboration, and innovative thinking, we've exceeded our targets and set new standards of excellence.",
-        style: { 
-          fontSize: 18, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "25px"
-        },
-      },
-      {
-        type: "text",
-        value: "Key Achievements",
-        style: { 
-          fontSize: 24, 
-          color: "#0f172a", 
-          fontWeight: "600", 
-          textAlign: "center",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "• 150% increase in customer satisfaction scores\n• Successful launch of 3 major product features\n• 25% improvement in operational efficiency\n• Recognition as 'Innovation Team of the Year'\n• Zero security incidents maintained for 12 months",
-        style: { 
-          fontSize: 16, 
-          color: "#4b5563", 
-          textAlign: "left",
-          lineHeight: "1.8",
-          marginBottom: "25px",
-          backgroundColor: "#fef3c7",
-          padding: "20px",
-          borderRadius: "8px",
-          borderLeft: "4px solid #f59e0b"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "This success belongs to every team member who contributed their unique skills and unwavering commitment. Here's to continued growth and even greater achievements ahead!",
-        style: { 
-          fontSize: 16, 
-          color: "#374151", 
-          textAlign: "center",
-          lineHeight: "1.6",
-          marginBottom: "25px",
-          fontWeight: "500"
-        },
-      },
-    ],
-  },
-  {
-    id: 8,
-    name: "Sales Performance Report",
-    category: "Business",
-    preview: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop",
-    rating: 4.8,
-    likes: 356,
-    icon: TrendingUp,
-    description: "Professional sales report template with data visualization and key insights",
-    content: [
-      {
-        type: "text",
-        value: "Q3 Sales Performance Report",
-        style: { 
-          fontSize: 32, 
-          color: "#1e40af", 
-          fontWeight: "700", 
-          textAlign: "center",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Comprehensive analysis of our third quarter performance, highlighting key metrics, achievements, and strategic opportunities for continued growth.",
-        style: { 
-          fontSize: 16, 
-          color: "#6b7280", 
-          textAlign: "center",
-          marginBottom: "25px"
-        },
-      },
-      {
-        type: "image",
-        value: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=600&h=250&fit=crop",
-        style: {
-          borderRadius: "8px",
-          marginBottom: "25px"
-        }
-      },
-      {
-        type: "text",
-        value: "Executive Summary",
-        style: { 
-          fontSize: 24, 
-          color: "#111827", 
-          fontWeight: "600", 
-          textAlign: "left",
-          marginBottom: "15px"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Revenue Growth: $2.4M (up 32% YoY)\nNew Customer Acquisition: 1,847 clients\nCustomer Retention Rate: 94.2%\nAverage Deal Size: $15,600 (up 18%)\nSales Team Performance: 112% of quota achieved",
-        style: { 
-          fontSize: 16, 
-          color: "#374151", 
-          textAlign: "left",
-          lineHeight: "1.8",
-          marginBottom: "25px",
-          backgroundColor: "#f0fdf4",
-          padding: "20px",
-          borderRadius: "8px",
-          fontFamily: "monospace"
-        },
-      },
-      {
-        type: "paragraph",
-        value: "Our strategic focus on enterprise clients and enhanced product offerings has yielded exceptional results. The team's dedication to customer success has established us as a market leader in our sector.",
-        style: { 
-          fontSize: 16, 
-          color: "#4b5563", 
-          textAlign: "left",
-          lineHeight: "1.6",
-          marginBottom: "20px"
-        },
-      },
-    ],
-  },
- 
- 
-];
- 
-
-const categories = ["All", "Email", "Marketing", "Social", "Event", "Personal"];
+// Templates now live in campaignTemplateData.js (shared with the other gallery)
+const categories = ["All", ...TEMPLATE_CATEGORIES, "Saved"];
 
 const TemplatesPage = () => {
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = React.useState("All");
   const [searchTerm, setSearchTerm] = React.useState("");
   const [previewTemplate, setPreviewTemplate] = React.useState(null);
+  const [savedTemplates, setSavedTemplates] = useState([]);
+  const [loadingSaved,   setLoadingSaved]   = useState(true);
+
+  /* Saved designs come from the shared saved_templates table filtered to
+     type="canvas". Their `content` is already canvas elements, not the block
+     format the built-ins use — handleSelect branches on isSaved for that. */
+  const loadSaved = useCallback(() => {
+    setLoadingSaved(true);
+    listSavedTemplates(TEMPLATE_TYPES.CANVAS)
+      .then((rows) => setSavedTemplates(rows.map((r) => ({
+        id:          r.templateId,
+        name:        r.name,
+        category:    r.category,
+        description: `Saved ${new Date(r.updatedAt).toLocaleDateString()}`,
+        preview:     r.preview || "",
+        rating:      null,
+        likes:       null,
+        content:     Array.isArray(r.content) ? r.content : [],
+        canvasBackgroundColor: r.canvasBackgroundColor || "#FFFFFF",
+        isSaved:     true,
+      }))))
+      .catch(() => setSavedTemplates([]))
+      .finally(() => setLoadingSaved(false));
+  }, []);
+
+  useEffect(() => { loadSaved(); }, [loadSaved]);
+
+  const removeSaved = async (tpl, e) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete "${tpl.name}"? This can't be undone.`)) return;
+    setSavedTemplates((rows) => rows.filter((r) => r.id !== tpl.id));   // optimistic
+    try { await deleteSavedTemplate(tpl.id); } catch { loadSaved(); }
+  };
 
   // const handleSelect = (template) => {
   //   navigate("/editor", { state: { template: { ...template, fixed: true } } });
   // };
   // Complete updated handleSelect function for Templets.jsx
 const handleSelect = (template) => {
+  // A saved design was stored post-conversion, so its content is already a
+  // canvas element array. Running it through the block converter again would
+  // mangle it (blocks use `value`, elements use `content`).
+  if (template.isSaved) {
+    navigate("/editor", {
+      state: {
+        template: {
+          id: template.id,
+          name: template.name,
+          content: template.content,
+          canvasBackgroundColor: template.canvasBackgroundColor || "#FFFFFF",
+        },
+      },
+    });
+    return;
+  }
+
   let currentY = 60; // Start from top with margin
   const canvasWidth = 800; // Canvas width
   const leftMargin = 80;
@@ -692,6 +108,52 @@ const handleSelect = (template) => {
         };
         currentY += headingHeight + baseSpacing;
         break;
+
+      case "subheading": {
+        const subHeight = 40;
+        elementConfig = {
+          id: crypto.randomUUID(),
+          type: "subheading",
+          content: block.value || "Subheading",
+          x: leftMargin,
+          y: currentY,
+          width: contentWidth,
+          height: subHeight,
+          fontSize: block.style?.fontSize || 20,
+          color: block.style?.color || "#1f2937",
+          backgroundColor: block.style?.backgroundColor || "transparent",
+          fontFamily: block.style?.fontFamily || "Arial",
+          fontWeight: block.style?.fontWeight || "600",
+          textAlign: block.style?.textAlign || "left",
+          fontStyle: "normal",
+          textDecoration: "none",
+          opacity: 1, rotation: 0, borderRadius: 0, borderWidth: 0, borderColor: "#000000"
+        };
+        currentY += subHeight + 12;   // tighter gap: a subheading owns the block below it
+        break;
+      }
+
+      case "divider": {
+        const ruleHeight = block.style?.height || 1;
+        elementConfig = {
+          id: crypto.randomUUID(),
+          type: "line",
+          content: "",
+          x: leftMargin,
+          y: currentY,
+          width: contentWidth,
+          height: ruleHeight,
+          strokeColor: block.style?.color || "#e5e7eb",
+          strokeWidth: ruleHeight,
+          backgroundColor: block.style?.color || "#e5e7eb",
+          color: block.style?.color || "#e5e7eb",
+          fontSize: 16, fontFamily: "Arial", fontWeight: "normal",
+          textAlign: "left", fontStyle: "normal", textDecoration: "none",
+          opacity: 1, rotation: 0, borderRadius: 0, borderWidth: 0, borderColor: "#000000"
+        };
+        currentY += ruleHeight + baseSpacing;
+        break;
+      }
 
       case "paragraph":
         // Calculate height based on content length and font size
@@ -825,9 +287,14 @@ const handleSelect = (template) => {
     },
   });
 };
-  const filteredTemplates = templates.filter((template) => {
+  const allTemplates = [...savedTemplates, ...templates];
+
+  const filteredTemplates = allTemplates.filter((template) => {
     const matchesCategory =
-      selectedCategory === "All" || template.category === selectedCategory;
+      selectedCategory === "All" ||
+      (selectedCategory === "Saved"
+        ? !!template.isSaved
+        : template.category === selectedCategory);
     const matchesSearch = template.name
       .toLowerCase()
       .includes(searchTerm.toLowerCase());
@@ -897,6 +364,11 @@ const handleSelect = (template) => {
                 title={`Filter by ${category} templates`}
               >
                 {category}
+                <span className={`ml-2 text-xs ${selectedCategory === category ? "opacity-80" : "text-gray-500"}`}>
+                  {category === "All"   ? allTemplates.length
+                 : category === "Saved" ? savedTemplates.length
+                 : allTemplates.filter((t) => t.category === category).length}
+                </span>
               </button>
             ))}
           </div>
@@ -912,12 +384,22 @@ const handleSelect = (template) => {
               >
                 {/* Preview Image */}
                 <div className="relative h-48 overflow-hidden">
-                  <img
-                    src={template.preview}
-                    alt={template.name}
-                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                    title={`Preview of ${template.name} template`}
-                  />
+                  {template.preview ? (
+                    <img
+                      src={template.preview}
+                      alt={template.name}
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                      title={`Preview of ${template.name} template`}
+                    />
+                  ) : (
+                    // Saved designs have no thumbnail — show the element count instead
+                    <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-gradient-to-br from-gray-900 to-gray-800">
+                      <FileText size={30} className="text-[#c2831f]" />
+                      <span className="text-xs text-gray-500">
+                        {template.content.length} element{template.content.length === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-gray-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                   
                   {/* Overlay Actions */}
@@ -935,10 +417,21 @@ const handleSelect = (template) => {
                     </button>
                   </div>
                   
+                  {template.isSaved && (
+                    <button
+                      onClick={(e) => removeSaved(template, e)}
+                      title="Delete this saved template"
+                      className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-900/80 text-gray-300 hover:text-red-400 hover:bg-gray-900 transition-colors"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  )}
+
                   {/* Category Badge */}
                   <div className="absolute top-4 left-4">
                     <span 
-                      className="px-3 py-1 bg-blue-600/90 backdrop-blur-sm text-white text-sm font-medium rounded-full"
+                      className="px-3 py-1 backdrop-blur-sm text-white text-sm font-medium rounded-full"
+                      style={{ backgroundColor: CATEGORY_ACCENT[template.category] || "#2563eb" }}
                       title={`Category: ${template.category}`}
                     >
                       {template.category}
@@ -970,51 +463,63 @@ const handleSelect = (template) => {
                     </button>
                   </div>
                   
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-sm text-gray-400">
-                    <div 
-                      className="flex items-center space-x-1"
-                      title={`Rating: ${template.rating} out of 5 stars`}
-                    >
-                      <Star size={14} className="text-yellow-400 fill-current" />
-                      <span>{template.rating}</span>
+                  {/* Stats — built-ins only; saved designs show their date */}
+                  {template.isSaved ? (
+                    <div className="text-sm text-gray-500">{template.description}</div>
+                  ) : (
+                    <div className="flex items-center justify-between text-sm text-gray-400">
+                      <div className="flex items-center space-x-1" title={`Rating: ${template.rating} out of 5 stars`}>
+                        <Star size={14} className="text-yellow-400 fill-current" />
+                        <span>{template.rating}</span>
+                      </div>
+                      <div className="flex items-center space-x-1" title={`${template.likes} people liked this template`}>
+                        <Heart size={14} />
+                        <span>{template.likes}</span>
+                      </div>
                     </div>
-                    <div 
-                      className="flex items-center space-x-1"
-                      title={`${template.likes} people liked this template`}
-                    >
-                      <Heart size={14} />
-                      <span>{template.likes}</span>
-                    </div>
-                  </div>
+                  )}
                   
                   {/* Preview Content */}
                   <div className="mt-4 space-y-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {template.content.slice(0, 2).map((element, index) => (
-                      <div key={index} className="text-xs text-gray-500">
-                        {element.type === "text" &&
-                          `📝 ${element.value.substring(0, 30)}...`}
-                        {element.type === "paragraph" &&
-                          `📄 ${element.value.substring(0, 40)}...`}
-                        {element.type === "button" && `🔘 ${element.value}`}
-                        {element.type === "image" && `🖼️ Image included`}
-                      </div>
-                    ))}
+                    {template.content.slice(0, 2).map((element, index) => {
+                      // Built-ins use block.value, saved elements use .content
+                      const text = String(element.value ?? element.content ?? "");
+                      const kind = element.type;
+                      return (
+                        <div key={index} className="text-xs text-gray-500">
+                          {(kind === "text" || kind === "heading" || kind === "subheading") &&
+                            `📝 ${text.substring(0, 30)}${text.length > 30 ? "…" : ""}`}
+                          {kind === "paragraph" &&
+                            `📄 ${text.substring(0, 40)}${text.length > 40 ? "…" : ""}`}
+                          {kind === "button" && `🔘 ${text}`}
+                          {kind === "image" && `🖼️ Image included`}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
+          {/* Loading saved designs */}
+          {loadingSaved && filteredTemplates.length === 0 && (
+            <div className="flex items-center justify-center gap-2 py-16 text-gray-500">
+              <Loader2 size={18} className="animate-spin" /> Loading your saved templates…
+            </div>
+          )}
+
           {/* No Results */}
-          {filteredTemplates.length === 0 && (
+          {!loadingSaved && filteredTemplates.length === 0 && (
             <div className="text-center py-16">
               <div className="text-6xl mb-4" title="No templates found">🔍</div>
               <h3 className="text-2xl font-semibold text-gray-400 mb-2">
                 No templates found
               </h3>
               <p className="text-gray-500 mb-6">
-                Try adjusting your search or category filter
+                {selectedCategory === "Saved"
+                  ? "Designs you save from the editor will show up here."
+                  : "Try adjusting your search or category filter"}
               </p>
               <button
                 onClick={() => {
@@ -1053,7 +558,37 @@ const handleSelect = (template) => {
               {previewTemplate.name}
             </h2>
             <div className="space-y-4">
-              {previewTemplate.content.map((block, index) => {
+              {previewTemplate.isSaved && previewTemplate.content.map((el, index) => {
+                // Saved rows hold canvas elements: text lives in `content`,
+                // styling in flat props rather than a `style` object.
+                const style = {
+                  fontSize:   el.fontSize,
+                  color:      el.color,
+                  fontFamily: el.fontFamily,
+                  fontWeight: el.fontWeight,
+                  textAlign:  el.textAlign,
+                  fontStyle:  el.fontStyle,
+                  backgroundColor: el.backgroundColor === "transparent" ? undefined : el.backgroundColor,
+                  whiteSpace: "pre-line",
+                };
+                if (el.type === "heading")    return <h2 key={index} style={style}>{el.content}</h2>;
+                if (el.type === "subheading") return <h3 key={index} style={style}>{el.content}</h3>;
+                if (el.type === "paragraph" || el.type === "blockquote")
+                  return <p key={index} style={style} dangerouslySetInnerHTML={{ __html: el.content || "" }} />;
+                if (el.type === "button")
+                  return (
+                    <button key={index} style={{ ...style, padding: "12px 26px", borderRadius: el.borderRadius || 8, border: "none" }}>
+                      {el.content}
+                    </button>
+                  );
+                if (el.type === "image")
+                  return <img key={index} src={el.src} alt="" className="rounded-lg max-w-full" />;
+                if (el.type === "line")
+                  return <hr key={index} style={{ borderColor: el.strokeColor || "#e5e7eb" }} />;
+                return null;
+              })}
+
+              {!previewTemplate.isSaved && previewTemplate.content.map((block, index) => {
                 if (block.type === "text") {
                   return (
                     <h3 
@@ -1087,6 +622,12 @@ const handleSelect = (template) => {
                     </button>
                   );
                 }
+                if (block.type === "subheading") {
+                  return <h4 key={index} style={block.style} title="Subheading element">{block.value}</h4>;
+                }
+                if (block.type === "divider") {
+                  return <hr key={index} style={{ borderColor: block.style?.color || "#e5e7eb" }} />;
+                }
                 if (block.type === "image") {
                   return (
                     <img
@@ -1107,7 +648,7 @@ const handleSelect = (template) => {
                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium"
                 title="Use this template in the editor"
               >
-                Use Template
+                {previewTemplate.isSaved ? "Open in Editor" : "Use Template"}
               </button>
             </div>
           </div>

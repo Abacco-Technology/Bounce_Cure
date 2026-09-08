@@ -721,18 +721,35 @@ model SmsRecipient {
 }
 
 model SavedTemplate {
-  id         Int      @id @default(autoincrement())
+  id         Int    @id @default(autoincrement())
   userId     Int
   templateId String
   name       String
-  category   String   @default("Saved")
-  preview    String?
-  content    Json // Store the template elements as JSON
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+
+  // "canvas" = Template Studio design, "text" = Campaign Text Editor markdown.
+  // One table, two kinds — each gallery filters on this.
+  type String @default("canvas")
+
+  category String  @default("Saved")
+  preview  String?
+
+  // canvas → array of canvas elements
+  // text   → the markdown string
+  content Json
+
+  // canvas only
+  canvasBackgroundColor String?
+
+  // text only
+  format  Json? // { fontFamily, fontSize, align, lineHeight, ... }
+  subject String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([userId, templateId])
   @@index([userId])
+  @@index([userId, type])
   @@map("saved_templates")
 }
 

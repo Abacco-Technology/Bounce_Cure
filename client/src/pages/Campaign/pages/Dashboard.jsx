@@ -41,11 +41,12 @@ const Dashboard = () => {
   const [showOptions, setShowOptions] = useState(false);
 
   // Fetch all campaigns
-  const fetchAllCampaigns = async () => {
+  const fetchAllCampaigns = async (signal) => {
     try {
       const token = localStorage.getItem("token") || "demo-token";
       const response = await fetch(`${API_URL}/api/campaigns`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal,
       });
 
       if (!response.ok) {
@@ -61,24 +62,27 @@ const Dashboard = () => {
         setAllCampaigns([]);
       }
     } catch (err) {
+      if (err.name === "AbortError") return;   // component unmounted, not a failure
       console.error("Error fetching all campaigns:", err);
       setAllCampaigns([]);
     }
   };
 
   // Fetch analytics data (Total Sent, Campaigns, Recent Campaigns)
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = async (signal) => {
     try {
       const token = localStorage.getItem("token");
       const [summaryRes, campaignsRes] = await Promise.all([
         fetch(`${API_URL}/api/analytics/sendgrid/summary`, {
           headers: { Authorization: `Bearer ${token}` },
+          signal,
         }),
         fetch(`${API_URL}/api/analytics/sendgrid/campaigns`, {
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
+          signal,
         }),
       ]);
 
@@ -92,98 +96,58 @@ const Dashboard = () => {
         setCampaigns([]);
       }
     } catch (err) {
+      if (err.name === "AbortError") return;
       console.error("Error fetching analytics data:", err);
       setError("Failed to fetch analytics data");
     }
   };
 
 
-  // ✅ Unified Automation Data Fetch (Scheduled Campaigns + Stats + Logs)
-  const fetchAutomationData = async () => {
-    try {
-      const token = localStorage.getItem("token") || "demo-token";
+  // Automation data — the four endpoints are independent, so they run in
+  // parallel. Previously each was awaited in turn, making this block cost the
+  // sum of four round trips instead of the slowest one.
+  const fetchAutomationData = async (signal) => {
+    const token = localStorage.getItem("token") || "demo-token";
+    const opts = { headers: { Authorization: `Bearer ${token}` }, signal };
 
-      // --- Fetch stats (optional summary data) ---
-      const statsRes = await fetch(`${API_URL}/api/automation/stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const [stats, scheduled, logs, verification] = await Promise.allSettled([
+      fetch(`${API_URL}/api/automation/stats`, opts),
+      fetch(`${API_URL}/api/automation-logs/scheduled`, opts),
+      fetch(`${API_URL}/api/automation/logs`, opts),
+      fetch(`${API_URL}/api/automation/sender/verification`, opts),
+    ]);
 
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setAutomationStats(statsData);
-      } else {
-        console.warn("⚠️ Failed to fetch automation stats:", statsRes.status);
-      }
+    if (signal?.aborted) return;
 
-      // --- Fetch scheduled campaigns ---
-      const scheduledRes = await fetch(`${API_URL}/api/automation-logs/scheduled`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    // Each section updates on its own — one failing endpoint no longer
+    // stops the other three from rendering.
+    if (stats.status === "fulfilled" && stats.value.ok) {
+      try { setAutomationStats(await stats.value.json()); } catch { /* bad JSON */ }
+    }
 
-      if (scheduledRes.ok) {
-        const scheduledData = await scheduledRes.json();
-
-        // ✅ Consistent with Automation.jsx (backend returns array directly)
-        const scheduledList = Array.isArray(scheduledData)
-          ? scheduledData
-          : scheduledData?.data || [];
-
-        setScheduledCampaigns(scheduledList);
-
-        // --- Derive metrics ---
-        const scheduledCount = scheduledList.filter(
-          (c) => c.status === "scheduled"
-        ).length;
-
-        const totalRecipients = scheduledList.reduce(
-          (sum, c) => sum + (c.recipients || c.sentCount || 0),
-          0
-        );
-
+    if (scheduled.status === "fulfilled" && scheduled.value.ok) {
+      try {
+        const data = await scheduled.value.json();
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setScheduledCampaigns(list);
         setAutomationStats((prev) => ({
           ...prev,
-          scheduled: scheduledCount,
-          totalRecipients,
+          scheduled: list.filter((c) => c.status === "scheduled").length,
+          totalRecipients: list.reduce((sum, c) => sum + (c.recipients || c.sentCount || 0), 0),
         }));
-      } else {
-        console.error("❌ Failed to fetch scheduled campaigns:", scheduledRes.status);
-        setScheduledCampaigns([]);
-      }
-
-      // --- Fetch automation logs (optional) ---
-      const logsRes = await fetch(`${API_URL}/api/automation/logs`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (logsRes.ok) {
-        const logsData = await logsRes.json();
-        setAutomationLogs(logsData);
-      } else {
-        console.warn("⚠️ Failed to fetch automation logs:", logsRes.status);
-      }
-
-      // --- Check sender verification ---
-      const verificationRes = await fetch(`${API_URL}/api/automation/sender/verification`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (verificationRes.ok) {
-        const verificationData = await verificationRes.json();
-        setSenderVerified(verificationData.verified);
-      } else {
-        console.warn("⚠️ Sender verification fetch failed:", verificationRes.status);
-      }
-
-    } catch (err) {
-      console.error("❌ Error fetching automation data:", err);
-      setError("Failed to fetch automation data");
+      } catch { setScheduledCampaigns([]); }
+    } else if (scheduled.status === "fulfilled") {
       setScheduledCampaigns([]);
-      setAutomationLogs([]);
+    }
+
+    if (logs.status === "fulfilled" && logs.value.ok) {
+      try { setAutomationLogs(await logs.value.json()); } catch { /* bad JSON */ }
+    }
+
+    if (verification.status === "fulfilled" && verification.value.ok) {
+      try { setSenderVerified((await verification.value.json()).verified); } catch { /* bad JSON */ }
     }
   };
-
-
-
 
   // Handle campaign actions
   const handleCampaignAction = async (campaignId, action) => {
@@ -209,33 +173,40 @@ const Dashboard = () => {
 
   // Initialize data
   useEffect(() => {
+    const controller = new AbortController();
+    const { signal } = controller;
+
     const fetchData = async () => {
-      setLoading(true);
       setError(null);
-      try {
-        await Promise.all([
-          fetchAnalyticsData(),
-          fetchAutomationData(),
-          fetchAllCampaigns()
-        ]);
-      } catch (err) {
-        console.error("Error fetching data:", err);
+      // allSettled, not all: a single failing endpoint used to reject the whole
+      // batch and leave the page on the spinner with nothing rendered.
+      const results = await Promise.allSettled([
+        fetchAnalyticsData(signal),
+        fetchAutomationData(signal),
+        fetchAllCampaigns(signal),
+      ]);
+      if (signal.aborted) return;
+      if (results.every((r) => r.status === "rejected")) {
         setError("Failed to load dashboard data");
-      } finally {
-        setLoading(false);
       }
+      setLoading(false);
     };
 
     fetchData();
 
-    // Set up periodic refresh every 30 seconds
+    // Background refresh. Skipped while the tab is hidden — otherwise every
+    // open dashboard tab kept polling seven endpoints forever.
     const interval = setInterval(() => {
-      fetchAnalyticsData();
-      fetchAutomationData();
-      fetchAllCampaigns();
-    }, 30000);
+      if (document.visibilityState !== "visible") return;
+      fetchAnalyticsData(signal);
+      fetchAutomationData(signal);
+      fetchAllCampaigns(signal);
+    }, 60000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      controller.abort();   // stop in-flight requests + setState after unmount
+    };
   }, []);
 
   const safeCampaigns = Array.isArray(campaigns) ? campaigns : [];
@@ -318,13 +289,6 @@ const totalScheduledMails = scheduledCampaigns
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-black">
-        <RefreshCw className="animate-spin text-[#e2971f]" size={32} />
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -341,14 +305,19 @@ const totalScheduledMails = scheduledCampaigns
           {/* Refresh Button */}
           <div className="flex space-x-3 cursor-pointer z-50">
             <button
-              onClick={() => {
-                fetchAnalyticsData();
-                fetchAutomationData();
-                fetchAllCampaigns();
+              onClick={async () => {
+                setLoading(true);
+                await Promise.allSettled([
+                  fetchAnalyticsData(),
+                  fetchAutomationData(),
+                  fetchAllCampaigns(),
+                ]);
+                setLoading(false);
               }}
               className="flex items-center justify-center w-10 h-10 rounded-lg border border-gray-500 text-[#e2971f] hover:text-white hover:border-yellow-500 transition"
+              title="Refresh dashboard data"
             >
-              <RefreshCw className="w-6 h-6" />
+              <RefreshCw className={`w-6 h-6 ${loading ? "animate-spin" : ""}`} />
             </button>
           </div>
 
@@ -544,7 +513,11 @@ const totalScheduledMails = scheduledCampaigns
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <h3 className="text-sm text-gray-400 mb-1">{stat.title}</h3>
-                      <p className="text-3xl font-bold text-white">{stat.value}</p>
+                      {loading ? (
+                        <div className="h-9 w-20 rounded bg-gray-800 animate-pulse" />
+                      ) : (
+                        <p className="text-3xl font-bold text-white">{stat.value}</p>
+                      )}
                       
                     </div>
                     <div className={`p-3 rounded-full ${stat.color} bg-opacity-20`}>{stat.icon}</div>
@@ -599,7 +572,13 @@ const totalScheduledMails = scheduledCampaigns
                   <Calendar className="text-purple-400" size={20} />
                 </div>
                 <div className="space-y-3 max-h-80 overflow-y-auto">
-                  {recentScheduledCampaigns.length > 0 ? (
+                  {loading && recentScheduledCampaigns.length === 0 ? (
+                    <div className="space-y-3">
+                      {[0, 1, 2].map((i) => (
+                        <div key={i} className="h-20 rounded-lg bg-gray-900 animate-pulse" />
+                      ))}
+                    </div>
+                  ) : recentScheduledCampaigns.length > 0 ? (
                     recentScheduledCampaigns.map((campaign) => (
                       <div key={campaign.id} className="p-4 bg-gray-900 rounded-lg hover:bg-gray-800 transition-colors border border-gray-800">
                         <div className="flex items-center justify-between mb-2">
@@ -668,7 +647,13 @@ const totalScheduledMails = scheduledCampaigns
             </div>
 
             <div className="space-y-3">
-              {filteredCampaigns.length > 0 ? (
+              {loading && filteredCampaigns.length === 0 ? (
+                <div className="space-y-3">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="h-20 rounded-lg bg-gray-900 animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredCampaigns.length > 0 ? (
                 filteredCampaigns.map((campaign) => (
                   <div key={campaign.id} className="p-4 bg-gray-900 border border-gray-800 rounded-lg hover:bg-gray-800 transition-colors">
                     <div className="flex items-center justify-between">

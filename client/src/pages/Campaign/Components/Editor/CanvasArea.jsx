@@ -288,7 +288,7 @@ export default function CanvasArea({
                 height: canvasH  * zoom,
                 background: bgColor,
                 borderRadius: 8,
-                boxShadow:`0 8px 48px rgba(0,0,0,.7), 0 0 0 1px ${T.border}`,
+                boxShadow:`0 8px 48px ${T.canvasEdge}, 0 0 0 1px ${T.border}`,
                 overflow:"hidden",
                 cursor: dragging ? "grabbing" : resizing ? "crosshair" : "default",
                 userSelect:"none",
@@ -298,7 +298,7 @@ export default function CanvasArea({
               {showGrid && (
                 <div style={{
                   position:"absolute", inset:0, pointerEvents:"none", zIndex:0,
-                  backgroundImage:`linear-gradient(${T.goldDim}22 1px,transparent 1px),linear-gradient(90deg,${T.goldDim}22 1px,transparent 1px)`,
+                  backgroundImage:`linear-gradient(${T.grid} 1px,transparent 1px),linear-gradient(90deg,${T.grid} 1px,transparent 1px)`,
                   backgroundSize:`${20*zoom}px ${20*zoom}px`,
                 }}/>
               )}
@@ -432,7 +432,7 @@ function HeightGrip({ onMouseDown, active }) {
         cursor:      "ns-resize",
         display:"flex", alignItems:"center", justifyContent:"center",
         fontSize:13, color:active||hov ? T.bg : T.gold,
-        boxShadow:   active ? `0 0 14px ${T.gold}88` : "0 2px 8px rgba(0,0,0,.6)",
+        boxShadow:   active ? `0 0 14px ${T.gold}88` : `0 2px 8px ${T.canvasEdge}`,
         transition:  "all .15s",
         userSelect:  "none",
         zIndex:20,
@@ -477,7 +477,7 @@ function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onM
             width:10, height:10,
             background:T.gold, border:`2px solid ${T.bg}`,
             borderRadius:2, cursor:h.cursor, zIndex:10,
-            boxShadow:"0 1px 4px rgba(0,0,0,.7)",
+            boxShadow:`0 1px 4px ${T.canvasEdge}`,
           }}
         />
       ))}
@@ -495,7 +495,7 @@ function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onM
             background:T.panel, color:T.gold,
             border:`1px solid ${T.gold}`, borderRadius:5,
             fontSize:11, cursor:"pointer", zIndex:16,
-            boxShadow:"0 2px 8px rgba(0,0,0,.6)",
+            boxShadow:`0 2px 8px ${T.canvasEdge}`,
           }}
           onMouseOver={e => { e.currentTarget.style.background = T.gold; e.currentTarget.style.color = T.bg; }}
           onMouseOut={e  => { e.currentTarget.style.background = T.panel; e.currentTarget.style.color = T.gold; }}
@@ -816,7 +816,7 @@ function InlineRichEditor({ el, initialHtml, onCommit, onAutoGrow }) {
           display:"flex", alignItems:"center", gap:4,
           background:T.panel, border:`1px solid ${T.goldDim}`,
           borderRadius:6, padding:"4px 5px", zIndex:30,
-          boxShadow:"0 4px 16px rgba(0,0,0,.6)", whiteSpace:"nowrap",
+          boxShadow:`0 4px 16px ${T.canvasEdge}`, whiteSpace:"nowrap",
         }}
       >
         <button style={{ ...btn(active.bold),   fontWeight:700 }}                 onClick={() => exec("bold")}   title="Bold (Ctrl+B)">B</button>
@@ -919,7 +919,7 @@ function ContextMenu({ x, y, onDuplicate, onDelete, onForward, onBackward, onClo
   return (
     <>
       <div style={{ position:"fixed", inset:0, zIndex:9998 }} onClick={onClose}/>
-      <div style={{ position:"fixed", left:x, top:y, zIndex:9999, background:T.panel, border:`1px solid ${T.gold}44`, borderRadius:9, boxShadow:"0 8px 32px rgba(0,0,0,.8)", padding:"6px 0", minWidth:174 }}>
+      <div style={{ position:"fixed", left:x, top:y, zIndex:9999, background:T.panel, border:`1px solid ${T.gold}44`, borderRadius:9, boxShadow:`0 8px 32px ${T.canvasEdge}`, padding:"6px 0", minWidth:174 }}>
         {[
           { label:"⎘  Duplicate",     fn:onDuplicate },
           { label:"↑  Bring Forward", fn:onForward },

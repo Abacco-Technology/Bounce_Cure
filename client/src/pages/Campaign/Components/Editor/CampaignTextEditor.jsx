@@ -1,11 +1,13 @@
-// client/src/pages/Campaign/pages/CampaignTextEditor.jsx
+// client/src/pages/Campaign/components/editor/CampaignTextEditor.jsx
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Quote, Minus,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  List, ListOrdered, Link, Send, Eye, LogOut,
+  List, ListOrdered, Link, Send, Eye, LogOut, Save,
 } from 'lucide-react';
+import SaveTemplateModal from './SaveTemplate';
+import { TEMPLATE_TYPES } from '../../pages/savedTemplateService';
 import {
   renderMarkdown, formatToStyle, lineListKind, stripMarker, LIST_MARKERS, toRoman,
 } from '../../pages/campaignMarkdown';
@@ -32,6 +34,8 @@ export default function CampaignTextEditor() {
   const [content, setContent] = useState(tpl?.content || '');
   const [subject, setSubject] = useState(tpl?.subject || 'Your Campaign Subject');
   const [showPreview, setShowPreview] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [savedNotice, setSavedNotice] = useState('');
 
   // Paragraph-level styles applied to the whole message
   const [format, setFormat] = useState({
@@ -363,6 +367,14 @@ const [showExitModal, setShowExitModal] = useState(false);
             <TBtn onClick={() => setF('align','justify')} active={format.align==='justify'} title="Justify"><AlignJustify size={16}/></TBtn>
 
             <div className="flex-1"></div>
+            <button
+              onClick={() => setShowSaveModal(true)}
+              disabled={!content.trim()}
+              title="Save this as a reusable text template"
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Save size={18}/> Save Template
+            </button>
             <button onClick={() => setShowPreview(!showPreview)} className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded text-sm">
               <Eye size={18}/> {showPreview ? 'Hide Preview' : 'Show Preview'}
             </button>
@@ -405,6 +417,27 @@ const [showExitModal, setShowExitModal] = useState(false);
           </button>
         </div>
       </div>
+
+      {showSaveModal && (
+        <SaveTemplateModal
+          type={TEMPLATE_TYPES.TEXT}
+          content={content}
+          format={format}
+          subject={subject}
+          defaultName={tpl?.name || subject}
+          onClose={() => setShowSaveModal(false)}
+          onSaved={(row) => {
+            setSavedNotice(`Saved "${row.name}"`);
+            setTimeout(() => setSavedNotice(''), 3000);
+          }}
+        />
+      )}
+
+      {savedNotice && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-5 py-2.5 rounded-lg bg-[#c2831f] text-black font-semibold text-sm shadow-xl">
+          {savedNotice}
+        </div>
+      )}
 
       {/* Email Preview */}
       {showPreview && (

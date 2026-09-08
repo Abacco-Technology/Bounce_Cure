@@ -3,111 +3,147 @@ import { prisma } from "../prisma/prismaClient.js";
 
 const router = express.Router();
 
-// -------------------- SAVE TEMPLATE --------------------
-// -------------------- SAVE TEMPLATE --------------------
+/* One table serves both galleries. `type` is the discriminator:
+     "canvas" → Template Studio designs  (content = array of canvas elements)
+     "text"   → Text Editor campaigns    (content = markdown string)
+   Every read filters on it, so neither gallery shows the other's rows. */
+const TYPES = ["canvas", "text"];
+const normType = (t) => (TYPES.includes(t) ? t : "canvas");
+
+/** Shape a row for the client, omitting fields the other type doesn't use. */
+const present = (row) => ({
+  id:         row.id,
+  templateId: row.templateId,
+  name:       row.name,
+  type:       row.type,
+  category:   row.category,
+  preview:    row.preview || "",
+  content:    row.content,
+  createdAt:  row.createdAt,
+  updatedAt:  row.updatedAt,
+  ...(row.type === "text"
+    ? { format: row.format || null, subject: row.subject || "" }
+    : { canvasBackgroundColor: row.canvasBackgroundColor || "#ffffff" }),
+});
+
+// -------------------- SAVE (create or overwrite) --------------------
 router.post("/save", async (req, res) => {
-  console.log("=== SAVE TEMPLATE REQUEST ===");
-  console.log("Request body:", JSON.stringify(req.body, null, 2));
-
   try {
-    const { userId, templateId, name, category, preview, content } = req.body;
+    const {
+      userId, templateId, name, category, preview, content,
+      type, format, subject, canvasBackgroundColor,
+    } = req.body;
 
-    // Validation
-    if (!userId || !templateId || !name || !content) {
-      console.error("Missing required fields:", { userId, templateId, name, hasContent: !!content });
-      return res.status(400).json({ 
+    if (!userId || !templateId || !name || content === undefined || content === null) {
+      return res.status(400).json({
         error: "Missing required fields",
-        received: { userId, templateId, name, hasContent: !!content }
+        received: { userId, templateId, name, hasContent: content !== undefined },
       });
     }
 
-    // Check if template already exists
+    const kind = normType(type);
+
+    // Content must match the declared type, or a text template lands in the
+    // canvas gallery and breaks the element renderer.
+    if (kind === "canvas" && !Array.isArray(content)) {
+      return res.status(400).json({ error: "Canvas templates require content to be an array of elements" });
+    }
+    if (kind === "text" && typeof content !== "string") {
+      return res.status(400).json({ error: "Text templates require content to be a markdown string" });
+    }
+
+    const data = {
+      name,
+      type: kind,
+      category: category || "Saved",
+      preview: preview || "",
+      content,
+      canvasBackgroundColor: kind === "canvas" ? (canvasBackgroundColor || "#ffffff") : null,
+      format:  kind === "text" ? (format || null) : null,
+      subject: kind === "text" ? (subject || "") : null,
+    };
+
     const existing = await prisma.savedTemplate.findFirst({
-      where: {
-        userId: Number(userId),
-        templateId: templateId
-      }
+      where: { userId: Number(userId), templateId },
     });
 
     if (existing) {
-      console.log("Template already exists, updating instead");
-      const updated = await prisma.savedTemplate.update({
-        where: { id: existing.id },
-        data: {
-          name,
-          category: category || "Saved",
-          preview: preview || "",
-          content
-        }
-      });
-      console.log("Template updated successfully:", updated.id);
-      return res.status(200).json(updated);
+      const updated = await prisma.savedTemplate.update({ where: { id: existing.id }, data });
+      return res.status(200).json(present(updated));
     }
 
-    // Create new template
     const saved = await prisma.savedTemplate.create({
-      data: {
-        userId: Number(userId),
-        templateId,
-        name,
-        category: category || "Saved",
-        preview: preview || "",
-        content
-      }
+      data: { userId: Number(userId), templateId, ...data },
     });
-
-    console.log("Template saved successfully:", saved.id);
-    res.status(200).json(saved);
+    res.status(201).json(present(saved));
   } catch (err) {
-    console.error("BACKEND SAVE ERROR:", err);
+    console.error("SAVE TEMPLATE ERROR:", err);
     res.status(500).json({ error: err.message });
   }
 });
 
-// -------------------- GET ALL USER SAVED TEMPLATES --------------------
+// -------------------- LIST --------------------
+// GET /api/saved-templates/:userId?type=text   (omit type → canvas)
+// GET /api/saved-templates/:userId?type=all    (both kinds)
 router.get("/:userId", async (req, res) => {
   try {
+    const { type } = req.query;
+    const where = { userId: Number(req.params.userId) };
+    if (type !== "all") where.type = normType(type);
+
     const saved = await prisma.savedTemplate.findMany({
-      where: { userId: Number(req.params.userId) },
+      where,
+      orderBy: { updatedAt: "desc" },
     });
-    res.json(saved);
+    res.json(saved.map(present));
   } catch (error) {
-    console.log(error);
+    console.error("FETCH TEMPLATES ERROR:", error);
     res.status(500).json({ error: "Failed to fetch saved templates" });
   }
 });
 
-// -------------------- DELETE SAVED TEMPLATE --------------------
+// -------------------- DELETE --------------------
 router.delete("/:userId/:templateId", async (req, res) => {
   try {
-    await prisma.savedTemplate.deleteMany({
-      where: {
-        userId: Number(req.params.userId),
-        templateId: req.params.templateId
-      }
+    const result = await prisma.savedTemplate.deleteMany({
+      where: { userId: Number(req.params.userId), templateId: req.params.templateId },
     });
+    if (!result.count) return res.status(404).json({ error: "Template not found" });
     res.json({ message: "Deleted successfully" });
   } catch (error) {
-    console.log(error);
+    console.error("DELETE TEMPLATE ERROR:", error);
     res.status(500).json({ error: "Failed to delete saved template" });
   }
 });
 
-// UPDATE EXISTING TEMPLATE
+// -------------------- RENAME / PARTIAL UPDATE --------------------
 router.put("/update", async (req, res) => {
   try {
-    const { userId, templateId, name, content } = req.body;
+    const { userId, templateId, name, content, category, subject, format } = req.body;
+    if (!userId || !templateId) {
+      return res.status(400).json({ error: "userId and templateId are required" });
+    }
+
+    // Only touch supplied fields — a rename must not blank the content
+    const data = {};
+    if (name     !== undefined) data.name = name;
+    if (content  !== undefined) data.content = content;
+    if (category !== undefined) data.category = category;
+    if (subject  !== undefined) data.subject = subject;
+    if (format   !== undefined) data.format = format;
+
+    if (!Object.keys(data).length) return res.status(400).json({ error: "Nothing to update" });
 
     const updated = await prisma.savedTemplate.updateMany({
       where: { userId: Number(userId), templateId },
-      data: { name, content }
+      data,
     });
-
-    res.json({ message: "Updated", updated });
+    if (!updated.count) return res.status(404).json({ error: "Template not found" });
+    res.json({ message: "Updated", count: updated.count });
   } catch (err) {
+    console.error("UPDATE TEMPLATE ERROR:", err);
     res.status(500).json({ error: "Update failed" });
   }
 });
-
 
 export default router;

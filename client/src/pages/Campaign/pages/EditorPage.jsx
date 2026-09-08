@@ -9,23 +9,61 @@ import ToolsPanel     from "./../Components/Editor/Toolbox";
 import CanvasArea     from "../Components/Editor/CanvasArea";
 import PropertiesPanel from "../Components/Editor/PropertiesPanel";
 import SaveTemplateModal from "../Components/Editor/SaveTemplate";
+import { TEMPLATE_TYPES } from "./savedTemplateService";
 
 // ── Design tokens ──────────────────────────────────────────────────────────────
-export const T = {
-  bg:       "#0A0A0A",
-  surface:  "#111111",
-  panel:    "#161616",
-  border:   "#2A2200",
-  gold:     "#C9A84C",
-  goldBright:"#F0C040",
-  goldDim:  "#7A6020",
-  muted:    "#5A5040",
-  txt:      "#E8D8A0",
-  txtDim:   "#8A7850",
-  white:    "#F5EDD0",
-  danger:   "#C04020",
-  success:  "#40A060",
+/* ── Editor themes ──────────────────────────────────────────────────────────
+   `T` is a live object: switching mode rewrites its keys in place, so every
+   `style={{ color: T.gold }}` in the editor picks up the new palette on the
+   next render without threading a context through ~300 call sites.
+   Only Template Studio uses it — leaving the editor restores dark.          */
+export const THEMES = {
+  dark: {
+    bg:        "#0A0A0A",
+    surface:   "#111111",
+    panel:     "#161616",
+    border:    "#2A2200",
+    gold:      "#C9A84C",
+    goldBright:"#F0C040",
+    goldDim:   "#7A6020",
+    muted:     "#5A5040",
+    txt:       "#E8D8A0",
+    txtDim:    "#8A7850",
+    white:     "#F5EDD0",
+    danger:    "#C04020",
+    success:   "#40A060",
+    canvasEdge:"rgba(0,0,0,.55)",
+    grid:      "rgba(122,96,32,.22)",   // grid lines over the white page
+  },
+  light: {
+    bg:        "#EFEBE1",   // workspace behind the page
+    surface:   "#FFFFFF",
+    panel:     "#F7F3E9",
+    border:    "#D9CFB6",
+    gold:      "#8A6D14",   // darkened so gold-on-white stays legible
+    goldBright:"#A8841C",
+    goldDim:   "#C4B183",
+    muted:     "#8A8171",
+    txt:       "#2A241A",
+    txtDim:    "#6B6255",
+    white:     "#1A160E",
+    danger:    "#B03A22",
+    success:   "#2E7D4F",
+    canvasEdge:"rgba(0,0,0,.18)",
+    grid:      "rgba(60,50,20,.16)",
+  },
 };
+
+export const T = { ...THEMES.dark };
+
+export const THEME_KEY = "editorTheme";
+
+/** Swap the live palette. Returns the mode applied. */
+export function applyEditorTheme(mode) {
+  const next = THEMES[mode] ? mode : "dark";
+  Object.assign(T, THEMES[next]);
+  return next;
+}
 
 // ── Element factory ────────────────────────────────────────────────────────────
 export function makeEl(type, opts = {}) {
@@ -75,6 +113,22 @@ export default function TemplateEditorPage() {
   const [redoStack,   setRedoStack]   = useState([]);
   const [toast,       setToast]       = useState(null);
   const [showExit,    setShowExit]    = useState(false);
+
+  const [themeMode, setThemeMode] = useState(() => {
+    const saved = typeof localStorage !== "undefined" ? localStorage.getItem(THEME_KEY) : null;
+    return applyEditorTheme(saved || "dark");
+  });
+
+  const toggleTheme = () => {
+    setThemeMode(prev => {
+      const next = applyEditorTheme(prev === "dark" ? "light" : "dark");
+      try { localStorage.setItem(THEME_KEY, next); } catch { /* private mode */ }
+      return next;
+    });
+  };
+
+  // Template Studio only — every other page keeps the dark palette
+  useEffect(() => () => { applyEditorTheme("dark"); }, []);
   const [leftTab,     setLeftTab]     = useState("elements"); // "elements"|"photos"|"colors"
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [propOpen,    setPropOpen]    = useState(true);
@@ -340,6 +394,12 @@ navigate("/send-campaign", {
           {/* Panel toggles */}
           <TBtn title="Toggle Tools" active={sidebarOpen} onClick={()=>setSidebarOpen(s=>!s)} style={{fontSize:11}}>☰</TBtn>
           <TBtn title="Toggle Properties" active={propOpen} onClick={()=>setPropOpen(p=>!p)} style={{fontSize:11}}>⚙</TBtn>
+          <Sep/>
+          <TBtn
+            title={themeMode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={toggleTheme}
+            style={{ fontSize:13 }}
+          >{themeMode === "dark" ? "☀" : "☾"}</TBtn>
         </div>
 
         {/* Right */}
@@ -368,10 +428,12 @@ navigate("/send-campaign", {
         {showSaveModal && (
         // CORRECT ✅
         <SaveTemplateModal
-          userId={userId}
-          canvasData={pages[activePage]?.elements}
+          type={TEMPLATE_TYPES.CANVAS}
+          content={pages[activePage]?.elements}
           canvasBackground={pages[activePage]?.bgColor}
+          defaultName={template?.name || ""}
           onClose={() => setShowSaveModal(false)}
+          onSaved={(row) => showToast(`Saved "${row.name}"`)}
         />
         )}
       </nav>
@@ -477,10 +539,27 @@ export function PRow({ label, children }) {
   );
 }
 export const inputStyle = {
-  width:"100%", padding:"7px 10px", borderRadius:7,
-  border:`1px solid ${T.border}`, background:T.surface,
-  fontSize:13, color:T.txt, outline:"none",
+  width:"100%", padding:"7px 10px", borderRadius:7, fontSize:13, outline:"none",
+  get border()     { return `1px solid ${T.border}`; },
+  get background() { return T.surface; },
+  get color()      { return T.txt; },
 };
-export const selectStyle = { ...{ width:"100%", padding:"7px 10px", borderRadius:7, border:`1px solid ${T.border}`, background:T.surface, fontSize:13, color:T.txt, outline:"none" } };
-const primaryBtn = { padding:"7px 18px", borderRadius:7, border:`1px solid ${T.gold}`, background:`linear-gradient(135deg,${T.gold},${T.goldDim})`, color:T.bg, fontWeight:700, cursor:"pointer", fontSize:13, fontFamily:"inherit" };
-const outlineBtn = { padding:"7px 14px", borderRadius:7, border:`1px solid ${T.border}`, background:"transparent", color:T.txtDim, cursor:"pointer", fontSize:13, fontFamily:"inherit" };
+export const selectStyle = {
+  width:"100%", padding:"7px 10px", borderRadius:7, fontSize:13, outline:"none",
+  get border()     { return `1px solid ${T.border}`; },
+  get background() { return T.surface; },
+  get color()      { return T.txt; },
+};
+const primaryBtn = {
+  padding:"7px 18px", borderRadius:7, fontWeight:700, cursor:"pointer",
+  fontSize:13, fontFamily:"inherit",
+  get border()     { return `1px solid ${T.gold}`; },
+  get background() { return `linear-gradient(135deg,${T.gold},${T.goldDim})`; },
+  get color()      { return T.bg; },
+};
+const outlineBtn = {
+  padding:"7px 14px", borderRadius:7, background:"transparent",
+  cursor:"pointer", fontSize:13, fontFamily:"inherit",
+  get border() { return `1px solid ${T.border}`; },
+  get color()  { return T.txtDim; },
+};
