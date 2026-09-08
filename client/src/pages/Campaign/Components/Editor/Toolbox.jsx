@@ -83,7 +83,19 @@ const CARD_TEMPLATES = [
       { id:crypto.randomUUID(), type:"button", x:x+14, y:y+140, width:140, height:40, content:"Shop Now", fontSize:14, fontWeight:"700", color:"#0A0A0A", backgroundColor:"#C9A84C", borderRadius:6, fontFamily:"'Trebuchet MS'", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+5 },
     ],
   },
-   
+  {
+    id:"feature-card",
+    label:"Feature / Icon Card",
+    icon:"⚡",
+    hint:"Icon + feature name + description",
+    build:(x,y)=>[
+      { id:crypto.randomUUID(), type:"rectangle", x, y, width:260, height:200, backgroundColor:"#161616", borderRadius:10, borderColor:"#2A2200", borderWidth:1, zIndex:Date.now()+1 },
+      { id:crypto.randomUUID(), type:"circle", x:x+14, y:y+18, width:52, height:52, backgroundColor:"#C9A84C22", zIndex:Date.now()+2 },
+      { id:crypto.randomUUID(), type:"emoji-icon", x:x+25, y:y+29, width:30, height:30, emoji:"⚡", fontSize:20, zIndex:Date.now()+3 },
+      { id:crypto.randomUUID(), type:"heading", x:x+76, y:y+22, width:172, height:40, content:"Feature Name", fontSize:18, fontWeight:"700", color:"#F0C040", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", rotation:0, opacity:1, zIndex:Date.now()+4 },
+      { id:crypto.randomUUID(), type:"paragraph", x:x+14, y:y+86, width:232, height:96, content:"Describe this feature here. Explain the key benefit to the user in 2–3 sentences.", fontSize:13, color:"#C8B880", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.6, rotation:0, opacity:1, zIndex:Date.now()+5 },
+    ],
+  },
   {
     id:"testimonial-card",
     label:"Testimonial Card",
@@ -92,7 +104,7 @@ const CARD_TEMPLATES = [
     build:(x,y)=>[
       { id:crypto.randomUUID(), type:"rectangle", x, y, width:280, height:200, backgroundColor:"#111111", borderRadius:10, borderColor:"#C9A84C44", borderWidth:1, zIndex:Date.now()+1 },
       { id:crypto.randomUUID(), type:"blockquote", x:x+14, y:y+18, width:252, height:80, content:'"This product completely changed how I work. Highly recommended!"', fontSize:14, fontWeight:"normal", fontStyle:"italic", color:"#E8D8A0", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", lineHeight:1.6, rotation:0, opacity:1, zIndex:Date.now()+2 },
-      // { id:crypto.randomUUID(), type:"circle", x:x+116, y:y+108, width:40, height:40, backgroundColor:"#7A6020", zIndex:Date.now()+3 },
+      { id:crypto.randomUUID(), type:"circle", x:x+116, y:y+108, width:40, height:40, backgroundColor:"#7A6020", zIndex:Date.now()+3 },
       { id:crypto.randomUUID(), type:"heading", x:x+14, y:y+158, width:252, height:30, content:"— Jane Doe, CEO", fontSize:13, fontWeight:"600", color:"#C9A84C", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+4 },
     ],
   },
@@ -110,8 +122,210 @@ const CARD_TEMPLATES = [
       { id:crypto.randomUUID(), type:"button", x:x+320, y:y+94, width:130, height:36, content:"Learn More", fontSize:13, fontWeight:"600", color:"#C9A84C", backgroundColor:"transparent", borderRadius:6, borderColor:"#C9A84C", borderWidth:1, fontFamily:"'Trebuchet MS'", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+5 },
     ],
   },
+  {
+    id:"why-choose-card",
+    label:"Why Choose Card",
+    icon:"✅",
+    hint:"Title + bullet features on left, product image on right (grid bg)",
+    build:(x,y)=>{
+      const gId = crypto.randomUUID();
+      return [
+      // Card solid background base
+      { id:crypto.randomUUID(), groupId:gId, type:"rectangle", x, y, width:560, height:340, backgroundColor:"#F5F0E8", borderRadius:14, borderColor:"#D4C8A0", borderWidth:1, zIndex:Date.now()+1 },
+      // Grid pattern overlay
+      { id:crypto.randomUUID(), groupId:gId, type:"rectangle", x, y, width:560, height:340, backgroundColor:"transparent", backgroundImage:"repeating-linear-gradient(#C8BC9033 1px,transparent 1px),repeating-linear-gradient(90deg,#C8BC9033 1px,transparent 1px)", backgroundSize:"28px 28px", borderRadius:14, borderWidth:0, zIndex:Date.now()+2 },
+      // Section title — left-aligned
+      { id:crypto.randomUUID(), groupId:gId, type:"heading", x:x+20, y:y+18, width:330, height:42, content:"Why Choose Our Software?", fontSize:20, fontWeight:"800", color:"#1A1200", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", rotation:0, opacity:1, zIndex:Date.now()+3 },
+      // Divider line under title
+      { id:crypto.randomUUID(), groupId:gId, type:"line", x:x+20, y:y+65, width:300, height:2, strokeColor:"#C9A84C", strokeWidth:2, rotation:0, opacity:1, zIndex:Date.now()+4 },
 
- 
+      // Feature 1 — icon circle bg
+      { id:crypto.randomUUID(), groupId:gId, type:"circle", x:x+20, y:y+84, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+5 },
+      // Feature 1 — emoji centered inside circle
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+20, y:y+84, width:36, height:36, content:"⚡", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+6 },
+      // Feature 1 — text
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+64, y:y+84, width:260, height:50, content:"Boost productivity with automations that remove repetitive tasks along with photorealistic 3D views", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+7 },
+
+      // Feature 2 — icon circle bg
+      { id:crypto.randomUUID(), groupId:gId, type:"circle", x:x+20, y:y+150, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+8 },
+      // Feature 2 — emoji
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+20, y:y+150, width:36, height:36, content:"🔒", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+9 },
+      // Feature 2 — text
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+64, y:y+150, width:260, height:44, content:"Cloud Licensing keeps moving workstations a breeze", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+10 },
+
+      // Feature 3 — icon circle bg
+      { id:crypto.randomUUID(), groupId:gId, type:"circle", x:x+20, y:y+212, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+11 },
+      // Feature 3 — emoji
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+20, y:y+212, width:36, height:36, content:"🎯", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+12 },
+      // Feature 3 — text
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:x+64, y:y+212, width:260, height:44, content:"Precision design tools built for professional cabinet makers", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+13 },
+
+      // CTA button
+      { id:crypto.randomUUID(), groupId:gId, type:"button", x:x+20, y:y+280, width:160, height:38, content:"Learn More →", fontSize:13, fontWeight:"700", color:"#0A0A0A", backgroundColor:"#C9A84C", borderRadius:7, fontFamily:"'Trebuchet MS'", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+14 },
+      // Right: Product image
+      { id:crypto.randomUUID(), groupId:gId, type:"image", x:x+340, y:y+70, width:200, height:230, borderRadius:10, objectFit:"cover", src:"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=420&h=440&fit=crop", zIndex:Date.now()+15 },
+      ];
+    },
+  },
+  
+  {
+    id:"profile-card",
+    label:"Profile Card",
+    icon:"👤",
+    hint:"Avatar + name + role + social links",
+    build:(x,y)=>[
+      { id:crypto.randomUUID(), type:"rectangle", x, y, width:240, height:280, backgroundColor:"#161616", borderRadius:12, borderColor:"#C9A84C33", borderWidth:1, zIndex:Date.now()+1 },
+      { id:crypto.randomUUID(), type:"circle", x:x+80, y:y+20, width:80, height:80, backgroundColor:"#C9A84C33", zIndex:Date.now()+2 },
+      { id:crypto.randomUUID(), type:"heading", x:x+20, y:y+116, width:200, height:36, content:"Your Name", fontSize:20, fontWeight:"700", color:"#F0C040", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+3 },
+      { id:crypto.randomUUID(), type:"paragraph", x:x+20, y:y+156, width:200, height:24, content:"Designer / Developer", fontSize:13, color:"#C9A84C", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.4, rotation:0, opacity:1, zIndex:Date.now()+4 },
+      { id:crypto.randomUUID(), type:"line", x:x+40, y:y+192, width:160, height:2, strokeColor:"#2A2200", strokeWidth:2, rotation:0, opacity:1, zIndex:Date.now()+5 },
+      { id:crypto.randomUUID(), type:"paragraph", x:x+20, y:y+204, width:200, height:56, content:"Short bio or description goes here. Click to edit.", fontSize:12, color:"#8A7850", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+6 },
+    ],
+  },
+
+  {
+    id: "email-footer-card",
+    label: "Email Footer",
+    icon: "📧",
+    hint: "Button + unsubscribe + phone/email + social icons + divider",
+    build: (x, y) => {
+      const W = 680;
+      const gId = crypto.randomUUID();
+      const fbSrc = "https://cdn-icons-png.flaticon.com/512/733/733547.png";
+      const twSrc = "https://cdn-icons-png.flaticon.com/512/733/733579.png";
+      const liSrc = "https://cdn-icons-png.flaticon.com/512/145/145807.png";
+      const centerX = x + W / 2;
+      return [
+        // Background card
+        { id: crypto.randomUUID(), groupId: gId, type: "rectangle",
+          x, y, width: W, height: 220,
+          backgroundColor: "radial-gradient(ellipse at center, #3d2817 0%, #1a0f08 50%, #0d0704 100%)",
+          borderRadius: 0, borderWidth: 0,
+          zIndex: Date.now() + 1 },
+        // CTA Button
+        { id: crypto.randomUUID(), groupId: gId, type: "button",
+          x: centerX - 140, y: y + 16, width: 280, height: 44,
+          content: "FIND YOUR VOICE NOW >",
+          fontSize: 14, fontWeight: "700",
+          color: "#ffffff", backgroundColor: "#c2831f",
+          borderRadius: 24,
+          fontFamily: "Arial, sans-serif", textAlign: "center",
+          link: "#", rotation: 0, opacity: 1, zIndex: Date.now() + 2 },
+        // Network text
+        { id: crypto.randomUUID(), groupId: gId, type: "paragraph",
+          x: x + 20, y: y + 72, width: W - 40, height: 24,
+          content: "You are receiving this email because you are part of our professional network.",
+          fontSize: 12, fontWeight: "normal",
+          color: "#d4c9b0", backgroundColor: "transparent",
+          fontFamily: "Arial, sans-serif", textAlign: "center",
+          lineHeight: 1.5, rotation: 0, opacity: 1, zIndex: Date.now() + 3 },
+        // Unsubscribe
+        { id: crypto.randomUUID(), groupId: gId, type: "heading",
+          x: centerX - 60, y: y + 96, width: 120, height: 24,
+          content: "Unsubscribe",
+          fontSize: 13, fontWeight: "700",
+          color: "#c2831f", backgroundColor: "transparent",
+          fontFamily: "Arial, sans-serif", textAlign: "center",
+          rotation: 0, opacity: 1, zIndex: Date.now() + 4 },
+        // Divider line 1
+        { id: crypto.randomUUID(), groupId: gId, type: "line",
+          x: x + 20, y: y + 128, width: W - 40, height: 1,
+          strokeColor: "#3d2e10", strokeWidth: 1,
+          rotation: 0, opacity: 1, zIndex: Date.now() + 5 },
+        // Phone
+        { id: crypto.randomUUID(), groupId: gId, type: "paragraph",
+          x: x + 60, y: y + 136, width: 200, height: 24,
+          content: "📞  301-467-4900",
+          fontSize: 13, fontWeight: "normal",
+          color: "#4da6ff", backgroundColor: "transparent",
+          fontFamily: "Arial, sans-serif", textAlign: "right",
+          lineHeight: 1.4, rotation: 0, opacity: 1, zIndex: Date.now() + 6 },
+        // Pipe separator
+        { id: crypto.randomUUID(), groupId: gId, type: "paragraph",
+          x: centerX - 6, y: y + 136, width: 12, height: 24,
+          content: "|",
+          fontSize: 14, fontWeight: "normal",
+          color: "#6b5a3a", backgroundColor: "transparent",
+          fontFamily: "Arial, sans-serif", textAlign: "center",
+          lineHeight: 1.4, rotation: 0, opacity: 1, zIndex: Date.now() + 7 },
+        // Email
+        { id: crypto.randomUUID(), groupId: gId, type: "paragraph",
+          x: centerX + 10, y: y + 136, width: 240, height: 24,
+          content: "info@producersnandyandy.com",
+          fontSize: 13, fontWeight: "normal",
+          color: "#4da6ff", backgroundColor: "transparent",
+          fontFamily: "Arial, sans-serif", textAlign: "left",
+          lineHeight: 1.4, rotation: 0, opacity: 1, zIndex: Date.now() + 8 },
+        // Facebook
+        { id: crypto.randomUUID(), groupId: gId, type: "social",
+          platform: "Facebook", src: fbSrc,
+          x: centerX - 72, y: y + 168, width: 36, height: 36,
+          link: "#", rotation: 0, opacity: 1, zIndex: Date.now() + 9 },
+        // Twitter
+        { id: crypto.randomUUID(), groupId: gId, type: "social",
+          platform: "Twitter", src: twSrc,
+          x: centerX - 18, y: y + 168, width: 36, height: 36,
+          link: "#", rotation: 0, opacity: 1, zIndex: Date.now() + 10 },
+        // LinkedIn
+        { id: crypto.randomUUID(), groupId: gId, type: "social",
+          platform: "LinkedIn", src: liSrc,
+          x: centerX + 36, y: y + 168, width: 36, height: 36,
+          link: "#", rotation: 0, opacity: 1, zIndex: Date.now() + 11 },
+        // Gold bottom divider
+        { id: crypto.randomUUID(), groupId: gId, type: "line",
+          x: x + 20, y: y + 214, width: W - 40, height: 2,
+          strokeColor: "#c2831f", strokeWidth: 2,
+          rotation: 0, opacity: 1, zIndex: Date.now() + 12 },
+      ];
+    },
+  },
+
+  {
+  id:"why-choose-left-card",
+  label:"Why Choose Card (Image Left)",
+  icon:"🖼",
+  hint:"Product image on LEFT, bullet features on RIGHT — mirror of card above",
+  build:(x,y)=>{
+    const gId = crypto.randomUUID(); // shared groupId for all elements in this card
+    // Image col: x+16 to x+216 (width 200) — 36% of 560
+    // Text col: starts at x+232, width 308
+    const imgX  = x + 16;
+    const textX = x + 232;
+    const textW = 308;
+    return [
+      // Card base background
+      { id:crypto.randomUUID(), groupId:gId, type:"rectangle", x, y, width:560, height:340, backgroundColor:"#F5F0E8", borderRadius:14, borderColor:"#D4C8A0", borderWidth:1, zIndex:Date.now()+1 },
+      // Grid overlay
+      { id:crypto.randomUUID(), groupId:gId, type:"rectangle", x, y, width:560, height:340, backgroundColor:"transparent", backgroundImage:"repeating-linear-gradient(#C8BC9033 1px,transparent 1px),repeating-linear-gradient(90deg,#C8BC9033 1px,transparent 1px)", backgroundSize:"28px 28px", borderRadius:14, borderWidth:0, zIndex:Date.now()+2 },
+
+      // LEFT — Image (width:200, starts at x+16)
+      { id:crypto.randomUUID(), groupId:gId, type:"image", x:imgX, y:y+55, width:200, height:255, borderRadius:10, objectFit:"cover", src:"https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=420&h=440&fit=crop", zIndex:Date.now()+3 },
+
+      // RIGHT — Section title
+      { id:crypto.randomUUID(), groupId:gId, type:"heading", x:textX, y:y+18, width:textW-10, height:42, content:"Why Choose Our Software?", fontSize:19, fontWeight:"800", color:"#1A1200", backgroundColor:"transparent", fontFamily:"Georgia", textAlign:"left", rotation:0, opacity:1, zIndex:Date.now()+4 },
+      // Divider
+      { id:crypto.randomUUID(), groupId:gId, type:"line", x:textX, y:y+62, width:textW-20, height:2, strokeColor:"#C9A84C", strokeWidth:2, rotation:0, opacity:1, zIndex:Date.now()+5 },
+
+      // Feature 1
+      { id:crypto.randomUUID(), groupId:gId, type:"circle",    x:textX,    y:y+80, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+6 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX,    y:y+80, width:36, height:36, content:"⚡", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+7 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX+44, y:y+80, width:textW-50, height:50, content:"Boost productivity with automations that remove repetitive tasks along with photorealistic 3D views", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+8 },
+
+      // Feature 2
+      { id:crypto.randomUUID(), groupId:gId, type:"circle",    x:textX,    y:y+148, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+9 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX,    y:y+148, width:36, height:36, content:"🔒", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+10 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX+44, y:y+148, width:textW-50, height:44, content:"Cloud Licensing keeps moving workstations a breeze", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+11 },
+
+      // Feature 3
+      { id:crypto.randomUUID(), groupId:gId, type:"circle",    x:textX,    y:y+208, width:36, height:36, backgroundColor:"#FFF8E0", borderColor:"#C9A84C", borderWidth:2, zIndex:Date.now()+12 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX,    y:y+208, width:36, height:36, content:"🎯", fontSize:18, fontWeight:"normal", color:"#000", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"center", lineHeight:1.8, rotation:0, opacity:1, zIndex:Date.now()+13 },
+      { id:crypto.randomUUID(), groupId:gId, type:"paragraph", x:textX+44, y:y+208, width:textW-50, height:44, content:"Precision design tools built for professional cabinet makers", fontSize:12, fontWeight:"normal", color:"#1A1200", backgroundColor:"transparent", fontFamily:"'Trebuchet MS'", textAlign:"left", lineHeight:1.5, rotation:0, opacity:1, zIndex:Date.now()+14 },
+
+      // CTA button on right side
+      { id:crypto.randomUUID(), groupId:gId, type:"button", x:textX, y:y+275, width:150, height:38, content:"Learn More →", fontSize:13, fontWeight:"700", color:"#0A0A0A", backgroundColor:"#C9A84C", borderRadius:7, fontFamily:"'Trebuchet MS'", textAlign:"center", rotation:0, opacity:1, zIndex:Date.now()+15 },
+    ];
+  },
+}
 ];
 
 // ─── Tabs config ─────────────────────────────────────────────────────────────
@@ -287,7 +501,7 @@ const handleFileUpload = async (e) => {
                   <div style={{
                     position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:100,
                     background:T.panel, border:`1px solid ${T.gold}55`, borderRadius:9,
-                    boxShadow:`0 8px 28px rgba(0,0,0,.7)`, overflow:"hidden",
+                    boxShadow:`0 8px 28px ${T.canvasEdge}`, overflow:"hidden",
                   }}>
                     {HEADING_TAGS.map(h => (
                       <button key={h.tag}

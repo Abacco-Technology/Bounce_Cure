@@ -26,7 +26,7 @@ import Support from './pages/Support/Support';
 import PricingDash from './pages/Pricing/PricingDash';
 import PaymentPage from './pages/Pricing/components/Checkout';
 import { UserProvider } from "./components/UserContext";
-import NewCampaignWindow from './pages/Campaign/Components/NewCampaignWindow';
+// import NewCampaignWindow from './pages/Campaign/Components/NewCampaignWindow';
 import CreateCampaign from './pages/Campaign/pages/CreateCampaign';
 import EditorPage from './pages/Campaign/pages/EditorPage';
 import PhoneValidation from './pages/PhoneValidation/PhoneValidation';
@@ -141,7 +141,7 @@ function App() {
             <Route path='/phoneValidation' element={<ProtectedRoute><PhoneValidation /></ProtectedRoute>} />
             
             {/* Campaign Routes */}
-            <Route path='/new-campaign' element={<ProtectedRoute><NewCampaignWindow /></ProtectedRoute>} />
+            {/* <Route path='/new-campaign' element={<ProtectedRoute><NewCampaignWindow /></ProtectedRoute>} /> */}
             <Route path="/create" element={<ProtectedRoute><CreateCampaign /></ProtectedRoute>} />
             <Route path="/editor" element={<ProtectedRoute><EditorPage /></ProtectedRoute>} />
             <Route path="/templetes" element={<ProtectedRoute><Templets /></ProtectedRoute>} />
