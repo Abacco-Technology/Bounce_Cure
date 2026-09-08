@@ -349,7 +349,7 @@ const totalScheduledMails = scheduledCampaigns
                   Create New Campaign
                 </h2>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div
                     onClick={() => {
                       setShowOptions(false);
@@ -365,13 +365,13 @@ const totalScheduledMails = scheduledCampaigns
                     }}
                     className="cursor-pointer bg-gray-900 p-8 rounded-xl hover:bg-gray-800 transition flex flex-col items-center text-center"
                   >
-                    <h3 className="text-xl font-semibold mb-2">Start from Scratch</h3>
+                    <h3 className="text-xl font-semibold mb-2">Canva Design Campaign</h3>
                     <p className="text-gray-400 text-sm">
                       Create a brand new design with an empty canvas
                     </p>
                   </div>
 
-                  <div
+                  {/* <div
                     onClick={() => {
                       setShowOptions(false);
                       navigate("/all-templates");
@@ -382,16 +382,23 @@ const totalScheduledMails = scheduledCampaigns
                     <p className="text-gray-400 text-sm">
                       Select from predefined templates
                     </p>
-                  </div>
+                  </div> */}
 
                   <div
                     onClick={() => {
                       setShowOptions(false);
-                      setActiveTab("texttemplates");
+                      navigate("/texteditor", {
+                        state: {
+                          template: {
+                            pages: [{ id: 1, elements: [] }],
+                            activePage: 0,
+                          },
+                        },
+                      });
                     }}
                     className="cursor-pointer bg-gray-900 p-8 rounded-xl hover:bg-gray-800 transition flex flex-col items-center text-center"
                   >
-                    <h3 className="text-xl font-semibold mb-2">Text Campaign</h3>
+                    <h3 className="text-xl font-semibold mb-2">Text-Based Campaign</h3>
                     <p className="text-gray-400 text-sm">
                       Plain-text email, written and formatted in the text editor
                     </p>
