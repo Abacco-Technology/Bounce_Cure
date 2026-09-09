@@ -7,6 +7,7 @@
 import React, { useState, useRef } from "react";
 import { T, SLabel, PRow, inputStyle, selectStyle, COLORS, FONTS } from "../../pages/EditorPage";
 import { convertContentToList, getContentListKind } from "./richText";
+import { SHAPE_TYPES, BORDER_STYLES } from "../../pages/editorConstants";
 
 const API_URL = import.meta.env.VITE_VRI_URL;
 
@@ -41,8 +42,10 @@ async function uploadImageToServer(file) {
 
 export default function PropertiesPanel({ selectedEl, updateEl, bringForward, sendBackward, deleteEl, duplicateEl }) {
   const u = (k,v) => updateEl(selectedEl.id, { [k]:v });
-  const isText   = selectedEl && ["heading","subheading","paragraph","blockquote","button"].includes(selectedEl.type);
-  const isShape  = selectedEl && ["rectangle","circle","star"].includes(selectedEl.type);
+  const isText   = selectedEl && (["heading","subheading","paragraph","blockquote","button"].includes(selectedEl.type)
+                                  || SHAPE_TYPES.includes(selectedEl.type));
+  const isShape  = selectedEl && [...SHAPE_TYPES, "star"].includes(selectedEl.type);
+  const isBox    = selectedEl && SHAPE_TYPES.includes(selectedEl.type);   // holds text + image + border
   const isLine   = selectedEl && selectedEl.type==="line";
   const isImage  = selectedEl && selectedEl.type==="image";
   const isSocial = selectedEl && selectedEl.type==="social";
@@ -316,16 +319,58 @@ export default function PropertiesPanel({ selectedEl, updateEl, bringForward, se
                 <PRow label="Fill Color">
                   <ColorPicker value={selectedEl.backgroundColor||T.gold} onChange={v=>u("backgroundColor",v)} />
                 </PRow>
-                {selectedEl.type==="rectangle" && (
+                {(selectedEl.type==="rectangle" || selectedEl.type==="square") && (
+                  <PRow label={`Corner Radius (${selectedEl.borderRadius ?? 6}px)`}>
+                    <input type="range" min={0} max={100} value={selectedEl.borderRadius ?? 6} onChange={e=>u("borderRadius",+e.target.value)} style={{ width:"100%" }} />
+                  </PRow>
+                )}
+
+                {isBox && (
                   <>
-                    <PRow label={`Corner Radius (${selectedEl.borderRadius||6}px)`}>
-                      <input type="range" min={0} max={100} value={selectedEl.borderRadius||6} onChange={e=>u("borderRadius",+e.target.value)} style={{ width:"100%" }} />
+                    <PRow label="Border Style">
+                      <select style={selectStyle} value={selectedEl.borderStyle||"solid"} onChange={e=>u("borderStyle",e.target.value)}>
+                        {BORDER_STYLES.map(b => (
+                          <option key={b} value={b}>
+                            {b === "solid"  ? "Solid  ———"
+                           : b === "dashed" ? "Dashed  – – –"
+                           : b === "dotted" ? "Dotted  · · ·"
+                           : b === "double" ? "Double  ═══"
+                           : "None"}
+                          </option>
+                        ))}
+                      </select>
                     </PRow>
                     <PRow label="Border Color">
-                      <ColorPicker value={selectedEl.borderColor||"transparent"} onChange={v=>u("borderColor",v)} allowTransparent />
+                      <ColorPicker value={selectedEl.borderColor||"#000000"} onChange={v=>u("borderColor",v)} />
                     </PRow>
-                    <PRow label={`Border Width (${selectedEl.borderWidth||0}px)`}>
-                      <input type="range" min={0} max={20} value={selectedEl.borderWidth||0} onChange={e=>u("borderWidth",+e.target.value)} style={{ width:"100%" }} />
+                    <PRow label={`Border Thickness (${selectedEl.borderWidth||0}px)`}>
+                      <input type="range" min={0} max={24} value={selectedEl.borderWidth||0} onChange={e=>u("borderWidth",+e.target.value)} style={{ width:"100%" }} />
+                    </PRow>
+
+                    <SLabel>Image inside shape</SLabel>
+                    <PRow label="Image URL">
+                      <input
+                        style={inputStyle}
+                        placeholder="https://… or leave empty"
+                        value={selectedEl.imageSrc||""}
+                        onChange={e=>u("imageSrc", e.target.value.trim())}
+                      />
+                    </PRow>
+                    {selectedEl.imageSrc && (
+                      <PRow label="Image Fit">
+                        <select style={selectStyle} value={selectedEl.imageFit||"cover"} onChange={e=>u("imageFit",e.target.value)}>
+                          <option value="cover">Cover — fill, crop edges</option>
+                          <option value="contain">Contain — fit whole image</option>
+                        </select>
+                      </PRow>
+                    )}
+
+                    <PRow label="Vertical Align">
+                      <select style={selectStyle} value={selectedEl.verticalAlign||"middle"} onChange={e=>u("verticalAlign",e.target.value)}>
+                        <option value="top">Top</option>
+                        <option value="middle">Middle</option>
+                        <option value="bottom">Bottom</option>
+                      </select>
                     </PRow>
                   </>
                 )}

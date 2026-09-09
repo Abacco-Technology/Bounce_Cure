@@ -10,13 +10,14 @@
  */
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { T } from "../../pages/EditorPage";
+import { SHAPE_TYPES, TEXT_TYPES, LINK_COLOR } from "../../pages/editorConstants";
 import { sanitizeInlineHtml, contentToHtml, safeHref, listKind } from "./richText";
 
-const TEXT_TYPES = ["heading","subheading","paragraph","blockquote","button"];
+// Shapes hold text too, so they get the same double-click editing.
+const EDITABLE_TYPES = [...TEXT_TYPES, ...SHAPE_TYPES];
+const SNAP = 8;   // px: within this distance of an edge, lock to it exactly
 
-// Link colour shown on canvas. Keep in sync with inlineHtml() in
-// server/routes/campaigns.js so the canvas matches the sent email.
-export const LINK_COLOR = "#1155cc";
+export { LINK_COLOR } from "../../pages/editorConstants";
 
 const HANDLES = [
   { id:"nw", cx:0,   cy:0,   cursor:"nw-resize" },
@@ -73,6 +74,7 @@ export default function CanvasArea({
   const heightDragRef = useRef(null);
   const [heightDragging, setHeightDragging] = useState(false);
   const [ctxMenu,     setCtxMenu]    = useState(null);
+  const pageHeightRef = useRef(660);   // kept in sync with the rendered page
 
   const elements = pages[activePage]?.elements || [];
   const bgColor  = pages[activePage]?.bgColor  || "#ffffff";
@@ -90,12 +92,53 @@ export default function CanvasArea({
   }, [elements]);
 
   const canvasH = manualHeights[pageId] !== undefined ? manualHeights[pageId] : autoHeight;
+  pageHeightRef.current = canvasH;   // clampPos reads this during a drag
 
   const toCanvas = useCallback((clientX, clientY) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return { x:0, y:0 };
     return { x:(clientX-rect.left)/zoom, y:(clientY-rect.top)/zoom };
   }, [zoom]);
+
+  /* Keep an element inside the page and snap it flush to an edge when close.
+
+     Rotation matters here. `x`/`y` describe the element's *layout* box, but
+     CSS rotates around the centre, so a rotated element's visible box is
+     wider or taller than its layout box and sticks out on both sides. Clamping
+     the layout box to 0 then leaves the visible shape short of the edge — a
+     rotated line was stranded ~138px away from it. So we clamp the rotated
+     bounding box instead, which makes every edge reachable at any angle and
+     reduces to the old behaviour at 0°. */
+  const clampPos = React.useCallback((x, y, w = 0, h = 0, rotation = 0) => {
+    const pageH = pageHeightRef.current;
+
+    const rad  = (Number(rotation) || 0) * Math.PI / 180;
+    const cos  = Math.abs(Math.cos(rad));
+    const sin  = Math.abs(Math.sin(rad));
+    const aabbW = w * cos + h * sin;      // width of the rotated bounding box
+    const aabbH = w * sin + h * cos;
+
+    // How far the visible box overhangs the layout box on each side
+    const overX = (aabbW - w) / 2;
+    const overY = (aabbH - h) / 2;
+
+    let minX = overX, maxX = CANVAS_W - w - overX;
+    let minY = overY, maxY = pageH - h - overY;
+
+    // Bigger than the page once rotated: centre it rather than jam it
+    if (maxX < minX) { const c = (CANVAS_W - w) / 2; minX = maxX = c; }
+    if (maxY < minY) { const c = (pageH - h) / 2;    minY = maxY = c; }
+
+    let nx = Math.min(Math.max(minX, x), maxX);
+    let ny = Math.min(Math.max(minY, y), maxY);
+
+    if (nx <= minX + SNAP)      nx = minX;   // flush left
+    else if (nx >= maxX - SNAP) nx = maxX;   // flush right
+    if (ny <= minY + SNAP)      ny = minY;   // flush top
+    else if (ny >= maxY - SNAP) ny = maxY;   // flush bottom
+
+    return { x: Math.round(nx), y: Math.round(ny) };
+  }, []);
 
   useEffect(() => {
     const onMove = (e) => {
@@ -104,17 +147,14 @@ export default function CanvasArea({
         const c = toCanvas(e.clientX, e.clientY);
         if (groupOffsets && groupId) {
           // Move all group elements together
-          const updates = groupOffsets.map(({ id: gid, offX: gox, offY: goy }) => ({
+          const updates = groupOffsets.map(({ id: gid, offX: gox, offY: goy, w, h, r }) => ({
             id: gid,
-            x: Math.max(0, c.x - gox),
-            y: Math.max(0, c.y - goy),
+            ...clampPos(c.x - gox, c.y - goy, w, h, r),
           }));
           updateMultiEl(updates);
         } else {
-          updateEl(id, {
-            x: Math.max(0, c.x - offX),
-            y: Math.max(0, c.y - offY),
-          });
+          const { w, h, r } = dragRef.current;
+          updateEl(id, clampPos(c.x - offX, c.y - offY, w, h, r));
         }
       }
       if (resizeRef.current) {
@@ -128,7 +168,15 @@ export default function CanvasArea({
         if (handle.includes("s"))  nh = Math.max(10, height + dy);
         if (handle.includes("w")) { nw = Math.max(20, width  - dx); nx = x + (width - nw); }
         if (handle.includes("n")) { nh = Math.max(10, height - dy); ny = y + (height- nh); }
-        updateEl(id, { x:nx, y:ny, width:nw, height:nh });
+
+        // Don't let a resize push the element off the page
+        if (nx < 0)                    { nw += nx; nx = 0; }
+        if (ny < 0)                    { nh += ny; ny = 0; }
+        if (nx + nw > CANVAS_W)        { nw = CANVAS_W - nx; }
+        if (nw <= SNAP + 20 && nx <= SNAP) nx = 0;
+        if (Math.abs(nx + nw - CANVAS_W) <= SNAP) nw = CANVAS_W - nx;
+
+        updateEl(id, { x:Math.round(nx), y:Math.round(ny), width:Math.round(nw), height:Math.round(nh) });
       }
       if (heightDragRef.current) {
         const { startY, startH, pageId: dragPageId } = heightDragRef.current;
@@ -158,7 +206,7 @@ export default function CanvasArea({
   }, [toCanvas, updateEl, saveUndo, pageId]);
 
   const startEdit = (el) => {
-    if (!TEXT_TYPES.includes(el.type)) return;
+    if (!EDITABLE_TYPES.includes(el.type)) return;
     dragRef.current = null;
     setDragging(false);
     setSelected(el.id);
@@ -170,7 +218,7 @@ export default function CanvasArea({
     e.preventDefault();
     e.stopPropagation();
     // Second click of a double-click — go straight to editing, never drag
-    if (e.detail >= 2 && TEXT_TYPES.includes(el.type)) { startEdit(el); return; }
+    if (e.detail >= 2 && EDITABLE_TYPES.includes(el.type)) { startEdit(el); return; }
     setSelected(el.id);
     setCtxMenu(null);
     const c = toCanvas(e.clientX, e.clientY);
@@ -182,9 +230,12 @@ export default function CanvasArea({
       id: el.id,
       offX: c.x - el.x,
       offY: c.y - el.y,
+      w: el.width,
+      h: el.height,
+      r: el.rotation || 0,
       groupId: el.groupId || null,
       groupOffsets: groupEls
-        ? groupEls.map(x => ({ id: x.id, offX: c.x - x.x, offY: c.y - x.y }))
+        ? groupEls.map(x => ({ id: x.id, offX: c.x - x.x, offY: c.y - x.y, w: x.width, h: x.height, r: x.rotation || 0 }))
         : null,
     };
     setDragging(true);
@@ -415,6 +466,71 @@ export default function CanvasArea({
   );
 }
 
+/* ── Shape renderer ────────────────────────────────────────────────────────
+   Rectangle, square and circle are plain divs — CSS borders give us solid,
+   dashed and dotted for free. Triangle needs SVG: a clip-path has no border,
+   so the outline would simply not draw. stroke-dasharray reproduces the same
+   three styles on the polygon. */
+function ShapeBody({ el }) {
+  const radius =
+    el.type === "circle" ? "50%" :
+    el.type === "triangle" ? 0 :
+    `${el.borderRadius ?? 6}px`;
+
+  const bw    = Number(el.borderWidth) || 0;
+  const style = el.borderStyle || "solid";
+  const bc    = el.borderColor || "#000000";
+  const fill  = el.backgroundColor || "transparent";
+
+  // An image inside the shape is a background layer, clipped by the shape
+  const imageLayer = el.imageSrc ? {
+    backgroundImage:  `url("${el.imageSrc}")`,
+    backgroundSize:   el.imageFit || "cover",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+  } : null;
+
+  if (el.type === "triangle") {
+    const w = Math.max(1, el.width), h = Math.max(1, el.height);
+    const inset = bw / 2;                       // keep the stroke inside the box
+    const pts = `${w / 2},${inset} ${w - inset},${h - inset} ${inset},${h - inset}`;
+    const dash = style === "dashed" ? `${bw * 3} ${bw * 2}`
+               : style === "dotted" ? `${bw} ${bw * 2}`
+               : undefined;
+    const clipId = `tri-${el.id}`;
+    return (
+      <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none"
+           style={{ position:"absolute", inset:0, pointerEvents:"none", overflow:"visible" }}>
+        <defs>
+          <clipPath id={clipId}><polygon points={pts} /></clipPath>
+        </defs>
+        <polygon points={pts} fill={fill} />
+        {el.imageSrc && (
+          <image href={el.imageSrc} x="0" y="0" width={w} height={h}
+                 preserveAspectRatio={el.imageFit === "contain" ? "xMidYMid meet" : "xMidYMid slice"}
+                 clipPath={`url(#${clipId})`} />
+        )}
+        {bw > 0 && style !== "none" && (
+          <polygon points={pts} fill="none" stroke={bc} strokeWidth={bw}
+                   strokeDasharray={dash} strokeLinejoin="round" />
+        )}
+      </svg>
+    );
+  }
+
+  return (
+    <div style={{
+      position:"absolute", inset:0,
+      background: fill,
+      ...imageLayer,
+      borderRadius: radius,
+      border: bw > 0 && style !== "none" ? `${bw}px ${style} ${bc}` : "none",
+      boxSizing:"border-box",
+      pointerEvents:"none",
+    }} />
+  );
+}
+
 // ── Height grip component ─────────────────────────────────────────────────────
 function HeightGrip({ onMouseDown, active }) {
   const [hov, setHov] = useState(false);
@@ -445,7 +561,9 @@ function HeightGrip({ onMouseDown, active }) {
 
 // ── Single canvas element ─────────────────────────────────────────────────────
 function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onMouseDown, onDblClick, onEditStart, onHandleDown, onRightClick }) {
-  const isText = TEXT_TYPES.includes(el.type);
+  const isText  = TEXT_TYPES.includes(el.type);
+  const isShape = SHAPE_TYPES.includes(el.type);
+  const canEdit = isText || isShape;
 
   return (
     <div
@@ -483,7 +601,7 @@ function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onM
       ))}
 
       {/* Edit button — the reliable way in; double-click still works too */}
-      {selected && !editing && isText && (
+      {selected && !editing && canEdit && (
         <button
           title={/<(ul|ol)\b/i.test(el.content || "") ? "Edit list items" : "Edit text"}
           onMouseDown={e => { e.stopPropagation(); e.preventDefault(); }}
@@ -510,7 +628,7 @@ function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onM
           borderRadius:5, padding:"2px 8px",
           fontSize:9, color:T.gold, whiteSpace:"nowrap", pointerEvents:"none", zIndex:15,
         }}>
-          {isText ? "drag · resize · ✏️ or dbl-click to edit" : "drag · handles to resize"}
+          {canEdit ? "drag · resize · ✏️ or dbl-click to edit" : "drag · handles to resize"}
         </div>
       )}
 
@@ -543,15 +661,32 @@ function CanvasEl({ el, selected, editing, editText, onEditBlur, onAutoGrow, onM
       {!editing && el.type==="star" && (
         <div style={{ width:"100%", height:"100%", display:"flex", alignItems:"center", justifyContent:"center", fontSize:el.width*.72, lineHeight:1, color:el.backgroundColor||T.goldBright, pointerEvents:"none" }}>★</div>
       )}
-      {!editing && (el.type==="circle"||el.type==="rectangle") && (
-        <div style={{
-          width:"100%", height:"100%",
-          background: el.backgroundImage ? el.backgroundImage : (el.backgroundColor||T.gold),
-          backgroundSize: el.backgroundSize || (el.backgroundImage ? "28px 28px" : undefined),
-          borderRadius: el.type==="circle" ? "50%" : `${el.borderRadius||6}px`,
-          border: el.borderWidth ? `${el.borderWidth}px solid ${el.borderColor}` : "none",
-          boxSizing:"border-box",
-        }} />
+      {SHAPE_TYPES.includes(el.type) && <ShapeBody el={el} />}
+
+      {/* Text sitting inside the shape — same inline markup as a paragraph.
+          Triangles get extra bottom bias so copy stays inside the sloping sides. */}
+      {!editing && SHAPE_TYPES.includes(el.type) && el.content && (
+        <div className="bc-text" style={{
+          position:"absolute", inset:0,
+          display:"flex", pointerEvents:"none",
+          alignItems: el.type === "triangle" ? "flex-end"
+                    : el.verticalAlign === "top" ? "flex-start"
+                    : el.verticalAlign === "bottom" ? "flex-end" : "center",
+          justifyContent: el.textAlign === "center" ? "center"
+                        : el.textAlign === "right"  ? "flex-end" : "flex-start",
+          padding: el.type === "triangle" ? "0 22% 8% 22%" : "8px 10px",
+          fontFamily: el.fontFamily || "Arial",
+          fontSize:   el.fontSize   || 16,
+          fontWeight: el.fontWeight || "600",
+          fontStyle:  el.fontStyle  || "normal",
+          textDecoration: el.textDecoration || "none",
+          lineHeight: el.lineHeight || 1.3,
+          color:      el.color || "#FFFFFF",
+          textAlign:  el.textAlign || "center",
+          whiteSpace: "pre-line", wordBreak:"break-word", overflow:"hidden",
+        }}
+          dangerouslySetInnerHTML={{ __html: contentToHtml(el.content) }}
+        />
       )}
       {!editing && isText && (
         <div style={{

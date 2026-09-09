@@ -562,10 +562,15 @@ const handleFileUpload = async (e) => {
 
             <div style={{ marginBottom:16 }}>
               <SLabel>◆  Shapes</SLabel>
+              <div style={{ fontSize:10, color:T.muted, marginBottom:6, lineHeight:1.5 }}>
+                Double-click a shape to type inside it. Borders and image fill are in Properties.
+              </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:7 }}>
                 {[
-                  { label:"Rectangle", type:"rectangle", icon:"▭", hint:"Box / block" },
+                  { label:"Rectangle", type:"rectangle", icon:"▭", hint:"Text or image box" },
+                  // { label:"Square",    type:"square",    icon:"◼", hint:"Text or image box" },
                   { label:"Circle",    type:"circle",    icon:"●", hint:"Round badge" },
+                  // { label:"Triangle",  type:"triangle",  icon:"▲", hint:"Text or image box" },
                   { label:"Star",      type:"star",      icon:"★", hint:"Accent / rating" },
                   { label:"Line",      type:"line",      icon:"─", hint:"Divider" },
                 ].map(item => (

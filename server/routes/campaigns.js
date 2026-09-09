@@ -202,8 +202,20 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     }));
 
   /* ── ALIGNMENT INFERENCE ────────────────────────────────────── */
-  function align(el, inCard, forceLeft) {
-    if (inCard) return el.textAlign || 'left';
+  function align(el, inCard, forceLeft, card) {
+    if (inCard) {
+      if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
+        return el.textAlign;
+      // No explicit alignment: derive it from where the element sits inside
+      // the card, not inside the whole canvas.
+      if (card && card.width > 0) {
+        const r = ((el.x + el.width / 2) - card.x) / card.width;
+        if (r < 0.32) return 'left';
+        if (r > 0.68) return 'right';
+        return 'center';
+      }
+      return 'left';
+    }
     if (forceLeft) {
       if (el.textAlign === 'left' || el.textAlign === 'center' || el.textAlign === 'right')
         return el.textAlign;
@@ -325,8 +337,8 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     return css;
   };
 
-  function renderEl(el, inCard, forceLeft, colWidthPx) {
-    const a = align(el, inCard, forceLeft);
+  function renderEl(el, inCard, forceLeft, colWidthPx, card) {
+    const a = align(el, inCard, forceLeft, card);
 
     switch (el.type) {
 
@@ -341,66 +353,126 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
         return `<${tag} style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#333'};font-family:${el.fontFamily || 'Arial,sans-serif'};font-weight:${el.fontWeight || 'normal'};font-style:${el.fontStyle || 'normal'};text-decoration:${el.textDecoration || 'none'};line-height:${el.lineHeight || 1.3};text-align:${a};word-break:break-word;background:${el.backgroundColor || 'transparent'};${extraType(el)}">${nl2br(el.content) || ''}</${tag}>`;
       }
 
-      case 'blockquote':
-        return `<div style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;border-left:4px solid ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;text-align:${a};">${nl2br(el.content) || ''}</div>`;
+      case 'blockquote': {
+        // The left rule used to be hardcoded, so quotes gained a bar in the
+        // email that isn't on the canvas. Now it only appears if the element
+        // actually has a border set in the properties panel.
+        const qbw = Number(el.borderWidth) || 0;
+        const qRule = qbw > 0
+          ? `border-left:${qbw}px ${el.borderStyle && el.borderStyle !== 'none' ? el.borderStyle : 'solid'} ${el.borderColor || el.strokeColor || '#C9A84C'};padding:4px 0 4px 12px;`
+          : '';
+        return `<div style="margin:3px 0;font-size:${el.fontSize || 15}px;color:${el.color || '#E8D8A0'};font-family:${el.fontFamily || 'Georgia,serif'};font-style:italic;${qRule}text-align:${a};">${nl2br(el.content) || ''}</div>`;
+      }
 
       case 'image': {
         let src = el.src || '';
         if (!src || src.startsWith('blob:') || src.startsWith('data:')) src = 'https://via.placeholder.com/560x200?text=No+Image';
         if (!src.startsWith('http://') && !src.startsWith('https://')) src = `${process.env.API_BASE_URL}${src}`;
-        const br = Number(el.borderRadius) || 0;
-        const bdr = el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#ccc'};` : '';
-        const isWide = inCard || forceLeft || (Number(el.width) || 0) / CW >= 0.55;
-        const maxW = isWide ? '100%' : `${sc(el.width)}px`;
-        const elH = Number(el.height) || 0;
+        // A radius may be a percentage ("50%" for a circle). Number() turns
+        // that into NaN, so the old code silently dropped it and every rounded
+        // image came out square.
+        const rawR = el.borderRadius;
+        const radiusCss = typeof rawR === 'string' && rawR.trim().endsWith('%')
+          ? rawR.trim()
+          : `${Number(rawR) || 0}px`;
+
+        const bdr = Number(el.borderWidth) > 0
+          ? `border:${el.borderWidth}px ${el.borderStyle && el.borderStyle !== 'none' ? el.borderStyle : 'solid'} ${el.borderColor || '#ccc'};`
+          : '';
+
         const elW = Number(el.width) || 1;
+        const elH = Number(el.height) || 0;
+
+        // Space this image actually has to fill. Inside a card that's the
+        // card's own width minus its 16px padding, not a guess off EW.
+        const availPx = colWidthPx
+          || (card && card.width ? Math.max(1, sc(card.width) - 32) : EW);
+        const naturalPx = sc(elW);
+        // Only stretch to 100% when the image really is close to full width.
+        // Blowing a small square image up to 100% turns a circle into an
+        // ellipse, which is why round images arrived stretched.
+        const isWide = naturalPx >= availPx * 0.9;
+
+        if (!isWide) {
+          const wPx = Math.min(naturalPx, availPx);
+          const hPx = elH > 0 ? Math.round(elH * (wPx / elW)) : 0;   // keep the aspect ratio
+          return `<div style="margin:0;font-size:0;line-height:0;text-align:${a};">
+            <a href="${el.link || '#'}" target="_blank">
+              <img src="${src}" alt="${el.alt || ''}" width="${wPx}"${hPx ? ` height="${hPx}"` : ''}
+                style="display:inline-block;width:${wPx}px;${hPx ? `height:${hPx}px;object-fit:cover;` : 'height:auto;'}
+                max-width:100%;border-radius:${radiusCss};${bdr}" />
+            </a>
+          </div>`;
+        }
+
         let scaledH = 0;
         if (forceLeft && elH > 0) {
           const refW = colWidthPx || Math.round((elW / CW) * EW);
           scaledH = Math.round(elH * (refW / elW));
         }
-        const heightStyle = scaledH > 0
-          ? `height:${scaledH}px;object-fit:cover;`
-          : 'height:auto;';
-          return `<div style="margin:0;font-size:0;line-height:0;">
+        const heightStyle = scaledH > 0 ? `height:${scaledH}px;object-fit:cover;` : 'height:auto;';
+        return `<div style="margin:0;font-size:0;line-height:0;">
             <a href="${el.link || '#'}" target="_blank">
               <img src="${src}" alt="${el.alt || ''}"
                 width="100%"
-                style="display:block;width:100%;max-width:${maxW};
+                style="display:block;width:100%;max-width:100%;
                 ${heightStyle}
-                border-radius:${br}px;${bdr}" />
+                border-radius:${radiusCss};${bdr}" />
             </a>
           </div>`;  
       }
 
       case 'button': {
-        const ba = align(el, inCard);
+        const ba = align(el, inCard, false, card);
         return `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0;"><tr><td align="${ba}"><a href="${el.link || '#'}" style="display:inline-block;padding:${el.padding || '10px 22px'};background-color:${el.backgroundColor || '#C9A84C'};color:${el.color || '#000'};text-decoration:none;border-radius:${el.borderRadius || 6}px;font-weight:${el.fontWeight || '700'};font-size:${el.fontSize || 15}px;font-family:${el.fontFamily || 'Arial,sans-serif'};">${el.content || 'Click Me'}</a></td></tr></table>`;
       }
 
       case 'line':
         return `<div style="margin:8px 0;font-size:0;line-height:0;"><hr style="border:none;height:${el.strokeWidth || 2}px;background:${el.strokeColor || '#333'};margin:0;"/></div>`;
 
-      case 'rectangle': {
-        if (inCard) return ''; // card background already applied — skip
-        const w = `${sc(el.width)}px`;
-        return `<div style="width:${w};height:${sc(el.height) || 40}px;background:${el.backgroundColor || '#4ECDC4'};border-radius:${el.borderRadius || 4}px;${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#000'};` : ''}display:block;margin:4px 0;"></div>`;
-      }
+      /* Rectangle, square, circle and triangle all render through one path.
+         They can carry text and an image fill, so each is a sized box with an
+         optional background image and centred copy. Triangles have no email-safe
+         CSS equivalent — clip-path is stripped by most clients — so they fall
+         back to a rounded box and keep their content readable. */
+      case 'rectangle':
+      case 'square':
+      case 'circle':
+      case 'triangle': {
+        if (inCard && el.type === 'rectangle') return ''; // card background already applied
 
-      case 'circle': {
-        const sz = Math.min(sc(el.width) || 36, sc(el.height) || 36);
-        return `<div style="display:inline-block;width:${sz}px;height:${sz}px;background:${el.backgroundColor || '#FF6B6B'};border-radius:50%;${el.borderWidth ? `border:${el.borderWidth}px solid ${el.borderColor || '#000'};` : ''}vertical-align:middle;"></div>`;
+        const w  = sc(el.width)  || 40;
+        const h  = sc(el.height) || 40;
+        const bw = Number(el.borderWidth) || 0;
+        const bs = el.borderStyle && el.borderStyle !== 'none' ? el.borderStyle : 'solid';
+        const radius = el.type === 'circle' ? '50%'
+                     : el.type === 'triangle' ? '6px'
+                     : `${el.borderRadius ?? 6}px`;
+
+        const bgImage = el.imageSrc
+          ? `background-image:url('${escapeHtml(el.imageSrc)}');background-size:${el.imageFit === 'contain' ? 'contain' : 'cover'};background-position:center;background-repeat:no-repeat;`
+          : '';
+
+        const border = bw > 0 && el.borderStyle !== 'none'
+          ? `border:${bw}px ${bs} ${el.borderColor || '#000'};` : '';
+
+        const valign = el.verticalAlign === 'top' ? 'top'
+                     : el.verticalAlign === 'bottom' ? 'bottom' : 'middle';
+
+        const inner = el.content
+          ? `<span style="font-family:${el.fontFamily || 'Arial,sans-serif'};font-size:${el.fontSize || 16}px;font-weight:${el.fontWeight || '600'};color:${el.color || '#fff'};line-height:${el.lineHeight || 1.3};">${nl2br(el.content)}</span>`
+          : '';
+
+        // A table cell, not a div: Outlook ignores height and vertical centring on divs
+        return `<table cellpadding="0" cellspacing="0" border="0" style="width:${w}px;margin:4px 0;"><tr>`
+             + `<td align="${a}" valign="${valign}" style="width:${w}px;height:${h}px;background-color:${el.backgroundColor || 'transparent'};${bgImage}${border}border-radius:${radius};text-align:${a};padding:6px 10px;box-sizing:border-box;">`
+             + `${inner}</td></tr></table>`;
       }
 
       case 'star': {
         const sz = Math.max(sc(el.width) || 24, 14);
         const clr = el.backgroundColor || el.color || '#FFD700';
         return `<span style="display:inline-block;font-size:${sz}px;line-height:1;color:${clr};vertical-align:middle;">&#9733;</span>`;
-      }
-
-      case 'triangle': {
-        const w = sc(el.width) || 28, h = sc(el.height) || 28;
-        return `<div style="display:inline-block;width:0;height:0;border-left:${Math.round(w / 2)}px solid transparent;border-right:${Math.round(w / 2)}px solid transparent;border-bottom:${h}px solid ${el.backgroundColor || '#FF9F43'};vertical-align:middle;"></div>`;
       }
 
       case 'emoji-icon': {
@@ -446,7 +518,26 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     return elArea > 0 && overlap / elArea > 0.50;
   }
 
-  const allRects = els.filter(e => e.type === 'rectangle');
+  /* A "card" is a shape other elements sit on top of. Only rectangles used to
+     qualify, so a design built on a square, circle or triangle container had
+     its background emitted as one unit and every child as separate stacked
+     units — the layout fell apart in the inbox.
+
+     Rectangles keep the old rule (always a container, matching existing
+     templates). The newer shapes must be large AND actually hold something,
+     so a small decorative circle stays a plain element. */
+  const CONTAINER_TYPES = ['rectangle', 'square', 'circle', 'triangle'];
+
+  const holdsChildren = (c) => els.some(el =>
+    el.id !== c.id && !CONTAINER_TYPES.includes(el.type) && centerIn(el, c));
+
+  const allRects = els.filter(e =>
+    e.type === 'rectangle' ||
+    (CONTAINER_TYPES.includes(e.type)
+      && e.width  >= CW * 0.30
+      && e.height >= 120
+      && holdsChildren(e))
+  );
   const skipRectIds = new Set();
   for (let i = 0; i < allRects.length; i++) {
     for (let j = i + 1; j < allRects.length; j++) {
@@ -469,9 +560,13 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
   const cardMap = new Map();
   rects.forEach(r => cardMap.set(r.id, { bg: r, kids: [] }));
 
+  // A shape acting as a card background must not also be placed inside one
+  const cardBgIds = new Set(rects.map(r => r.id));
+
   const orphans = [];
   els.forEach(el => {
     if (el.type === 'rectangle') return;
+    if (cardBgIds.has(el.id)) return;
     let best = null, bestA = Infinity;
     rects.forEach(r => {
       if (centerIn(el, r)) {
@@ -604,9 +699,15 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
     }
     
     // Regular card rendering (existing code)
-    const bgC = bg.backgroundColor || '#1A1A1A';
-    const rad = Number(bg.borderRadius) || 8;
-    const bdr = bg.borderWidth ? `border:${bg.borderWidth}px solid ${bg.borderColor || '#444'};` : '';
+    const bgC = bg.backgroundColor && bg.backgroundColor !== 'transparent'
+      ? bg.backgroundColor : 'transparent';
+    // Circle containers can't be circular in email without clipping the copy,
+    // so they render as a heavily rounded box — the nearest safe equivalent.
+    const rad = bg.type === 'circle' ? 999 : (Number(bg.borderRadius) || 8);
+    const bStyle = bg.borderStyle && bg.borderStyle !== 'none' ? bg.borderStyle : 'solid';
+    const bdr = Number(bg.borderWidth) > 0
+      ? `border:${bg.borderWidth}px ${bStyle} ${bg.borderColor || '#444'};`
+      : '';
     const sorted = [...kids].sort((a, b) => a.y - b.y);
 
     // Top-image: image whose top edge is within 20px of card top
@@ -627,6 +728,30 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
       }
     }
 
+    /* Row grouping is computed up front because the table's column count is
+       set by its widest row, and every earlier row needs to span that many
+       columns. Emitting a single-<td> row into a 3-column table is what
+       pinned the whole design to the left third of the card. */
+    const restSorted = [...rest].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+    const rowGroups = [];
+    restSorted.forEach(k => {
+      const kMidY = k.y + k.height / 2;
+      const existing = rowGroups.find(g =>
+        g.some(m => {
+          const mMidY = m.y + m.height / 2;
+          return Math.abs(kMidY - mMidY) < Math.min(k.height, m.height) * 0.6;
+        })
+      );
+      if (existing) existing.push(k);
+      else rowGroups.push([k]);
+    });
+    /* The card table is deliberately ONE column. Mixing single- and
+       multi-cell rows made HTML confine each lone cell to column 1, and that
+       column got sized by the narrowest item in the widest row — a social
+       icon — so headings, paragraphs and images were crushed to its width.
+       Side-by-side groups now live in a nested table inside the single cell,
+       so no row can affect any other row's width. colspan is not needed. */
+
     let rows = '';
 
     // Full-bleed top image
@@ -639,27 +764,12 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
 
     // Icon + heading side by side
     if (iconEl) {
-      rows += `<tr><td style="padding:12px 16px 4px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="44" valign="middle" style="padding-right:8px;">${renderEl(iconEl, true)}</td><td valign="middle">${renderEl(headEl, true)}</td></tr></table></td></tr>`;
+      rows += `<tr><td style="padding:12px 16px 4px;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="44" valign="middle" style="padding-right:8px;">${renderEl(iconEl, true, false, undefined, bg)}</td><td valign="middle">${renderEl(headEl, true, false, undefined, bg)}</td></tr></table></td></tr>`;
     }
 
     // Body content — sort by Y, group elements at same Y into one row (side-by-side)
     if (rest.length > 0) {
-      const restSorted = [...rest].sort((a, b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
       const topPad = (topImg || iconEl) ? '6' : '16';
-
-      // Group elements into rows: elements whose vertical centres overlap go in the same row
-      const rowGroups = [];
-      restSorted.forEach(k => {
-        const kMidY = k.y + k.height / 2;
-        const existing = rowGroups.find(g =>
-          g.some(m => {
-            const mMidY = m.y + m.height / 2;
-            return Math.abs(kMidY - mMidY) < Math.min(k.height, m.height) * 0.6;
-          })
-        );
-        if (existing) existing.push(k);
-        else rowGroups.push([k]);
-      });
 
       rowGroups.forEach((group, gIdx) => {
         // Y-gap from previous row
@@ -674,21 +784,22 @@ Sent by <strong>${fromName}</strong> | ${fromAddress} | <a href="mailto:${fromEm
         const padTop = gIdx === 0 ? 6 : Math.min(gapPx, 10);
         const padBot = gIdx === rowGroups.length - 1 ? '16' : '0';
 
+        let inner;
         if (group.length === 1) {
-          // Single element — normal full-width row
-          rows += `<tr><td style="padding:${padTop}px 12px ${padBot}px;">${renderEl(group[0], true)}</td></tr>`;
+          inner = renderEl(group[0], true, false, undefined, bg);
         } else {
-          // Multiple elements side by side — one <td> each, equal width
           const sortedByX = [...group].sort((a, b) => a.x - b.x);
           const colW = Math.round(100 / sortedByX.length);
-          rows += `<tr>`;
-          sortedByX.forEach((k, kIdx) => {
-            const lPad = kIdx === 0 ? '16' : '4';
-            const rPad = kIdx === sortedByX.length - 1 ? '16' : '4';
-            rows += `<td width="${colW}%" valign="middle" style="padding:${padTop}px ${rPad}px ${padBot}px ${lPad}px;text-align:center;">${renderEl(k, true)}</td>`;
-          });
-          rows += `</tr>`;
+          inner = `<table width="100%" cellpadding="0" cellspacing="0" border="0" style="table-layout:fixed;"><tr>`
+            + sortedByX.map((k, kIdx) => {
+                const lPad = kIdx === 0 ? 0 : 4;
+                const rPad = kIdx === sortedByX.length - 1 ? 0 : 4;
+                return `<td width="${colW}%" valign="middle" style="padding:0 ${rPad}px 0 ${lPad}px;text-align:center;">`
+                     + `${renderEl(k, true, false, undefined, bg)}</td>`;
+              }).join('')
+            + `</tr></table>`;
         }
+        rows += `<tr><td style="padding:${padTop}px 16px ${padBot}px;">${inner}</td></tr>`;
       });
     }
 

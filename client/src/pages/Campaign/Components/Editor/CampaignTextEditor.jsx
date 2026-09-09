@@ -36,23 +36,46 @@ const THEMES = {
     divider: "bg-gray-700",
     modal:   "bg-[#111] border-gray-800",
     hover:   "hover:bg-gray-800 text-white",
+
+    accent:      "bg-[#c2831f] text-black hover:bg-[#d99c2b]",
+    accentText:  "text-[#c2831f]",
+    accentHover: "hover:text-[#c2831f]",
+    ring:        "focus:ring-[#c2831f]",
+
+    // Controls sitting ON the top/bottom bar
+    barTitle:  "text-[#c2831f]",
+    barMuted:  "text-gray-400",
+    barBorder: "border-gray-800",
+    barHover:  "hover:bg-gray-800 text-white",
   },
+  // Blue scheme — same palette as Template Studio's light mode
   light: {
-    shell:   "bg-[#F4F1EA] text-[#2A241A]",
-    bar:     "bg-white",
-    toolbar: "bg-[#FAF7F0]",
-    panel:   "bg-[#EFEBE1]",
-    border:  "border-[#DED6C2]",
-    input:   "bg-white border-[#D9CFB6] text-[#2A241A]",
-    area:    "bg-white border-[#D9CFB6] text-[#2A241A] placeholder-[#A79E8C]",
-    btn:     "bg-[#EFEBE1] hover:bg-[#E3DDCC] text-[#2A241A]",
-    ghost:   "border-[#D9CFB6] text-[#5A5245] hover:bg-[#EFEBE1]",
-    strong:  "text-[#2A241A]",
-    muted:   "text-[#6B6255]",
-    faint:   "text-[#8A8171]",
-    divider: "bg-[#D9CFB6]",
-    modal:   "bg-white border-[#DED6C2]",
-    hover:   "hover:bg-[#EFEBE1] text-[#2A241A]",
+    shell:   "bg-[#EDF3FB] text-[#132A47]",
+    bar:     "bg-[#0D2B4E]",          // navy, matching the canvas editor
+    toolbar: "bg-white",
+    panel:   "bg-[#EDF3FB]",
+    border:  "border-[#D8E4F3]",
+    input:   "bg-white border-[#D8E4F3] text-[#132A47]",
+    area:    "bg-white border-[#D8E4F3] text-[#132A47] placeholder-[#9DB3CC]",
+    btn:     "bg-white hover:bg-[#E4EEFB] text-[#132A47] border border-[#D8E4F3]",
+    ghost:   "border-[#D8E4F3] text-[#41597A] hover:bg-[#E4EEFB]",
+    strong:  "text-[#132A47]",
+    muted:   "text-[#5B7392]",
+    faint:   "text-[#7A93B2]",
+    divider: "bg-[#D8E4F3]",
+    modal:   "bg-white border-[#D8E4F3]",
+    hover:   "hover:bg-[#E4EEFB] text-[#132A47]",
+
+    accent:      "bg-[#1A73E8] text-white hover:bg-[#1669D6]",
+    accentText:  "text-[#1A73E8]",
+    accentHover: "hover:text-[#1A73E8]",
+    ring:        "focus:ring-[#1A73E8]",
+
+    // The blue accent is unreadable on navy, so the bar has its own set
+    barTitle:  "text-white",
+    barMuted:  "text-[#A9C4E4]",
+    barBorder: "border-[#2C4E77]",
+    barHover:  "hover:bg-[#154070] text-white",
   },
 };
 
@@ -64,7 +87,7 @@ const TBtn = ({ onClick, title, active, t, children }) => (
   <button
     onClick={onClick}
     title={title}
-    className={`p-2 rounded transition-colors ${active ? 'bg-[#c2831f] text-black' : t.hover}`}
+    className={`p-2 rounded transition-colors ${active ? t.accent : t.hover}`}
   >{children}</button>
 );
 
@@ -274,10 +297,10 @@ const [showExitModal, setShowExitModal] = useState(false);
     <div className={`flex h-screen ${t.shell}`}>
       {/* Editor Section */}
       <div className={`${showPreview ? 'w-1/2' : 'w-full'} flex flex-col border-r ${t.border} transition-all`}>
-      <div className={`${t.bar} border-b ${t.border} px-6 py-4 flex items-center justify-between`}>
+      <div className={`${t.bar} border-b ${t.barBorder} px-6 py-4 flex items-center justify-between`}>
             <div>
-                <h1 className="text-2xl font-bold text-[#c2831f]">Campaign Text Editor</h1>
-                <div className={`text-sm ${t.muted} mt-1`}>Create and format your email content</div>
+                <h1 className={`text-2xl font-bold ${t.barTitle}`}>Campaign Text Editor</h1>
+                <div className={`text-sm ${t.barMuted} mt-1`}>Create and format your email content</div>
             </div>
 
               {/* Theme toggle + exit */}
@@ -285,15 +308,15 @@ const [showExitModal, setShowExitModal] = useState(false);
                 <button
                   onClick={toggleTheme}
                   title={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-                  className={`p-2 rounded-lg border ${t.border} ${t.hover} transition-colors`}
+                  className={`p-2 rounded-lg border ${t.barBorder} ${t.barHover} transition-colors`}
                 >
                   {mode === "dark" ? <Sun size={18} /> : <Moon size={18} />}
                 </button>
 
-                <div className={`border p-2 ${t.border} rounded-lg`}>
+                <div className={`border p-2 ${t.barBorder} rounded-lg`}>
                 <button
                   onClick={() => setShowExitModal(true)}
-                  className={`flex items-center gap-2 ${t.muted} hover:text-[#c2831f] transition-colors duration-300`}
+                  className={`flex items-center gap-2 ${t.barMuted} hover:text-white transition-colors duration-300`}
                 >
                   <LogOut size={18} />
                   <span className="text-sm font-medium">Exit Campaign</span>
@@ -323,11 +346,12 @@ const [showExitModal, setShowExitModal] = useState(false);
         {/* Exit to Campaign Page */}
         <button
           onClick={() => navigate('/send-campaign')}
-          className="w-full px-4 py-2 rounded-md bg-[#c2831f] text-black font-semibold hover:bg-[#d99c2b] transition-all"
+          className={`w-full px-4 py-2 rounded-md ${t.accent} font-semibold transition-all`}
         >
           Exit to Campaign Page
         </button>
-       
+
+  
         <button
           onClick={() => setShowExitModal(false)}
           className={`w-full px-4 py-2 rounded-md border ${t.ghost} transition-all`}
@@ -386,7 +410,7 @@ const [showExitModal, setShowExitModal] = useState(false);
                      onChange={e => setF('backgroundColor', e.target.value)}
                      className={`w-8 h-7 bg-transparent border ${t.border} rounded cursor-pointer`} />
               <button onClick={() => setF('backgroundColor', 'transparent')}
-                      className={`text-xs ${t.faint} hover:text-[#c2831f]`} title="Clear background">clear</button>
+                      className={`text-xs ${t.faint} ${t.accentHover}`} title="Clear background">clear</button>
             </label>
 
             <select title="Padding" className={selCls(t)} value={format.padding} onChange={e => setF('padding', e.target.value)}>
@@ -448,7 +472,7 @@ const [showExitModal, setShowExitModal] = useState(false);
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={onEditorKeyDown}
             placeholder={"Start typing your campaign content here...\n\n# Heading\n**bold**  *italic*  __underline__  ~~strike~~\n\n- bullet item\n1. numbered item\nI. roman item"}
-            className={`w-full h-full ${t.area} border rounded-lg p-6 resize-none focus:outline-none focus:ring-2 focus:ring-[#c2831f]`}
+            className={`w-full h-full ${t.area} border rounded-lg p-6 resize-none focus:outline-none focus:ring-2 ${t.ring}`}
             style={{
               fontFamily:    format.fontFamily,
               fontSize:      format.fontSize,
@@ -462,13 +486,13 @@ const [showExitModal, setShowExitModal] = useState(false);
         </div>
 
         {/* Send Button */}
-        <div className={`${t.bar} border-t ${t.border} px-6 py-4`}>
+        <div className={`${t.bar} border-t ${t.barBorder} px-6 py-4`}>
           <button 
             onClick={handleSend}
             disabled={!content.trim()}
             className={`w-full flex items-center justify-center gap-2 py-3 rounded-lg font-medium ${
               content.trim() 
-                ? 'bg-[#c2831f] hover:bg-[#d09025] text-white' 
+                ? t.accent 
                 : `${t.btn} opacity-50 cursor-not-allowed`
             }`}
           >
@@ -493,7 +517,7 @@ const [showExitModal, setShowExitModal] = useState(false);
       )}
 
       {savedNotice && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-5 py-2.5 rounded-lg bg-[#c2831f] text-black font-semibold text-sm shadow-xl">
+        <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[110] px-5 py-2.5 rounded-lg ${t.accent} font-semibold text-sm shadow-xl`}>
           {savedNotice}
         </div>
       )}
