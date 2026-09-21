@@ -362,6 +362,7 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     const h = (e) => {
       if (["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)) return;
+      if (e.target.isContentEditable || e.target.closest?.(".bc-edit")) return;
       if ((e.metaKey||e.ctrlKey)&&e.key==="z") { e.preventDefault(); undo(); }
       if ((e.metaKey||e.ctrlKey)&&e.key==="y") { e.preventDefault(); redo(); }
       if ((e.metaKey||e.ctrlKey)&&e.key==="d") { e.preventDefault(); duplicateEl(); }
