@@ -1011,10 +1011,12 @@ function InlineRichEditor({ el, initialHtml, onCommit, onAutoGrow }) {
         style={{
           position:"absolute", inset:0, width:"100%", height:"100%",
           display:"flex", flexDirection:"column", justifyContent:"center",
-          border:`2px dashed ${T.gold}`, borderRadius:4,
+          border:`2px dashed ${T.gold}`,
           padding: el.type === "button" ? "0 12px" : "4px 6px",
           boxSizing:"border-box", overflow:"auto",
-          background:"transparent", cursor:"text", zIndex:20,
+          background: el.type === "button" ? (el.backgroundColor || "transparent") : "transparent",
+          borderRadius: el.type === "button" ? (el.borderRadius ? `${el.borderRadius}px` : 6) : 4,
+          cursor:"text", zIndex:20,
         }}
         onMouseDown={e => { if (e.target === e.currentTarget) ref.current?.focus(); }}
       >
