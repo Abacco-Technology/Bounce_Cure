@@ -4,6 +4,50 @@ import sgMail from "@sendgrid/mail";
 import { prisma } from "../prisma/prismaClient.js";
 import { protect } from "../middleware/authMiddleware.js";
 
+// ================================================================
+// 📮 DEDICATED SENDGRID CLIENT FOR CAMPAIGNS
+// ----------------------------------------------------------------
+// The default `sgMail` export is ONE shared object for the whole app.
+// Other files (mailer.js, services/emailService.js, imapSync.js…) call
+// sgMail.setApiKey() with DIFFERENT keys, so whichever ran last decided
+// which SendGrid account a campaign was sent from. With a dedicated IP,
+// sending from an account/subuser that has no IP assigned gives:
+//   deferred: "no IPs are available for this account"
+// This private client always uses the campaign key, nothing can swap it.
+//
+// Env vars:
+//   SENDGRID_CAMPAIGN_API_KEY  (optional) key from the account that owns
+//                              the dedicated IP. Falls back to SENDGRID_API_KEY.
+//   SENDGRID_IP_POOL           (optional) IP pool name. Only set this if the
+//                              pool exists in SendGrid AND contains your IP.
+// ================================================================
+const campaignMailer = new sgMail.MailService();
+let campaignMailerKey = null;
+
+function getCampaignApiKey() {
+  return process.env.SENDGRID_CAMPAIGN_API_KEY || process.env.SENDGRID_API_KEY || null;
+}
+
+function initCampaignMailer() {
+  const key = getCampaignApiKey();
+  if (!key) return false;
+  if (key !== campaignMailerKey) {
+    campaignMailer.setApiKey(key);
+    campaignMailerKey = key;
+    // Log only the public key ID (middle part) so you can match it in
+    // SendGrid → Settings → API Keys. Never log the full key.
+    const keyId = key.split(".")[1] || "unknown";
+    console.log(`📮 Campaign SendGrid key ID: ${keyId}${process.env.SENDGRID_IP_POOL ? ` | IP pool: ${process.env.SENDGRID_IP_POOL}` : ""}`);
+  }
+  return true;
+}
+
+async function sendCampaignMail(msg) {
+  if (!initCampaignMailer()) throw new Error("SendGrid campaign API key not configured");
+  const pool = process.env.SENDGRID_IP_POOL;
+  return campaignMailer.send(pool ? { ...msg, ipPoolName: pool } : msg);
+}
+
 const router = express.Router();
 router.use(protect);
 
@@ -31,8 +75,10 @@ export async function resumeStuckCampaigns() {
 }
 
 async function _sendInBatches(campaign, buildMessage) {
-  if (!process.env.SENDGRID_API_KEY) return;
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+  if (!initCampaignMailer()) {
+    console.error(`❌ Campaign ${campaign.id}: SendGrid campaign API key not configured`);
+    return;
+  }
 
   let recipients = [];
   try { recipients = JSON.parse(campaign.recipientsJson || "[]"); } catch { return; }
@@ -102,7 +148,7 @@ const delayPerEmail = batchCount < 50
           };
 
       try {
-        const response = await sgMail.send(msg);
+        const response = await sendCampaignMail(msg);
         if (response[0].statusCode >= 200 && response[0].statusCode < 300) {
           batchSent++;
           totalSent++;
@@ -1063,10 +1109,9 @@ router.post("/send", async (req, res) => {
     // ==========================================================
     // 🧠 STEP 2: SendGrid setup
     // ==========================================================
-    if (!process.env.SENDGRID_API_KEY) {
+    if (!initCampaignMailer()) {
       return res.status(500).json({ error: "SendGrid API key not configured" });
     }
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     // ==========================================================
     // 💾 STEP 3: Prepare Scheduled DateTime
@@ -1418,7 +1463,7 @@ router.post("/verify-email", async (req, res) => {
     const response = await fetch('https://api.sendgrid.com/v3/verified_senders', {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+        'Authorization': `Bearer ${getCampaignApiKey()}`,
         'Content-Type': 'application/json',
       },
     });
@@ -1552,10 +1597,9 @@ router.post("/send-shuffled", async (req, res) => {
     // ==========================================================
     // 📧 STEP 2: SendGrid setup
     // ==========================================================
-    if (!process.env.SENDGRID_API_KEY) {
+    if (!initCampaignMailer()) {
       return res.status(500).json({ error: "SendGrid API key not configured" });
     }
-    sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
     // ==========================================================
     // 💾 STEP 3: Prepare Scheduled DateTime
@@ -1698,7 +1742,7 @@ router.post("/send-shuffled", async (req, res) => {
 
 
         try {
-          const response = await sgMail.send(msg);
+          const response = await sendCampaignMail(msg);
           if (response[0].statusCode >= 200 && response[0].statusCode < 300) {
             results.success.push({ email, subject });
             actualSentCount++;
