@@ -4,7 +4,7 @@ import { MailCheck, MailWarning, Mail, Send, CheckCircle, AlertTriangle } from '
 import authService from '../../services/authService';
 import toast from "react-hot-toast";
 
-const API_URL = import.meta.env.VITE_VRI_URL;
+const API_URL = import.meta.env.VITE_API_URL;
 
 const EmailVerification = () => {
     const [status, setStatus] = useState(false); // true if verified
@@ -12,24 +12,33 @@ const EmailVerification = () => {
     const [fetching, setFetching] = useState(true);
 
     // ✅ Fetch user info when component loads
+    // const API_URL = import.meta.env.VITE_API_URL;
+
     useEffect(() => {
         const fetchUserVerificationStatus = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const response = await fetch(`${API_URL}/api/auth/users/me`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                    },
-                });
+                const token = localStorage.getItem("token");
+
+                const response = await fetch(
+                    `${API_URL}/auth/users/me`,
+                    {
+                        headers: {
+                            Authorization: `Bearer ${token}`,
+                        },
+                    }
+                );
 
                 if (response.ok) {
                     const data = await response.json();
                     setStatus(data.user?.isVerified || false);
                 } else {
-                    console.error('Failed to fetch verification status');
+                    console.error(
+                        "Failed to fetch verification status:",
+                        response.status
+                    );
                 }
             } catch (err) {
-                console.error('Error fetching verification status:', err);
+                console.error("Error fetching verification status:", err);
             } finally {
                 setFetching(false);
             }

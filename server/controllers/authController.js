@@ -246,7 +246,7 @@ export const sendVerificationEmail = async (req, res) => {
             © ${new Date().getFullYear()} BounceCure. All rights reserved.
           </div>
         </div>
-      </body>
+      </body> 
       </html>
     `;
 
